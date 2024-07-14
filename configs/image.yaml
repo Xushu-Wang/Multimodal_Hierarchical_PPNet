@@ -1,0 +1,43 @@
+EXPERIMENT_RUN: 001
+
+MODEL:
+    BACKBONE: 'resnetbioscan'
+    PROTOTYPE_DISTANCE_FUNCTION: 'cosine'
+    PROTOTYPE_ACTIVATION_FUNCTION: 'linear'
+
+
+DATASET:
+    NAME: bioscan
+    NUM_CLASSES: 40
+    IMAGE: 
+        SIZE: 256
+        PROTOTYPE_SHAPE: (400, 2048, 1, 1)
+        TRAIN_DIR: "datasets/bioscan/train_diptera_augmented"
+        TEST_DIR: "datasets/bioscan/test_diptera"
+        TRAIN_PUSH_DIR: "datasets/bioscan/train_diptera"
+        TRAIN_BATCH_SIZE: 80
+        TRANSFORM_MEAN: (0.485, 0.456, 0.406)
+        TRANSFORM_STD: (0.229, 0.224, 0.225)
+    GENETIC:
+        FIX_PROTOTYPES: False
+
+OPTIM:
+    NUM_TRAIN_EPOCHS: 31
+    # JOINT_OPTIMIZER_LAYERS:
+    #     ADD_ON_LAYERS: 1e-3
+    #     PROTOTYPE_VECTORS: 1e-3
+    # WARM_OPTIMIZER_LAYERS:
+    #     ADD_ON_LAYERS: 1e-3
+    #     PROTOTYPE_VECTORS: 1e-3
+    COEFS:
+        SEP: -0.1
+    JOINT: False
+
+
+OUTPUT:
+    MODEL_DIR: "./saved_models/bioscan"
+    IMG_DIR: "./saved_models/bioscan/img"
+    WEIGHT_MATRIX_FILENAME: 'outputL_weights'
+    PROTOTYPE_IMG_FILENAME_PREFIX: 'prototype-img'
+    PROTOTYPE_SELF_ACT_FILENAME_PREFIX: 'prototype-self-act'
+    PROTO_BOUND_BOXES_FILENAME_PREFIX: 'bb'
