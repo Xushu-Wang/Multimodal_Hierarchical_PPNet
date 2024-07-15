@@ -1,0 +1,13 @@
+data/
+datasets/
+data
+*_temp*
+__pycache__/
+models/
+logs/
+scripts/
+saved_models/
+.DS_STORE
+slurm*.out
+# pretrained_backbones/
+test_tree.ipynb

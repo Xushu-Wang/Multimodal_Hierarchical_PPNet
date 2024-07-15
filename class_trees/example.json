@@ -1,0 +1,43 @@
+{
+    "tree": {
+        "Diptera": {
+            "Cecidomyiidae": {
+                "Asteromyia": null,
+                "Endaphis": { "Endaphis fugitiva": null }
+            },
+            "Chironomidae": {
+                "Tanytarsus": {
+                    "Tanytarsus hastatus": null,
+                    "Tanytarsus curvicristatus": null
+                },
+                "Smittia": {
+                    "Smittia terrestris": null,
+                    "Smittia aterrima": null
+                }
+            }
+        },
+        "Hymenoptera": {
+            "Scelionidae": {
+                "Telenomus": {
+                    "Telenomus laeviceps": null,
+                    "Telenomus podisi": null
+                },
+                "Trissolcus": {
+                    "Trissolcus hyalinipennis": null,
+                    "Trissolcus semistriatus": null
+                }
+            },
+            "Braconidae": {
+                "Dinotrema": {
+                    "Dinotrema longworthi": null,
+                    "Dinotrema Malaise4203": null
+                },
+                "Heterospilus": {
+                    "Heterospilus Malaise5480": null,
+                    "Heterospilus Malaise4724": null
+                }
+            }
+        }
+    },
+    "levels": ["order", "family", "genus", "species"]
+}
