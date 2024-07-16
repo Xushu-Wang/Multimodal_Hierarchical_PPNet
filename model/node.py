@@ -9,7 +9,6 @@ class Node:
         self.name = name
         self.label = label
         
-
     def add_children(self, names, labels = None):
         if type(names) is not list:
             names = [names]
@@ -51,7 +50,7 @@ class Node:
     def class_to_num_children(self):
         class_to_num = {}
         active_nodes = [self]
-        while len(active_nodes) > 0:
+        while active_nodes:
             for node in active_nodes:
                 class_to_num.update({node.name : node.num_children()})
             new_active_nodes = [] 
@@ -63,7 +62,7 @@ class Node:
     def class_to_proto_shape(self, x_per_child = 1, dimension = 512):
         class_to_shape = {}
         active_nodes = [self]
-        while len(active_nodes) > 0:
+        while active_nodes:
             for node in active_nodes:
                 if node.num_children() > 0:
                     class_to_shape.update({node.name : (x_per_child * node.num_children(),dimension,1,1)})
@@ -111,31 +110,22 @@ class Node:
             
         return ancestors
     
-
     def assign_descendents(self):
-        active_nodes = []
-        active_nodes += self.children
+        active_nodes = [self.children]
         descendents = set()
-        while len(active_nodes) > 0:
+        while active_nodes > 0:
             for node in active_nodes:
                 descendents.add(node.name)
-            new_active_nodes = []
-            for node in active_nodes:
-                new_active_nodes += node.children
-            active_nodes = new_active_nodes                    
+            active_nodes = [child for node in active_nodes for child in node.children]
+                  
         self.descendents = descendents
 
     def assign_all_descendents(self):
-        active_nodes = []
-        active_nodes += [self]
+        active_nodes = [self]
         while active_nodes:
             for node in active_nodes:
                 node.assign_descendents()
-            new_active_nodes = [] 
-            for node in active_nodes:
-                new_active_nodes += node.children
-            active_nodes = new_active_nodes                             
-
+            active_nodes = [child for node in active_nodes for child in node.children]
 
     def closest_descendent_for(self,name):
         if name in self.children_names(): 
@@ -206,7 +196,6 @@ class Node:
                 active_nodes.extend(node.children)
                             
         return nodes
-
 
     def __str__(self):
         return "Node for " + self.name
