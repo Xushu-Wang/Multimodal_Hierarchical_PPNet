@@ -1,4 +1,6 @@
 import os
+import shutil
+import Augmentor
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
@@ -8,6 +10,8 @@ import numpy as np
 from typing import Optional
 import copy
 from skimage import io, transform
+from torchvision.transforms import v2, ToTensor
+import tqdm
 
 class GeneticOneHot(object):
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
@@ -122,32 +126,6 @@ class TreeDataset(Dataset):
         self.mode = mode
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
         
-        # If training, apply genetic augmentations
-        # if genetic_augmentations.get("substitution_rate", 0):
-        #     self.substitution_rate = genetic_augmentations.get("substitution_rate", 0.01)
-        #     self.insertion_amount = genetic_augmentations.get("insertion_amount", 5)
-        #     self.deletion_amount = genetic_augmentations.get("deletion_amount", 5)
-
-        #     self.df = self.mutate_genetics(self.df)
-
-    def mutate_sample(self):
-        insertion_count = np.random.randint(0, self.insertion_amount+1)
-        deletion_count = np.random.randint(0, self.deletion_amount+1)
-
-        insertion_indices = np.random.randint(0, len(sample), insertion_count)
-        for idx in insertion_indices:
-            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
-        
-        deletion_indices = np.random.randint(0, len(sample), deletion_count)
-        for idx in deletion_indices:
-            sample = sample[:idx] + sample[idx+1:]
-        
-        mutation_indices = np.random.choice(len(sample), int(len(sample) * self.substitution_rate), replace=False)
-        for idx in mutation_indices:
-            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
-        
-        return sample
-
     def mutate_genetics(self, df:pd.DataFrame):
         return df.apply(self.mutate_sample, axis=1)
 
@@ -223,6 +201,69 @@ def proportional_assign(total_count, count_per_leaf):
         temp_count_per_leaf[np.random.choice(3)] -= 1
 
     return temp_count_per_leaf.astype(int)
+
+def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image_path:str, oversampling_rate: int, seed:int=2024):
+    if oversampling_rate % 4 != 0:
+        raise ValueError("Oversampling rate must be a multiple of 4.")
+    
+    # Create a temporary folder
+    temp_image_path = os.path.join(augmented_image_path, "temp")
+    if not os.path.exists(temp_image_path):
+        os.makedirs(temp_image_path)
+
+    if not os.path.exists(augmented_image_path):
+        os.makedirs()
+
+    # Copy each image in source_df["image_path"] to temp_image_path
+    for idx, row in source_df.iterrows():
+        image_path = os.path.join(image_path, row["image_file"])
+        temp_image_path = os.path.join(temp_image_path, row["image_file"])
+        shutil.copy(image_path, temp_image_path)
+
+    # rotation
+    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+    p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
+    p.flip_left_right(probability=0.5)
+    for i in tqdm(range(oversampling_rate // 4)):
+        p.process()
+    del p
+
+    print("Rotation done")
+
+    # skew
+    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+    p.skew(probability=1, magnitude=0.2)  # max 45 degrees
+    p.flip_left_right(probability=0.5)
+    for i in tqdm(range(oversampling_rate // 4)):
+        p.process()
+    del p
+
+    print("Skew done")
+
+    # shear
+    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+    p.shear(probability=1, max_shear_left=10, max_shear_right=10)
+    p.flip_left_right(probability=0.5)
+    for i in tqdm(range(oversampling_rate // 4)):
+        p.process()
+    del p
+
+    print("Shear done")
+    
+    #random_distortion
+    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+    p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
+    p.flip_left_right(probability=0.5)
+    for i in tqdm(range(oversampling_rate // 4)):
+        p.process()
+    del p
+
+    print("Random Distortion done")
+
+    # Clean up
+    os.rmdir(temp_image_path)
+
+    exit()
 
 def oversample(source_df: pd.DataFrame, count: int, seed:int=2024):
     # Fairly oversample the source_df to count
@@ -351,8 +392,78 @@ def balanced_sample(source_df:pd.DataFrame, class_specification:tuple, count_per
 
     return train_df, val_df, test_df, count_tree
 
+def mutate_sample(insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
+    insertion_count = np.random.randint(0, insertion_amount+1)
+    deletion_count = np.random.randint(0, deletion_amount+1)
 
-def create_tree_dataloaders(source, image_root_dir: str, genetic_augmentations: list = None, image_augmentations: list = None, train_val_test_split=(120, 40, 40), train_end_count=0, train_not_classified_proportions=object, class_specification=(None, []), mode=3, seed=2024):
+    insertion_indices = np.random.randint(0, len(sample), insertion_count)
+    for idx in insertion_indices:
+        sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
+    
+    deletion_indices = np.random.randint(0, len(sample), deletion_count)
+    for idx in deletion_indices:
+        sample = sample[:idx] + sample[idx+1:]
+    
+    mutation_indices = np.random.choice(len(sample), int(len(sample) * substitution_rate), replace=False)
+    for idx in mutation_indices:
+        sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
+    
+    return sample
+
+def check_cached_images(source, image_cache_dir):
+    """
+    Check if the images are already cached. If not, cache them.
+    """
+    if not os.path.exists(image_cache_dir):
+        os.makedirs(image_cache_dir)
+    
+    for idx, row in source.iterrows():
+        image_path = os.path.join(image_cache_dir, row["image_file"])
+        if not os.path.exists(image_path):
+            print(f"{image_path} not found. Augmenting Images.")
+            return False
+
+    return True
+
+def augment_train_dataset(source, image_root_dir, image_cache_dir):
+    """
+    This applies image and genetic augmentations to the training dataset.
+    NOTE: This does not oversample the training dataset.
+    """
+
+    # Mutate genetics
+    source = source.apply(lambda x: mutate_sample(x, insertion_amount=5, deletion_amount=5, substitution_rate=.05), axis=1)
+
+    # Augment images - Rotation, skew, shear, and random distortion
+    p = Augmentor.Pipeline()
+    p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
+    p.flip_left_right(probability=0.5)
+
+    rotation_transform = v2.Compose([
+        p.torch_transform(),
+        ToTensor()]
+    )
+    
+    # skew_transform = v2.Compose([
+    #     v2.RandomAffine(degrees=0, shear=45),
+    #     v2.RandomHorizontalFlip(),
+    # ])
+
+    shear_transform = v2.Compose([
+        v2.RandomAffine(degrees=0, shear=10),
+        v2.RandomHorizontalFlip(),
+    ])
+
+    distortion_transform = v2.Compose([
+        v2.ElasticTransform(alpha=1, sigma=10),
+        v2.RandomHorizontalFlip(),
+    ])
+
+
+    return source
+
+
+def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, genetic_augmentations: list = None, image_augmentations: list = None, train_val_test_split=(120, 40, 40), train_end_count=0, train_not_classified_proportions=object, class_specification=(None, []), mode=3, seed=2024):
     """
         Creates train, validation, and test dataloaders for the tree dataset.
         
@@ -389,12 +500,12 @@ def create_tree_dataloaders(source, image_root_dir: str, genetic_augmentations: 
     old_train_size = len(train_df)
     if train_end_count < old_train_size:
         raise ValueError("train_end_count must be greater than or equal to the number of samples in the training set before oversampling. Sorry, I won't let you do this. You may not. No.")
-    train_df = oversample(train_df, train_end_count, seed)
+    train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), 8, seed)
     new_train_size = len(train_df)
 
     print(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
 
-    train_dataset = TreeDataset(train_df, image_root_dir, class_specification, mode)
+    train_dataset = TreeDataset(train_df, image_cache_dir, class_specification, mode)
     val_dataset = TreeDataset(val_df, image_root_dir, class_specification, mode)
     test_dataset = TreeDataset(test_df, image_root_dir, class_specification, mode)
 
