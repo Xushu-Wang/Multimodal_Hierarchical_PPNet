@@ -9,4 +9,4 @@ ln -s /usr/project/xtmp/xw214/full_bioscan_images full_bioscan_images
 ```
 
 ## Using Datasets
-If the dataset is in mode 1 (genetics) or mode (2), it will return (tensor, label), otherwise it will return ((genetics_tensor,image_tensor), label)
+If the dataset is in mode 1 (genetics) or mode 2 (image), it will return (tensor, label), otherwise it will return ((genetics_tensor,image_tensor), label)
