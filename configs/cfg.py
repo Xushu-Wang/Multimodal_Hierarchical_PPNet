@@ -2,40 +2,55 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 
-_C.EXPERIMENT_RUN = 0
+_C.RUN_NAME = "" # Name of the run. If "", will be set to the current time.
+_C.SEED = 2024
 
 # Model
 _C.MODEL = CN()
 _C.MODEL.DEVICE = "cuda" 
-_C.MODEL.BACKBONE = 'resnet50'
-_C.MODEL.GENETIC_BACKBONE = "NA"
+_C.MODEL.IMAGE_BACKBONE = 'resnetbioscan'
+_C.MODEL.GENETIC_BACKBONE_PATH = "NA"
 
-
-_C.MODEL.PROTOTYPE_DISTANCE_FUNCTION = 'l2'
-_C.MODEL.PROTOTYPE_ACTIVATION_FUNCTION = 'log'
+_C.MODEL.PROTOTYPE_DISTANCE_FUNCTION = 'cosine'
+_C.MODEL.PROTOTYPE_ACTIVATION_FUNCTION = 'linear'
 _C.MODEL.GENETIC_MODE = False
-
 
 # Dataset
 _C.DATASET = CN()
-_C.DATASET.NAME = "NA"
-_C.DATASET.NUM_CLASSES = 0
+_C.DATASET.DATA_FILE = "datasets/metadata/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
+_C.DATASET.IMAGE_PATH = "NA" # Path to image directory
+_C.DATASET.AUGMENTED_IMAGE_PATH = "NA" # Path to which augmented images will be saved
+_C.DATASET.TREE_SPECIFICATION_FILE = "NA" # Path to JSON file that specifies tree structure
+_C.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS = [0,0,.25,.5] # Proportions of samples at each level that are unclassified [order, family, genus, species]. Note: Lower levels counts do not consider higher level counts, so for this default, > 50% of species are unclassified (50% + 25% of genus)
+
+_C.DATASET.MODE = 3 # 0 is illegal, don't use. 1 is genetic only, 2 is image only, 3 is joint. This will only affect what the dataloader/dataset returns. Not the augmentation.
+
+_C.DATASET.PRE_EXISTING_IMAGES = False # Whether the images have already been preprocessed
+_C.DATASET.CACHED_DATASET_FOLDER = "" # Path to folder with pre-existing datasets. Most other dataset parameters will be ignored if this is set. "" for no cache.  
+
+_C.DATASET.CACHED_DATASET_ROOT = "pre_existing_datasets" # All cached datasets will be stored in this folder. You really shouldn't change this.
+
+_C.DATASET.TRAIN_VAL_TEST_SPLIT = (120, 40, 40) # For each leaf node, the number of samples in the training, validation, and test sets. Train samples will be oversampled from thos.
+
+_C.DATASET.OVERSAMPLING_RATE = 1 # How much to augment this dataset. Must be a multiple of 4
+_C.DATASET.PREEXISTING = False # Whether the dataset has already preprocessed (augmentaiton has occured)
+
+_C.DATASET.GENETIC_AUGMENTATION = CN()
+_C.DATASET.GENETIC_AUGMENTATION.SUBSTITUTION_RATE = 0.05 # Probability of substitution for each base pair
+_C.DATASET.GENETIC_AUGMENTATION.DELETION_COUNT = 4 # Maximum number of deletions to perform
+_C.DATASET.GENETIC_AUGMENTATION.INSERTION_COUNT = 4 # Maximum number of insertions to perform
 
 _C.DATASET.TRAIN_BATCH_SIZE = 80
 _C.DATASET.TEST_BATCH_SIZE = 100
 _C.DATASET.TRAIN_PUSH_BATCH_SIZE = 75
 
-
 # Image Dataset
 _C.DATASET.IMAGE = CN()
 
-_C.DATASET.IMAGE.SIZE = 0
+_C.DATASET.IMAGE.SIZE = 256
 _C.DATASET.IMAGE.PROTOTYPE_SHAPE = (0, 0, 0, 0) 
 
 _C.DATASET.IMAGE.MODEL_PATH = "NA"
-_C.DATASET.IMAGE.TRAIN_DIR = "NA"
-_C.DATASET.IMAGE.TEST_DIR = "NA"
-_C.DATASET.IMAGE.TRAIN_PUSH_DIR = "NA"
 _C.DATASET.IMAGE.TRAIN_BATCH_SIZE = 0
 _C.DATASET.IMAGE.TRANSFORM_MEAN = ()
 _C.DATASET.IMAGE.TRANSFORM_STD = ()
@@ -43,19 +58,9 @@ _C.DATASET.IMAGE.TRANSFORM_STD = ()
 
 # Genetic Dataset 
 _C.DATASET.GENETIC = CN()
-_C.DATASET.GENETIC.TAXONOMY_NAME = "NA"
-_C.DATASET.GENETIC.ORDER_NAME = "NA"
 _C.DATASET.GENETIC.SIZE = 0
 _C.DATASET.GENETIC.PROTOTYPE_SHAPE = (0, 0, 0, 0)
-
-_C.DATASET.GENETIC.TRANSFORM = 'onehot'
-
-_C.DATASET.GENETIC.MODEL_PATH = "NA"
-_C.DATASET.GENETIC.TRAIN_PATH = "NA"
-_C.DATASET.GENETIC.VALIDATION_PATH = "NA"
-_C.DATASET.GENETIC.TRAIN_PUSH_DIR = "NA"
-_C.DATASET.GENETIC.FIX_PROTOTYPES = True
-_C.DATASET.GENETIC.RESTRAINT = ()
+_C.DATASET.GENETIC.FIX_PROTOTYPES = False
 
 
 # Training
@@ -102,8 +107,7 @@ _C.OPTIM.JOINT = False
 
 # Output 
 _C.OUTPUT = CN()
-_C.OUTPUT.MODEL_DIR = "NA"
-_C.OUTPUT.IMG_DIR = "NA"
+_C.OUTPUT.MODEL_DIR = ""
 _C.OUTPUT.WEIGHT_MATRIX_FILENAME = "NA" 
 _C.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX = "NA" 
 _C.OUTPUT.PROTOTYPE_SELF_ACT_FILENAME_PREFIX = "NA" 

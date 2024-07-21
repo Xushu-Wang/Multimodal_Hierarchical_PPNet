@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 import Augmentor
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -12,6 +13,7 @@ import copy
 from skimage import io, transform
 from torchvision.transforms import v2, ToTensor
 import tqdm
+import json
 
 class GeneticOneHot(object):
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
@@ -202,76 +204,132 @@ def proportional_assign(total_count, count_per_leaf):
 
     return temp_count_per_leaf.astype(int)
 
-def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image_path:str, oversampling_rate: int, seed:int=2024):
-    if oversampling_rate % 4 != 0:
-        raise ValueError("Oversampling rate must be a multiple of 4.")
+def extract_id(path: str):
+    return ""
+
+def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image_path:str, oversampling_rate: int, pre_existing=False, seed:int=2024, log=print):
+    if not pre_existing:
+        if oversampling_rate % 4 != 0:
+            raise ValueError("Oversampling rate must be a multiple of 4.")
+        
+        # Create a temporary folder
+        temp_image_path = os.path.join(augmented_image_path, "temp")
+        if not os.path.exists(temp_image_path):
+            os.makedirs(temp_image_path)
+
+        if not os.path.exists(augmented_image_path):
+            os.makedirs()
+
+        # Copy each image in source_df["image_path"] to temp_image_path
+        for idx, row in source_df.iterrows():
+            image_path = os.path.join(image_path, row["image_file"])
+            temp_image_path = os.path.join(temp_image_path, row["image_file"])
+            shutil.copy(image_path, temp_image_path)
+
+        # Get the indicies of all duplicated IDs in source_df
+        duplicated_ids = source_df[source_df.duplicated(subset="image_file")]
+        accessed_duplicated_ids = set()
+
+        # Loop over duplicated ids, change their ids to be unique and duplicate the images
+        for idx, row in duplicated_ids.iterrows():
+            old_id = row["sample_id"]
+            if old_id in accessed_duplicated_ids:
+                accessed_duplicated_ids.add(old_id)
+                continue
+
+            new_id = f"{old_id}_{idx}"
+            # Update the source_df with the new id
+            source_df.loc[source_df["sample_id"] == old_id, "sample_id"] = new_id
+
+            new_image_file = f"{new_id}.jpg"
+
+            # Copy the image to the new id
+            image_path = os.path.join(image_path, row["image_file"])
+            new_image_path = os.path.join(temp_image_path, new_image_file)
+            shutil.copy(image_path, new_image_path)
+            log(f"[Duplicate] Copied {image_path} to {new_image_path}")
+
+            # Update the source_df with the new image file
+            source_df.loc[source_df["sample_id"] == new_id, "image_file"] = new_image_file
+
+        log("Duplicated IDs handled")
+
+        # rotation
+        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+        p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
+        p.flip_left_right(probability=0.5)
+        for i in tqdm(range(oversampling_rate // 4)):
+            p.process()
+        del p
+
+        log("Rotation done")
+
+        # skew
+        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+        p.skew(probability=1, magnitude=0.2)  # max 45 degrees
+        p.flip_left_right(probability=0.5)
+        for i in tqdm(range(oversampling_rate // 4)):
+            p.process()
+        del p
+
+        log("Skew done")
+
+        # shear
+        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+        p.shear(probability=1, max_shear_left=10, max_shear_right=10)
+        p.flip_left_right(probability=0.5)
+        for i in tqdm(range(oversampling_rate // 4)):
+            p.process()
+        del p
+
+        log("Shear done")
+        
+        #random_distortion
+        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
+        p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
+        p.flip_left_right(probability=0.5)
+        for i in tqdm(range(oversampling_rate // 4)):
+            p.process()
+        del p
+
+        log("Random Distortion done")
+
+        # Clean up
+        os.rmdir(temp_image_path)
     
-    # Create a temporary folder
-    temp_image_path = os.path.join(augmented_image_path, "temp")
-    if not os.path.exists(temp_image_path):
-        os.makedirs(temp_image_path)
+    # Get all the images in the augmented_image_path
+    augmented_images = os.listdir(augmented_image_path)
+    augmented_image_ids = [extract_id(image) for image in augmented_images]
 
-    if not os.path.exists(augmented_image_path):
-        os.makedirs()
+    augmented_image_id_map = {image_id: [] for image_id in augmented_image_ids}
+    for image, image_id in zip(augmented_images, augmented_image_ids):
+        augmented_image_id_map[image_id].append(image)
 
-    # Copy each image in source_df["image_path"] to temp_image_path
-    for idx, row in source_df.iterrows():
-        image_path = os.path.join(image_path, row["image_file"])
-        temp_image_path = os.path.join(temp_image_path, row["image_file"])
-        shutil.copy(image_path, temp_image_path)
+    # Oversample the source_df
 
-    # rotation
-    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-    p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
-    p.flip_left_right(probability=0.5)
-    for i in tqdm(range(oversampling_rate // 4)):
-        p.process()
-    del p
+    output = []
 
-    print("Rotation done")
+    oversampled_df = pd.concat([source_df] * oversampling_rate)
 
-    # skew
-    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-    p.skew(probability=1, magnitude=0.2)  # max 45 degrees
-    p.flip_left_right(probability=0.5)
-    for i in tqdm(range(oversampling_rate // 4)):
-        p.process()
-    del p
+    for idx, row in oversampled_df.iterrows():
+        image_id = extract_id(row["image_file"])
+        if len(augmented_image_id_map[image_id]) == 0:
+            raise ValueError(f"Image {row['image_file']} has no augmented images. This should not happen.")
+        
+        augmented_image = augmented_image_id_map[image_id][idx // len(source_df)]
+        row["image_file"] = augmented_image
+        output.append(row)
 
-    print("Skew done")
+    return pd.DataFrame(output).sample(frac=1, random_state=seed)
 
-    # shear
-    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-    p.shear(probability=1, max_shear_left=10, max_shear_right=10)
-    p.flip_left_right(probability=0.5)
-    for i in tqdm(range(oversampling_rate // 4)):
-        p.process()
-    del p
-
-    print("Shear done")
-    
-    #random_distortion
-    p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-    p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
-    p.flip_left_right(probability=0.5)
-    for i in tqdm(range(oversampling_rate // 4)):
-        p.process()
-    del p
-
-    print("Random Distortion done")
-
-    # Clean up
-    os.rmdir(temp_image_path)
-
-    exit()
-
-def oversample(source_df: pd.DataFrame, count: int, seed:int=2024):
+def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print):
+    log("Oh no, we oversampled. This will break things... Must improve data augmentation.")
     # Fairly oversample the source_df to count
     shortage = count - len(source_df)
     output = pd.concat([source_df] + [source_df] * (shortage // len(source_df)) + [source_df.sample(shortage % len(source_df), replace=False, random_state=seed)])
     return output.sample(frac=1, random_state=seed)
 
-def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFrame, count_per_leaf:tuple, train_not_classified_proportion, seed:int=2024, parent_name:str=None):
+def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFrame, count_per_leaf:tuple, train_not_classified_proportion, seed:int=2024, parent_name:str=None, log=print):
     train_output = []
     val_output = []
     test_output = []
@@ -288,14 +346,14 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
             if class_size < 3:
                 raise ValueError(f"Less than 3 samples for {k} of {parent_name} at level {levels[0]}. Unable to proceed.")
             if class_size < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
-                print(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[1]}) of parent {parent_name}. Dividing proportionally")
+                log(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[1]}) of parent {parent_name}. Dividing proportionally")
                 
                 temp_count_per_leaf = proportional_assign(class_size, count_per_leaf)
 
-                print(f"New counts for {k}")
-                print(f"Train:\t\t{temp_count_per_leaf[0]}")
-                print(f"Validation:\t{temp_count_per_leaf[1]}")
-                print(f"Test:\t\t{temp_count_per_leaf[2]}")
+                log(f"New counts for {k}")
+                log(f"Train:\t\t{temp_count_per_leaf[0]}")
+                log(f"Validation:\t{temp_count_per_leaf[1]}")
+                log(f"Test:\t\t{temp_count_per_leaf[2]}")
 
                 shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
             else:
@@ -353,7 +411,7 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     train_not_classified_count = int(train_not_classified_count)
 
     if len(not_classified) < np.sum(shortages) + train_not_classified_count:
-        print(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}, handling one level up")
+        log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}, handling one level up")
         # not_classified_sample_amounts = proportional_assign(len(not_classified), shortages)
         raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
     else:
@@ -370,9 +428,16 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
 
     count_tree["not_classified"] = (len(train_sample), len(validation_sample), len(test_sample))
 
-    return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts[1:], count_tree
+    return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
 
-def balanced_sample(source_df:pd.DataFrame, class_specification:tuple, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024):
+def objectify_train_not_classified_proportion(train_not_classified_proportion:list, levels:list):
+    """
+    Takes train_not_classified_proportion in [0,0,0,0] form and converts it to {'order': 0, ...}
+    """
+
+    return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
+
+def balanced_sample(source_df:pd.DataFrame, class_specification:tuple, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024, log=print):
     """
     Returns a balanced sample of the source_df based on the class_specification and count_per_leaf.
     """
@@ -385,10 +450,10 @@ def balanced_sample(source_df:pd.DataFrame, class_specification:tuple, count_per
     if np.any(shortages > 0):
         raise ValueError(f"Unable to balance dataset. Shortages: {shortages}. This should not happen, I am very confused.")
 
-    print("---- Overall Results ----")
-    print(f"Train:\t\t{len(train_df)}")
-    print(f"Validation:\t{len(val_df)}")
-    print(f"Test:\t\t{len(test_df)}")
+    log("---- Overall Results ----")
+    log(f"Train:\t\t{len(train_df)}")
+    log(f"Validation:\t{len(val_df)}")
+    log(f"Test:\t\t{len(test_df)}")
 
     return train_df, val_df, test_df, count_tree
 
@@ -410,7 +475,7 @@ def mutate_sample(insertion_amount=5, deletion_amount=5, substitution_rate=0.01)
     
     return sample
 
-def check_cached_images(source, image_cache_dir):
+def check_cached_images(source, image_cache_dir, log=print):
     """
     Check if the images are already cached. If not, cache them.
     """
@@ -420,19 +485,23 @@ def check_cached_images(source, image_cache_dir):
     for idx, row in source.iterrows():
         image_path = os.path.join(image_cache_dir, row["image_file"])
         if not os.path.exists(image_path):
-            print(f"{image_path} not found. Augmenting Images.")
+            log(f"{image_path} not found. Augmenting Images.")
             return False
 
     return True
 
-def augment_train_dataset(source, image_root_dir, image_cache_dir):
+def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_params):
     """
     This applies image and genetic augmentations to the training dataset.
     NOTE: This does not oversample the training dataset.
     """
 
+    substitution_rate = gen_aug_params.SUBSTITUTION_RATE
+    insertion_amount = gen_aug_params.DELETION_COUNT
+    deletion_amount = gen_aug_params.INSERTION_COUNT
+
     # Mutate genetics
-    source = source.apply(lambda x: mutate_sample(x, insertion_amount=5, deletion_amount=5, substitution_rate=.05), axis=1)
+    source = source.apply(lambda x: mutate_sample(x, insertion_amount=insertion_amount, deletion_amount=deletion_amount, substitution_rate=substitution_rate), axis=1)
 
     # Augment images - Rotation, skew, shear, and random distortion
     p = Augmentor.Pipeline()
@@ -462,66 +531,125 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir):
 
     return source
 
-
-def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, genetic_augmentations: list = None, image_augmentations: list = None, train_val_test_split=(120, 40, 40), train_end_count=0, train_not_classified_proportions=object, class_specification=(None, []), mode=3, seed=2024):
+def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, gen_aug_params:object, train_val_test_split:tuple, oversampling_rate:int, train_not_classified_proportions:tuple, tree_specification_file:str, pre_existing_images:bool, cached_dataset_folder:str, cached_dataset_root:str, run_name:str, train_batch_size:int, train_push_batch_size:int, test_batch_size:int, mode:int, seed=2024, log=print):
     """
-        Creates train, validation, and test dataloaders for the tree dataset.
+        Creates train, train_push, validation, and test dataloaders for the tree dataset.
         
         source_file - tsv that contains all needed data (ex. metadata_cleaned_permissive.tsv). Note: all entires in source_file must have images in image_root
         image_root_dir - root directory for the images.
-        genetic_augmentations - list of genetic augmentations to apply to the genetic data.
+        gen_aug_params - object genetic augmentation parameters to apply to the genetic data.
         image_augmentations - list of image augmentations to apply to the image data.
         train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
         train_end_count - The number of samples to end with in the training set.
         train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
-        class_specification - tree of valid classes.
+        tree_specification_file - path to json file tree of valid classes.
+        pre_existing_images - If True, the images are assumed to be pre_existing in the image_cache_dir. If False, the images are assumed to be in the image_root_dir and will be copied to the image_cache_dir.
         mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
         seed - random seed for splitting, shuffling, transformations, etc.
     """
-    if mode == 0:
-        raise ValueError("Mode 0 not allowed. This means it's not genetic or image :(.)")
-
-    if len(train_val_test_split) != 3 or not all([isinstance(i, int) and i >= 0 for i in train_val_test_split]):
-        raise ValueError("train_val_test_split must be a 3-tuple of positive integers (train, val, test)")
-    
-    if train_end_count < train_val_test_split[0]:
-        raise ValueError("train_end_count must be greater than or equal to train_val_test_split[0]")
-
-    if type(source) == str:
-        df = pd.read_csv(source, sep="\t")
-    else:
-        df = source
-
     # Set pandas random seed
     np.random.seed(seed)
 
-    train_df, val_df, test_df, count_tree = balanced_sample(df, class_specification, train_val_test_split, train_not_classified_proportions, seed)
-    
-    old_train_size = len(train_df)
-    if train_end_count < old_train_size:
-        raise ValueError("train_end_count must be greater than or equal to the number of samples in the training set before oversampling. Sorry, I won't let you do this. You may not. No.")
-    train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), 8, seed)
-    new_train_size = len(train_df)
+    if cached_dataset_folder and len(cached_dataset_folder):
+        train_df = pd.read_csv(os.path.join(cached_dataset_folder, "train.tsv"), sep="\t")
+        train_push_df = pd.read_csv(os.path.join(cached_dataset_folder, "train_push.tsv"), sep="\t")
+        val_df = pd.read_csv(os.path.join(cached_dataset_folder, "val.tsv"), sep="\t")
+        test_df = pd.read_csv(os.path.join(cached_dataset_folder, "test.tsv"), sep="\t")
+    else:
+        if mode == 0:
+            raise ValueError("Mode 0 not allowed. This means it's not genetic or image :(.)")
 
-    print(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
+        if len(train_val_test_split) != 3 or not all([isinstance(i, int) and i >= 0 for i in train_val_test_split]):
+            raise ValueError("train_val_test_split must be a 3-tuple of positive integers (train, val, test)")
+        
+        if type(source) == str:
+            df = pd.read_csv(source, sep="\t")
+        else:
+            df = source
+
+        class_specification = json.load(open(tree_specification_file, "r"))
+        train_not_classified_proportions = objectify_train_not_classified_proportion(train_not_classified_proportions, class_specification["levels"])
+        train_df, val_df, test_df, count_tree = balanced_sample(df, class_specification, train_val_test_split, train_not_classified_proportions, seed)
+
+        train_push_df = train_df.copy()
+
+        old_train_size = len(train_df)
+        start_t = time.time()
+        if oversampling_rate != 1:
+            raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
+            train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
+        new_train_size = len(train_df)
+        
+        log(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
+        log(f"And it only took {time.time() - start_t:.2f} seconds")
+
+        # Save all three datasets
+        output_dir = os.path.join(cached_dataset_root, run_name)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        train_path = os.path.join(output_dir, "train.tsv")
+        train_push_path = os.path.join(output_dir, "train_push.tsv")
+        val_path = os.path.join(output_dir, "val.tsv")
+        test_path = os.path.join(output_dir, "test.tsv")
+
+        train_df.to_csv(train_path, sep="\t", index=False)
+        log(f"Saved train dataset to {train_path}")
+
+        train_push_df.to_csv(train_push_path, sep="\t", index=False)
+        log(f"Saved train_push dataset to {train_push_path}")
+
+        val_df.to_csv(val_path, sep="\t", index=False)
+        log(f"Saved validation dataset to {val_path}")
+
+        test_df.to_csv(test_path, sep="\t", index=False)
+        log(f"Saved test dataset to {test_path}")
 
     train_dataset = TreeDataset(train_df, image_cache_dir, class_specification, mode)
+    train_push_dataset = TreeDataset(train_push_df, image_cache_dir, class_specification, mode)
     val_dataset = TreeDataset(val_df, image_root_dir, class_specification, mode)
     test_dataset = TreeDataset(test_df, image_root_dir, class_specification, mode)
 
     train_loader = DataLoader(
-            train_dataset, batch_size=80, shuffle=True,
+            train_dataset, batch_size=train_batch_size, shuffle=True,
+            num_workers=4, pin_memory=False)
+    
+    train_push_loader = DataLoader(
+            train_push_dataset, batch_size=train_push_batch_size, shuffle=True,
             num_workers=4, pin_memory=False)
     
     val_loader = DataLoader(
-            val_dataset, batch_size=80, shuffle=False,
+            val_dataset, batch_size=test_batch_size, shuffle=False,
             num_workers=4, pin_memory=False)
     
     test_loader = DataLoader(
-            test_dataset, batch_size=80, shuffle=False,
+            test_dataset, batch_size=test_batch_size, shuffle=False,
             num_workers=4, pin_memory=False)  
 
-    return train_loader, val_loader, test_loader
+    return train_loader, train_push_loader, val_loader, test_loader
+
+def get_dataloaders(cfg, log):
+    log("Getting Dataloaders")
+
+    return create_tree_dataloaders(
+        source=cfg.DATASET.DATA_FILE,
+        image_root_dir=cfg.DATASET.IMAGE_PATH,
+        image_cache_dir=cfg.DATASET.AUGMENTED_IMAGE_PATH,
+        gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
+        train_val_test_split=cfg.DATASET.TRAIN_VAL_TEST_SPLIT,
+        oversampling_rate=cfg.DATASET.OVERSAMPLING_RATE,
+        train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
+        tree_specification_file=cfg.DATASET.TREE_SPECIFICATION_FILE,
+        pre_existing_images=cfg.DATASET.PRE_EXISTING_IMAGES,
+        cached_dataset_folder=cfg.DATASET.CACHED_DATASET_FOLDER,
+        cached_dataset_root=cfg.DATASET.CACHED_DATASET_ROOT,
+        run_name=cfg.RUN_NAME,
+        train_batch_size=cfg.DATASET.TRAIN_BATCH_SIZE,
+        train_push_batch_size=cfg.DATASET.TRAIN_PUSH_BATCH_SIZE,
+        test_batch_size=cfg.DATASET.TEST_BATCH_SIZE,
+        mode=cfg.DATASET.MODE,
+        seed=cfg.SEED,
+        log=log
+    )
 
 class GeneticDataset(Dataset):
     
@@ -547,7 +675,8 @@ class GeneticDataset(Dataset):
                  level: str = None,
                  classes: list = None,
                  restraint: tuple = None,
-                 max_class_count = 40
+                 max_class_count = 40,
+                 log=print
         ):
         
         self.data = pd.read_csv(datapath, sep="\t")
@@ -572,7 +701,7 @@ class GeneticDataset(Dataset):
             self.data = self.data[self.data[self.level].isin(classes)]
 
             if restraint:
-                print("Classes supplied with restraint. Restraints ignored.")
+                log("Classes supplied with restraint. Restraints ignored.")
         
         else:
             if restraint:

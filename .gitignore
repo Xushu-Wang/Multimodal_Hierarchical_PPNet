@@ -11,3 +11,4 @@ saved_models/
 slurm*.out
 # pretrained_backbones/
 test_tree.ipynb
+output

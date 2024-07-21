@@ -1,25 +1,21 @@
-EXPERIMENT_RUN: 001
-
-MODEL:
-    BACKBONE: 'resnetbioscan'
-    PROTOTYPE_DISTANCE_FUNCTION: 'cosine'
-    PROTOTYPE_ACTIVATION_FUNCTION: 'linear'
-
+RUN_NAME: "test_run"
 
 DATASET:
-    NAME: bioscan
-    NUM_CLASSES: 40
-    IMAGE: 
-        SIZE: 256
+    TREE_SPECIFICATION_FILE: "class_trees/example.json"
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
+    MODE: 2 # This means the dataloader will return only images.
+    TRAIN_VAL_TEST_SPLIT: [400, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
+    OVERSAMPLING_RATE: 1 # How much augmenation we do. Must be 1 or a multiple of 4.
+
+    # Uncomment these once datasets have already been generated and you want to reuse them
+    # PRE_EXISTING_IMAGES: true
+    # CACHED_DATASET_FOLDER: ""
+
+    IMAGE:
         PROTOTYPE_SHAPE: (400, 2048, 1, 1)
-        TRAIN_DIR: "datasets/bioscan/train_diptera_augmented"
-        TEST_DIR: "datasets/bioscan/test_diptera"
-        TRAIN_PUSH_DIR: "datasets/bioscan/train_diptera"
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
-    GENETIC:
-        FIX_PROTOTYPES: False
 
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
@@ -33,11 +29,8 @@ OPTIM:
         SEP: -0.1
     JOINT: False
 
-
 OUTPUT:
-    MODEL_DIR: "./saved_models/bioscan"
-    IMG_DIR: "./saved_models/bioscan/img"
-    WEIGHT_MATRIX_FILENAME: 'outputL_weights'
-    PROTOTYPE_IMG_FILENAME_PREFIX: 'prototype-img'
-    PROTOTYPE_SELF_ACT_FILENAME_PREFIX: 'prototype-self-act'
-    PROTO_BOUND_BOXES_FILENAME_PREFIX: 'bb'
+    WEIGHT_MATRIX_FILENAME: "outputL_weights"
+    PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
+    PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
+    PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"

@@ -3,7 +3,6 @@ import torch
 
 from node import Node
 
-
 def position_encodings(self, x):
     
     """

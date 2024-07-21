@@ -20,7 +20,6 @@ class Node:
             self.children_to_labels.update({names[i] : labels[i]})
     
     def get_node(self, name):
-        
         active_nodes = [self]
         
         while active_nodes:
@@ -99,7 +98,6 @@ class Node:
         return nodes        
 
     def parents(self):
-        
         ancestors = []
         ancestor = self.parent
         ancestors += ancestor
@@ -132,7 +130,6 @@ class Node:
             return self.get_node(name)
         else:
             return [child for child in self.children if name in child.descendents][0]
-     
      
     def has_logits(self):
         return self.num_children() > 1
@@ -182,7 +179,6 @@ class Node:
     def assign_proto_dirs(self):
         for node in self.nodes_with_children():
             node.proto_dir = node.name + "_prototypes"
-
 
     def get_leaf_nodes(self):
         nodes = []
