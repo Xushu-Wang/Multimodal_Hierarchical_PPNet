@@ -14,6 +14,7 @@ from skimage import io, transform
 from torchvision.transforms import v2, ToTensor
 import tqdm
 import json
+from torchvision.transforms.functional import center_crop
 
 class GeneticOneHot(object):
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
@@ -108,7 +109,12 @@ class GeneticOneHot(object):
 
 class TreeDataset(Dataset):
     """
-    This is one dataset that implements
+    This is a heirarchichal dataset for genetics and images.
+
+    mode 0 - error
+    mode 1 - returns genetic_tensor, label
+    mode 2 - returns image_tensor, label
+    mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
     def __init__(self, source_df:str, image_root_dir: str, class_specification, mode=3, genetic_augmentations={}):
@@ -158,12 +164,25 @@ class TreeDataset(Dataset):
         if self.mode >> 1:
             image = io.imread(image_path)
             image = torch.tensor(image)
-            image = torch.permute(image, (2,0,1))
+
+            # TODO - Replace this w/ a process that applies this to the images in the image folder, instead of doing it constantly.
+            if image.shape[0] != 3:
+                image = torch.permute(image, (2,0,1))
+
+            image = center_crop(image, (256, 256))
+            image = F.pad(image, (0, 0, 256 - image.shape[1], 256 - image.shape[2]), value=0)
+
         else:
             image = None
 
         label = self.get_label(row)
 
+        if not genetics:
+            return image, label
+        if not image:
+            return genetics, label
+
+        # TODO - Use a collate function to handle this.
         return (genetics, image), label
 
     def get_label(self, row:pd.Series):
