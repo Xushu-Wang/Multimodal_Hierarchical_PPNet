@@ -171,18 +171,11 @@ class TreeDataset(Dataset):
 
             image = center_crop(image, (256, 256))
             image = F.pad(image, (0, 0, 256 - image.shape[1], 256 - image.shape[2]), value=0)
-
         else:
             image = None
 
         label = self.get_label(row)
 
-        if not genetics:
-            return image, label
-        if not image:
-            return genetics, label
-
-        # TODO - Use a collate function to handle this.
         return (genetics, image), label
 
     def get_label(self, row:pd.Series):
@@ -207,6 +200,34 @@ class TreeDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
+
+def collate_fn(batch):
+    """
+    This is a collate function for the TreeDataset.
+    """
+    genetics = []
+    images = []
+    labels = []
+
+    for item in batch:
+        if item[0][0] != None:
+            genetics.append(item[0][0])
+        if item[0][1] != None:
+            images.append(item[0][1])
+        labels.append(item[1])
+
+    if genetics:
+        genetics = torch.stack(genetics)
+    if images:
+        images = torch.stack(images)
+    labels = torch.stack(labels)
+
+    if len(genetics) == 0:
+        genetics = None
+    if len(images) == 0:
+        images = None
+
+    return (genetics, images), labels
 
 def proportional_assign(total_count, count_per_leaf):
     temp_count_per_leaf = np.ceil(np.array(count_per_leaf) * ((total_count - 3) / (count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2])))
@@ -626,19 +647,19 @@ def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, g
 
     train_loader = DataLoader(
             train_dataset, batch_size=train_batch_size, shuffle=True,
-            num_workers=4, pin_memory=False)
+            num_workers=4, pin_memory=False, collate_fn=collate_fn)
     
     train_push_loader = DataLoader(
             train_push_dataset, batch_size=train_push_batch_size, shuffle=True,
-            num_workers=4, pin_memory=False)
+            num_workers=4, pin_memory=False, collate_fn=collate_fn)
     
     val_loader = DataLoader(
             val_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=4, pin_memory=False)
+            num_workers=4, pin_memory=False, collate_fn=collate_fn)
     
     test_loader = DataLoader(
             test_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=4, pin_memory=False)  
+            num_workers=4, pin_memory=False, collate_fn=collate_fn)  
 
     return train_loader, train_push_loader, val_loader, test_loader
 
