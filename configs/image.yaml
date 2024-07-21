@@ -8,8 +8,8 @@ DATASET:
     OVERSAMPLING_RATE: 1 # How much augmenation we do. Must be 1 or a multiple of 4.
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # PRE_EXISTING_IMAGES: true
-    # CACHED_DATASET_FOLDER: ""
+    PRE_EXISTING_IMAGES: true
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/test_run"
 
     IMAGE:
         PROTOTYPE_SHAPE: (400, 2048, 1, 1)

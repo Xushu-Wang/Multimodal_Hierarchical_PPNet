@@ -106,14 +106,6 @@ class GeneticOneHot(object):
 
 #         return genetic_tensor
 
-        
-
-
-
-
-
-
-
 class TreeDataset(Dataset):
     """
     This is one dataset that implements
@@ -165,6 +157,9 @@ class TreeDataset(Dataset):
         
         if self.mode >> 1:
             image = io.imread(image_path)
+            image = torch.tensor(image)
+            image = torch.permute(image, (2,0,1))
+            print(image.shape)
         else:
             image = None
 
@@ -187,6 +182,7 @@ class TreeDataset(Dataset):
                 tensor[i:] = 0
                 break
             else:
+                print(row)
                 tensor[i] = tree[row[level]]["idx"] + 1
                 tree = tree[row[level]]
         
@@ -323,7 +319,7 @@ def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image
     return pd.DataFrame(output).sample(frac=1, random_state=seed)
 
 def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print):
-    log("Oh no, we oversampled. This will break things... Must improve data augmentation.")
+    log("Oh no, we oversampled. This will break data augmentation... Must improve data augmentation.")
     # Fairly oversample the source_df to count
     shortage = count - len(source_df)
     output = pd.concat([source_df] + [source_df] * (shortage // len(source_df)) + [source_df.sample(shortage % len(source_df), replace=False, random_state=seed)])
@@ -341,7 +337,7 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
         for k,v in tree.items():
             if k == "not_classified":
                 continue
-            class_size = len(source_df[source_df[levels[0]] == k])
+            class_size = len(source_df[source_df[levels[1]] == k])
 
             if class_size < 3:
                 raise ValueError(f"Less than 3 samples for {k} of {parent_name} at level {levels[0]}. Unable to proceed.")
@@ -359,9 +355,9 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
             else:
                 temp_count_per_leaf = count_per_leaf
 
-            test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf[2], random_state=seed)
-            validation_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).sample(temp_count_per_leaf[1], random_state=seed)
-            train_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).drop(validation_sample.index).sample(temp_count_per_leaf[0], random_state=seed)
+            test_sample = source_df[source_df[levels[1]] == k].sample(temp_count_per_leaf[2], random_state=seed)
+            validation_sample = source_df[source_df[levels[1]] == k].drop(test_sample.index).sample(temp_count_per_leaf[1], random_state=seed)
+            train_sample = source_df[source_df[levels[1]] == k].drop(test_sample.index).drop(validation_sample.index).sample(temp_count_per_leaf[0], random_state=seed)
 
             if len(train_sample) < count_per_leaf[0]:
                 train_sample = oversample(train_sample, count_per_leaf[0], seed)
@@ -549,6 +545,7 @@ def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, g
     """
     # Set pandas random seed
     np.random.seed(seed)
+    class_specification = json.load(open(tree_specification_file, "r"))
 
     if cached_dataset_folder and len(cached_dataset_folder):
         train_df = pd.read_csv(os.path.join(cached_dataset_folder, "train.tsv"), sep="\t")
@@ -567,7 +564,6 @@ def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, g
         else:
             df = source
 
-        class_specification = json.load(open(tree_specification_file, "r"))
         train_not_classified_proportions = objectify_train_not_classified_proportion(train_not_classified_proportions, class_specification["levels"])
         train_df, val_df, test_df, count_tree = balanced_sample(df, class_specification, train_val_test_split, train_not_classified_proportions, seed)
 
@@ -604,8 +600,8 @@ def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, g
         test_df.to_csv(test_path, sep="\t", index=False)
         log(f"Saved test dataset to {test_path}")
 
-    train_dataset = TreeDataset(train_df, image_cache_dir, class_specification, mode)
-    train_push_dataset = TreeDataset(train_push_df, image_cache_dir, class_specification, mode)
+    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, mode)
+    train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, mode)
     val_dataset = TreeDataset(val_df, image_root_dir, class_specification, mode)
     test_dataset = TreeDataset(test_df, image_root_dir, class_specification, mode)
 

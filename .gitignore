@@ -1,5 +1,6 @@
 data/
-datasets/
+datasets/*
+datasets
 data
 *_temp*
 __pycache__/

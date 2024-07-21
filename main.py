@@ -36,6 +36,11 @@ def main():
         # Step 2: Initialize Dataset
         # NOTE: Use val_loader. We're not using test_loader until we're almost done with the paper.
         train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
+        print(train_loader.dataset[0][0])
+
+        for a in train_loader:
+            print(a)
+            break
 
         # Step 3: Fix Tree Structure
         root = Node("Diptera")

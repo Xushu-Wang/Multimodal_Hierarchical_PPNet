@@ -17,9 +17,9 @@ _C.MODEL.GENETIC_MODE = False
 
 # Dataset
 _C.DATASET = CN()
-_C.DATASET.DATA_FILE = "datasets/metadata/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
-_C.DATASET.IMAGE_PATH = "NA" # Path to image directory
-_C.DATASET.AUGMENTED_IMAGE_PATH = "NA" # Path to which augmented images will be saved
+_C.DATASET.DATA_FILE = "datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
+_C.DATASET.IMAGE_PATH = "datasets/full_bioscan_images/" # Path to image directory
+_C.DATASET.AUGMENTED_IMAGE_PATH = "datasets/augmented_images/" # Path to which augmented images will be saved
 _C.DATASET.TREE_SPECIFICATION_FILE = "NA" # Path to JSON file that specifies tree structure
 _C.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS = [0,0,.25,.5] # Proportions of samples at each level that are unclassified [order, family, genus, species]. Note: Lower levels counts do not consider higher level counts, so for this default, > 50% of species are unclassified (50% + 25% of genus)
 
