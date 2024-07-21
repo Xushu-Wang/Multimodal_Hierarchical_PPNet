@@ -4,12 +4,12 @@ from utils.util import save_model_w_condition, create_logger, makedir
 from os import mkdir
 
 from configs.cfg import get_cfg_defaults
-from prototype.push import push_prototypes
+# from prototype.push import push_prototypes
 from dataio.tree import get_dataloaders
 
-from model.node import Node
+# from model.node import Node
 from model.hierarchical_ppnet import Hierarchical_PPNet
-from model.utils import get_optimizers, construct_tree, print_tree
+# from model.utils import get_optimizers, construct_tree, print_tree
 from utils.util import handle_run_name_weirdness
 
 import train_and_test as tnt

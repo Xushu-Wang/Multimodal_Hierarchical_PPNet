@@ -22,10 +22,7 @@
                     "Telenomus laeviceps": null,
                     "Telenomus podisi": null
                 },
-                "Trissolcus": {
-                    "Trissolcus hyalinipennis": null,
-                    "Trissolcus semistriatus": null
-                }
+                "Trissolcus": { "Trissolcus hyalinipennis": null }
             },
             "Braconidae": {
                 "Dinotrema": {

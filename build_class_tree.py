@@ -18,11 +18,19 @@ levels = ["order", "family", "genus", "species"]
 def question_level(levels, data, parent=None):
     if len(levels) == 0:
         return
-    if not len(data[data[levels[0]] != "not_classified"]):
+    if len(data[data[levels[0]] != "not_classified"]) == 0:
         print("No samples left. Adding not_classified to the tree.")
         return None
 
-    option_count = len(data[data[levels[0]] != "not_classified"][levels[0]].unique())
+    option_count = 0
+
+    for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts().items():
+        if count > 3:
+            option_count += 1
+
+    if option_count == 0:
+        print("No samples left. Adding not_classified to the tree.")
+        return None
 
     if parent:
         par_string = f" (parent: {parent})"
@@ -31,7 +39,8 @@ def question_level(levels, data, parent=None):
     
     while True:
         for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts()[:6].items():
-            print(f"{val: <16}\t{count} samples")
+            if count > 3:
+                print(f"{val: <16}\t{count} samples")
 
         count = input(f"How many of the largest {levels[0]}{par_string} would you like to include? (max {option_count}) ")
 

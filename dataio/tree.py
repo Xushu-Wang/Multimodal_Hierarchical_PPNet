@@ -159,7 +159,6 @@ class TreeDataset(Dataset):
             image = io.imread(image_path)
             image = torch.tensor(image)
             image = torch.permute(image, (2,0,1))
-            print(image.shape)
         else:
             image = None
 
@@ -182,7 +181,6 @@ class TreeDataset(Dataset):
                 tensor[i:] = 0
                 break
             else:
-                print(row)
                 tensor[i] = tree[row[level]]["idx"] + 1
                 tree = tree[row[level]]
         
@@ -331,18 +329,18 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     test_output = []
     count_tree = {}
 
-    if len(levels) == 2:
+    if len(levels) == 1:
         # [validation shortage, test shortage]
         shortages = np.zeros(2)
         for k,v in tree.items():
             if k == "not_classified":
                 continue
-            class_size = len(source_df[source_df[levels[1]] == k])
+            class_size = len(source_df[source_df[levels[0]] == k])
 
             if class_size < 3:
                 raise ValueError(f"Less than 3 samples for {k} of {parent_name} at level {levels[0]}. Unable to proceed.")
             if class_size < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
-                log(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[1]}) of parent {parent_name}. Dividing proportionally")
+                log(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
                 
                 temp_count_per_leaf = proportional_assign(class_size, count_per_leaf)
 
@@ -355,9 +353,9 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
             else:
                 temp_count_per_leaf = count_per_leaf
 
-            test_sample = source_df[source_df[levels[1]] == k].sample(temp_count_per_leaf[2], random_state=seed)
-            validation_sample = source_df[source_df[levels[1]] == k].drop(test_sample.index).sample(temp_count_per_leaf[1], random_state=seed)
-            train_sample = source_df[source_df[levels[1]] == k].drop(test_sample.index).drop(validation_sample.index).sample(temp_count_per_leaf[0], random_state=seed)
+            test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf[2], random_state=seed)
+            validation_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).sample(temp_count_per_leaf[1], random_state=seed)
+            train_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).drop(validation_sample.index).sample(temp_count_per_leaf[0], random_state=seed)
 
             if len(train_sample) < count_per_leaf[0]:
                 train_sample = oversample(train_sample, count_per_leaf[0], seed)
@@ -368,28 +366,28 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
 
             count_tree[k] = (len(train_sample), len(validation_sample), len(test_sample))            
     else:
-        if tree==None:
-            not_classified = source_df[source_df[levels[0]] == "not_classified"]
-            test_sample = not_classified.sample(count_per_leaf[2], random_state=seed)
-            validation_sample = not_classified.drop(test_sample.index).sample(count_per_leaf[1], random_state=seed)
-            train_sample = not_classified.drop(test_sample.index).drop(validation_sample.index).sample(count_per_leaf[0], random_state=seed)
-
-            return train_sample, validation_sample, test_sample, np.zeros(2), {"not_classified": (len(train_sample), len(validation_sample), len(test_sample))}
-
         shortages = np.zeros(2)
         for k,v in tree.items():
             if k == "not_classified":
                 continue
-            
-            child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(
-                v,
-                levels[1:],
-                source_df[source_df[levels[0]] == k],
-                count_per_leaf,
-                train_not_classified_proportion,
-                seed,
-                k
-            )
+
+            if v==None:
+                not_classified = source_df[source_df[levels[0]] == k][source_df[levels[1]] == "not_classified"]
+                child_test = not_classified.sample(count_per_leaf[2], random_state=seed)
+                child_val = not_classified.drop(child_test.index).sample(count_per_leaf[1], random_state=seed)
+                child_train = not_classified.drop(child_test.index).drop(child_val.index).sample(count_per_leaf[0], random_state=seed)
+                child_shortages = np.zeros(2)
+                child_count_tree = {"not_classified": (len(child_train), len(child_val), len(child_test))}
+            else:
+                child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(
+                    v,
+                    levels[1:],
+                    source_df[source_df[levels[0]] == k],
+                    count_per_leaf,
+                    train_not_classified_proportion,
+                    seed,
+                    k
+                )
             shortages += child_shortages
 
             train_output.append(child_train)
@@ -407,9 +405,11 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     train_not_classified_count = int(train_not_classified_count)
 
     if len(not_classified) < np.sum(shortages) + train_not_classified_count:
-        log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}, handling one level up")
-        # not_classified_sample_amounts = proportional_assign(len(not_classified), shortages)
-        raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
+        log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. Sorry.")
+        # TODO - This could be handled by going up one level and adding more not classified.
+        not_classified_sample_amounts = np.array([0,0])
+        train_not_classified_count, not_classified_sample_amounts[0], not_classified_sample_amounts[1] = proportional_assign(len(not_classified), count_per_leaf)
+        # raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
     else:
         not_classified_sample_amounts = shortages
     
