@@ -24,52 +24,68 @@ def position_encodings(self, x):
     pos_vec = torch.stack([pos_1, pos_2], dim=0).repeat(x.shape[0], 1, 1).unsqueeze(2)
 
     return torch.cat([x, pos_vec], dim=1)
+
+
+def get_optimizers(cfg, ppnet, root): 
     
-     
-def get_optimizers(cfg, ppnet): 
+    # through_protos_optimizer
     
-    joint_optimizer_specs = [
-        {
-            'params': ppnet.features.parameters(), 
-            'lr': cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.FEATURES, 
-            'weight_decay': cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.WEIGHT_DECAY
-        }, # bias are now also being regularized
-        {
-            'params': ppnet.add_on_layers.parameters(), 
-            'lr': cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.ADD_ON_LAYERS,
-            'weight_decay': cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.WEIGHT_DECAY
-        },
-        {
-            'params': ppnet.prototype_vectors, 
-            'lr': cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.PROTOTYPE_VECTORS
-        },
-    ]
+    through_protos_optimizer_specs = [{'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
+	 {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
+    
+    
+    internal_nodes = root.nodes_with_children()
+    
+    for node in internal_nodes:
+        through_protos_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+    
+    through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
+    
+    # warm optimizer
+    
+    warm_optimizer_specs = [{'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
+    
+    for node in internal_nodes:
+        warm_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+
+    warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
+    
+    # last layer optimizer
+    
+    last_layers_specs = []
+    
+    for node in internal_nodes:
+        last_layers_specs.append({'params': getattr(ppnet, node.name + "_layer").parameters(), 'lr': 3e-3})
+
+    last_layer_optimizer = torch.optim.SGD(last_layers_specs,momentum=.9)
+    
+    # joint optimizer
+    
+    joint_optimizer_specs = [{'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
+	 {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
+    
+    
+    for node in internal_nodes:
+        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "_layer").parameters(), 'lr': 3e-3})
     
     joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
-    joint_lr_scheduler = torch.optim.lr_scheduler.StepLR(joint_optimizer, step_size=cfg.OPTIM.JOINT_OPTIMIZER_LAYERS.LR_STEP_SIZE, gamma=0.1)
 
-    warm_optimizer_specs = [
-        {
-            'params': ppnet.add_on_layers.parameters(), 
-            'lr': cfg.OPTIM.WARM_OPTIMIZER_LAYERS.ADD_ON_LAYERS,
-            'weight_decay': cfg.OPTIM.WARM_OPTIMIZER_LAYERS.WEIGHT_DECAY
-        },
-        {
-            'params': ppnet.prototype_vectors, 
-            'lr': cfg.OPTIM.WARM_OPTIMIZER_LAYERS.PROTOTYPE_VECTORS,
-        },
-    ]
-    warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
+    
+    return through_protos_optimizer, warm_optimizer, last_layer_optimizer, joint_optimizer
 
-    last_layer_optimizer_specs = [
-        {
-            'params': ppnet.last_layer.parameters(), 
-            'lr': cfg.OPTIM.LAST_LAYER_OPTIMIZER_LAYERS.LR
-        }
-    ]
-    last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
 
-    return joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer
+
+
+def adjust_learning_rate(optimizers):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    #lr_ = lr * (0.1 ** (epoch // decay))    
+    for optimizer in  optimizers:
+        for param_group in optimizer.param_groups:
+            new_lr = param_group['lr'] * .1
+            param_group['lr'] = new_lr
+
+
 
 
 nucleotides = {"N": 0, "A": 1, "C": 2, "G": 3, "T": 4}

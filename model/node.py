@@ -84,12 +84,12 @@ class Node:
             active_nodes = new_active_nodes                    
         return classes
 
-    def get_internal_node(self):        
+    def nodes_with_children(self):        
         nodes = []
         active_nodes = [self]
-        while len(active_nodes) > 0:
+        while active_nodes:
             for node in active_nodes:
-                if node.num_children() > 0:# and node.name != "root":
+                if node.num_children() > 0:
                     nodes.append(node)
             new_active_nodes = [] 
             for node in active_nodes:

@@ -464,7 +464,7 @@ def coarse_warm(model, log=print):
     model.module.root_prototype_vectors.requires_grad = True    
     for node in model.module.root.nodes_with_children():
         if node.name != "root":
-            vecs = getattr(model.module,node.name + "_prototype_vectors")
+            vecs = getattr(model.module, node.name + "_prototype_vectors")
             vecs.requires_grad = False
         layer = getattr(model.module,node.name + "_layer")
         for p in layer.parameters():
