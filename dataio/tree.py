@@ -660,8 +660,10 @@ def create_tree_dataloaders(
         std=transform_std
     )
 
+    # Sorry for this nastiness
     img_transforms = transforms.Compose([
-        transforms.resize((256, 256)),
+        transforms.ToPILImage(),
+        transforms.Resize(size=(256, 256)),
         transforms.ToTensor(),
         normalize
     ])
@@ -708,8 +710,8 @@ def get_dataloaders(cfg, log):
         train_batch_size=cfg.DATASET.TRAIN_BATCH_SIZE,
         train_push_batch_size=cfg.DATASET.TRAIN_PUSH_BATCH_SIZE,
         test_batch_size=cfg.DATASET.TEST_BATCH_SIZE,
-        transform_mean=cfg.DATASET.TRANSFORM_MEAN,
-        transform_std=cfg.DATASET.TRANSFORM_STD,
+        transform_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
+        transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
         mode=cfg.DATASET.MODE,
         seed=cfg.SEED,
         log=log
