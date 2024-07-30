@@ -104,14 +104,15 @@ def construct_tree(json_data, parent):
     
     if not json_data or json_data == "not_classified":
         return 
-
+        
     for key, value in json_data.items():
-        if key != "not_classified":
+        if key != "not_classified" and key != 'levels':
             parent.add_children(key)
             # Find the child node we just added
             child_node = next(child for child in parent.children if child.name == key)
             if isinstance(value, dict):
                 construct_tree(value, child_node)
+
     
     
 def print_tree(node, level=0):

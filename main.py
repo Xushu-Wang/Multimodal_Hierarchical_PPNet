@@ -40,17 +40,17 @@ def main():
         # NOTE: Use val_loader. We're not using test_loader until we're almost done with the paper.
         train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
 
-        # print(train_loader.dataset[0])
-        # print(train_loader.dataset[1])
-
+        with open("/home/users/xw214/Multimodal_Hierarchical_PPNet/class_trees/example.json", 'r') as file:
+            data = json.load(file)
+                        
         # Step 3: Fix Tree Structure
-        root = Node("Diptera")
-        # construct_tree(json_data, root)
+        root = Node('Diptera')
         
-        root.assign_all_descendents()
+        construct_tree(data['tree'], root)        
         
-        log(print_tree(root))
+        print_tree(root)
         
+        root.assign_all_descendents()    
         
         # Remember to specify prototypes directory
         

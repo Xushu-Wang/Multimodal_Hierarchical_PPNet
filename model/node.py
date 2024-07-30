@@ -10,6 +10,9 @@ class Node:
         self.label = label
         
     def add_children(self, names, labels = None):
+        if not names:
+            return
+        
         if type(names) is not list:
             names = [names]
         if labels is None:
@@ -111,19 +114,27 @@ class Node:
     def assign_descendents(self):
         active_nodes = [self.children]
         descendents = set()
-        while active_nodes > 0:
-            for node in active_nodes:
+        while active_nodes:
+            node = active_nodes.pop()
+            
+            if isinstance(node, Node):
                 descendents.add(node.name)
-            active_nodes = [child for node in active_nodes for child in node.children]
+                
+                for child in node.children:
+                    active_nodes.append(child)
                   
         self.descendents = descendents
 
     def assign_all_descendents(self):
         active_nodes = [self]
         while active_nodes:
-            for node in active_nodes:
+            node = active_nodes.pop()
+            
+            if isinstance(node, Node):
                 node.assign_descendents()
-            active_nodes = [child for node in active_nodes for child in node.children]
+                
+                for child in node.children:
+                    active_nodes.append(child)
 
     def closest_descendent_for(self,name):
         if name in self.children_names(): 
