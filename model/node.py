@@ -137,7 +137,7 @@ class Node:
                     active_nodes.append(child)
 
     def closest_descendent_for(self,name):
-        if name in self.children_names(): 
+        if name in self.get_children_names(): 
             return self.get_node(name)
         else:
             return [child for child in self.children if name in child.descendents][0]
