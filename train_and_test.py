@@ -42,7 +42,7 @@ def _train_or_test(model, dataloader, label2name, optimizer=None, coefs = None, 
     total_l1 = 0
  
         
-    coarse_names = model.module.root.children_names()
+    coarse_names = model.module.root.get_children_names()
     num_coarse = len(coarse_names)
     coarse_class_correct = np.array([0 for i in range(model.module.root.num_children())])
     coarse_class_total = np.array([0 for i in range(model.module.root.num_children())])
@@ -374,7 +374,7 @@ def train(model, dataloader, label2name, optimizer, coefs, class_specific=False,
     assert(optimizer is not None)
     log('train')
     return _train_or_test(model=model, dataloader=dataloader, label2name=label2name, optimizer=optimizer, coefs=coefs,
-                          class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs.CEDA, batch_mult = coefs.batch_mult)
+                          class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs['CEDA'])
 
 def valid(model, dataloader, label2name, coefs = None, class_specific=False, log=print):
     log('valid')

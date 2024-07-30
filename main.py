@@ -45,7 +45,7 @@ def main():
             data = json.load(file)
                         
         # Step 3: Fix Tree Structure
-        root = Node('Diptera Order')
+        root = Node('root')
         
         construct_tree(data['tree'], root)        
         
@@ -82,7 +82,8 @@ def main():
             'crs_ent': cfg.OPTIM.COEFS.CRS_ENT,
             'clst': cfg.OPTIM.COEFS.CLST,
             'sep': cfg.OPTIM.COEFS.SEP,
-            'l1': cfg.OPTIM.COEFS.L1
+            'l1': cfg.OPTIM.COEFS.L1,
+            'CEDA': False
         }    
         
         
