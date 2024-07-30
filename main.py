@@ -34,7 +34,6 @@ def main():
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     log(str(cfg))
 
-
     try:
         # Step 2: Initialize Dataset
         # NOTE: Use val_loader. We're not using test_loader until we're almost done with the paper.
