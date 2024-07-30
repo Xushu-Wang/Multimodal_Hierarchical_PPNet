@@ -9,7 +9,10 @@ from dataio.tree import get_dataloaders
 
 from model.node import Node
 from model.hierarchical_ppnet import Hierarchical_PPNet
-from model.utils import get_optimizers, construct_tree, print_tree
+from model.model import construct_ppnet
+
+from model.utils import get_optimizers, construct_tree, print_tree, adjust_learning_rate
+
 from utils.util import handle_run_name_weirdness
 
 import train_and_test as tnt
@@ -58,12 +61,15 @@ def main():
         proto_bound_boxes_filename_prefix = 'bb'
         
         # Construct and parallel the model
-        hierarchical_ppnet = Hierarchical_PPNet()
+        hierarchical_ppnet = construct_ppnet(cfg, root)
         ppnet_multi = torch.nn.DataParallel(hierarchical_ppnet) 
         class_specific = True
         
         # Prepare optimizer
-        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(cfg, hierarchical_ppnet)
+        through_protos_optimizer, warm_optimizer, joint_optimizer, last_layer_optimizer = get_optimizers(cfg, hierarchical_ppnet, root)
+        
+        optimizers = [through_protos_optimizer,warm_optimizer,joint_optimizer]
+
 
         log('start training')
         
@@ -77,7 +83,7 @@ def main():
         
         
         # dictionaries
-        class_names = os.listdir(train_dir)
+        class_names = os.listdir(cfg.train_dir)
         class_names.sort()
         label2name = {i : name for (i,name) in enumerate(class_names)}
         IDcoarse_names = root.children_names()
@@ -117,16 +123,16 @@ def main():
                     save_prototype_class_identity=True,
                     log=log)
 
-                acc, _ = tnt.valid(model=ppnet_multi, dataloader=valid_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
+                acc, _ = tnt.valid(model=ppnet_multi, dataloader=val_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
 
                 save_model_w_condition(model=hierarchical_ppnet, model_dir=model_dir, model_name='best_model_protos_opt', accu=acc,
                             target_accu=0.75, log=log)
 
 
                 tnt.last_layers(model=ppnet_multi, log=log)
-                _ = tnt.train(model=ppnet_multi, dataloader=train_loader, label2name=label2name, optimizer=last_layers_optimizer, args = args, class_specific=class_specific, log=log)
+                _ = tnt.train(model=ppnet_multi, dataloader=train_loader, label2name=label2name, optimizer=last_layer_optimizer, args = args, class_specific=class_specific, log=log)
 
-                acc, _ = tnt.valid(model=ppnet_multi, dataloader=valid_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
+                acc, _ = tnt.valid(model=ppnet_multi, dataloader=val_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
 
                 save_model_w_condition(model=hierarchical_ppnet, model_dir=model_dir, model_name='best_model_protos_opt', accu=acc,
                             target_accu=0.75, log=log)
@@ -161,16 +167,16 @@ def main():
                         save_prototype_class_identity=True,
                         log=log)
 
-                    acc, _ = tnt.valid(model=ppnet_multi, dataloader=valid_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
+                    acc, _ = tnt.valid(model=ppnet_multi, dataloader=val_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
 
                     save_model_w_condition(model=hierarchical_ppnet, model_dir=model_dir, model_name='best_model_joint_opt', accu=acc,
                                 target_accu=0.75, log=log)
             
                     for i in range(2):		
                         tnt.last_layers(model=ppnet_multi, log=log)
-                        _ = tnt.train(model=ppnet_multi, dataloader=train_loader, label2name=label2name, optimizer=last_layers_optimizer, args = args, class_specific=class_specific, log=log)			
+                        _ = tnt.train(model=ppnet_multi, dataloader=train_loader, label2name=label2name, optimizer=last_layer_optimizer, args = args, class_specific=class_specific, log=log)			
 
-                        acc, _ = tnt.valid(model=ppnet_multi, dataloader=valid_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
+                        acc, _ = tnt.valid(model=ppnet_multi, dataloader=val_loader, label2name=label2name, args=args, class_specific=class_specific, log=log)
 
                         save_model_w_condition(model=hierarchical_ppnet, model_dir=model_dir, model_name='best_model_joint_opt', accu=acc,
                                     target_accu=0.75, log=log)
@@ -179,6 +185,7 @@ def main():
                 if (epoch+1) % args.decay == 0:
                     log('lowered lrs by factor of 10')
                     adjust_learning_rate(optimizers)
+                    
     except Exception as e:
         # Print e with the traceback
         log(f"ERROR: {e}")

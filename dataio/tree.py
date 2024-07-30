@@ -11,7 +11,7 @@ import numpy as np
 from typing import Optional
 import copy
 from skimage import io, transform
-from torchvision.transforms import v2, ToTensor
+from torchvision.transforms import v2, ToTensor, transforms
 import tqdm
 import json
 from torchvision.transforms.functional import center_crop
@@ -117,7 +117,7 @@ class TreeDataset(Dataset):
     mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
-    def __init__(self, source_df:str, image_root_dir: str, class_specification, mode=3, genetic_augmentations={}):
+    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, mode=3):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -125,7 +125,8 @@ class TreeDataset(Dataset):
         self.indexed_tree = self.generate_tree_indicies(self.tree)
         self.mode = mode
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
-        
+        self.image_transforms = image_transforms
+
     def mutate_genetics(self, df:pd.DataFrame):
         return df.apply(self.mutate_sample, axis=1)
 
@@ -163,25 +164,12 @@ class TreeDataset(Dataset):
         
         if self.mode >> 1:
             image = io.imread(image_path)
-            image = torch.tensor(image)
-
-            # TODO - Replace this w/ a process that applies this to the images in the image folder, instead of doing it constantly.
-            if image.shape[0] != 3:
-                image = torch.permute(image, (2,0,1))
-
-            image = center_crop(image, (256, 256))
-            image = F.pad(image, (0, 0, 256 - image.shape[1], 256 - image.shape[2]), value=0)
+            image = self.image_transforms(image)
         else:
             image = None
 
         label = self.get_label(row)
 
-        if not genetics:
-            return image, label
-        if not image:
-            return genetics, label
-
-        # TODO - Use a collate function to handle this.
         return (genetics, image), label
 
     def get_label(self, row:pd.Series):
@@ -216,11 +204,11 @@ def collate_fn(batch):
     labels = []
 
     for item in batch:
-        if item[0]:
-            genetics.append(item[0])
-        if item[1]:
-            images.append(item[1])
-        labels.append(item[2])
+        if item[0][0] != None:
+            genetics.append(item[0][0])
+        if item[0][1] != None:
+            images.append(item[0][1])
+        labels.append(item[1])
 
     if genetics:
         genetics = torch.stack(genetics)
@@ -228,7 +216,12 @@ def collate_fn(batch):
         images = torch.stack(images)
     labels = torch.stack(labels)
 
-    return genetics, images, labels
+    if len(genetics) == 0:
+        genetics = None
+    if len(images) == 0:
+        images = None
+
+    return (genetics, images), labels
 
 def proportional_assign(total_count, count_per_leaf):
     temp_count_per_leaf = np.ceil(np.array(count_per_leaf) * ((total_count - 3) / (count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2])))
@@ -568,7 +561,28 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_param
 
     return source
 
-def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, gen_aug_params:object, train_val_test_split:tuple, oversampling_rate:int, train_not_classified_proportions:tuple, tree_specification_file:str, pre_existing_images:bool, cached_dataset_folder:str, cached_dataset_root:str, run_name:str, train_batch_size:int, train_push_batch_size:int, test_batch_size:int, mode:int, seed=2024, log=print):
+def create_tree_dataloaders(
+        source,
+        image_root_dir: str,
+        image_cache_dir: str,
+        gen_aug_params:object,
+        train_val_test_split:tuple,
+        oversampling_rate:int,
+        train_not_classified_proportions:tuple,
+        tree_specification_file:str,
+        pre_existing_images:bool,
+        cached_dataset_folder:str,
+        cached_dataset_root:str,
+        run_name:str,
+        train_batch_size:int,
+        train_push_batch_size:int,
+        test_batch_size:int,
+        transform_mean:tuple,
+        transform_std:tuple,
+        mode:int,
+        seed=2024,
+        log=print
+):
     """
         Creates train, train_push, validation, and test dataloaders for the tree dataset.
         
@@ -641,10 +655,21 @@ def create_tree_dataloaders(source, image_root_dir: str, image_cache_dir: str, g
         test_df.to_csv(test_path, sep="\t", index=False)
         log(f"Saved test dataset to {test_path}")
 
-    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, mode)
-    train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, mode)
-    val_dataset = TreeDataset(val_df, image_root_dir, class_specification, mode)
-    test_dataset = TreeDataset(test_df, image_root_dir, class_specification, mode)
+    normalize = transforms.Normalize(
+        mean=transform_mean, 
+        std=transform_std
+    )
+
+    img_transforms = transforms.Compose([
+        transforms.resize((256, 256)),
+        transforms.ToTensor(),
+        normalize
+    ])
+        
+    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, img_transforms, mode)
+    train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, img_transforms, mode)
+    val_dataset = TreeDataset(val_df, image_root_dir, class_specification, img_transforms, mode)
+    test_dataset = TreeDataset(test_df, image_root_dir, class_specification, img_transforms, mode)
 
     train_loader = DataLoader(
             train_dataset, batch_size=train_batch_size, shuffle=True,
@@ -683,6 +708,8 @@ def get_dataloaders(cfg, log):
         train_batch_size=cfg.DATASET.TRAIN_BATCH_SIZE,
         train_push_batch_size=cfg.DATASET.TRAIN_PUSH_BATCH_SIZE,
         test_batch_size=cfg.DATASET.TEST_BATCH_SIZE,
+        transform_mean=cfg.DATASET.TRANSFORM_MEAN,
+        transform_std=cfg.DATASET.TRANSFORM_STD,
         mode=cfg.DATASET.MODE,
         seed=cfg.SEED,
         log=log

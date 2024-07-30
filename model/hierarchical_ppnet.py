@@ -33,18 +33,27 @@ class Hierarchical_PPNet(nn.Module):
                 raise NotImplementedError("Fix_prototypes only supported for 1x1 prototypes")
             
         self.prototype_distance_function = prototype_distance_function
-        self.prototype_activation_function = prototype_activation_function # 'log' or 'linear'
-
-        # Ensure that we're using linear with cosine similarity
-        assert(not (prototype_distance_function == 'cosine' and prototype_activation_function != "linear"))
-
-        assert(self.num_prototypes % self.num_classes == 0)
+        self.prototype_activation_function = prototype_activation_function
         
         # a onehot indication matrix for each prototype's class identity
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
 
         num_prototypes_per_class = self.num_prototypes // self.num_classes
         
+        
+        for name, num_children in root.class_to_num_children().items():
+            setattr(self,"num_" + name, num_children)
+            
+        for name,shape in root.class_to_proto_shape(x_per_child=num_prototypes_per_class, dimension=prototype_shape).items():
+            setattr(self,name + "_prototype_shape",shape)
+            setattr(self,"num_" + name + "_prototypes",shape[0])
+            setattr(self,name + "_prototype_vectors", nn.Parameter(torch.rand(shape), requires_grad=True))
+            setattr(self,name + "_layer", nn.Linear(shape[0], getattr(self,"num_" + name), bias = False))
+            setattr(self,"ones_" + name, nn.Parameter(torch.ones(shape), requires_grad=False))
+            
+            root.set_node_attr(name,"num_prototypes_per_class",num_prototypes_per_class)
+            root.set_node_attr(name,"prototype_shape",shape)  
+                    
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
@@ -53,17 +62,7 @@ class Hierarchical_PPNet(nn.Module):
         # this has to be named features to allow the precise loading
         self.features = features
 
-        features_name = str(self.features).upper()
-        if features_name.startswith('VGG') or features_name.startswith('RES'):
-            first_add_on_layer_in_channels = \
-                [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
-        elif features_name.startswith('DENSE'):
-            first_add_on_layer_in_channels = \
-                [i for i in features.modules() if isinstance(i, nn.BatchNorm2d)][-1].num_features
-        elif genetics_mode:
-            first_add_on_layer_in_channels = [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
-        else:
-            raise Exception('other base base_architecture NOT implemented')
+    
 
 
         if self.prototype_distance_function == 'cosine':
@@ -74,6 +73,18 @@ class Hierarchical_PPNet(nn.Module):
             
         elif self.prototype_distance_function == 'l2':
             proto_depth = self.prototype_shape[1]
+            
+            features_name = str(self.features).upper()
+            if features_name.startswith('VGG') or features_name.startswith('RES'):
+                first_add_on_layer_in_channels = \
+                    [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
+            elif features_name.startswith('DENSE'):
+                first_add_on_layer_in_channels = \
+                    [i for i in features.modules() if isinstance(i, nn.BatchNorm2d)][-1].num_features
+            elif genetics_mode:
+                first_add_on_layer_in_channels = [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
+            else:
+                raise Exception('other base base_architecture NOT implemented')
 
             self.add_on_layers = nn.Sequential(
                 nn.Conv2d(in_channels=first_add_on_layer_in_channels, out_channels=proto_depth, kernel_size=1),
