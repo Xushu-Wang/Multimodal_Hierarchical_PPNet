@@ -41,7 +41,7 @@ def main():
         # NOTE: Use val_loader. We're not using test_loader until we're almost done with the paper.
         train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
 
-        with open("/home/users/xw214/Multimodal_Hierarchical_PPNet/class_trees/example.json", 'r') as file:
+        with open("class_trees/example.json", 'r') as file:
             data = json.load(file)
                         
         # Step 3: Fix Tree Structure
@@ -87,10 +87,10 @@ def main():
         
         
         # dictionaries
-        class_names = os.listdir(cfg.train_dir)
+        class_names = os.listdir("datasets/full_bioscan_images")
         class_names.sort()
         label2name = {i : name for (i,name) in enumerate(class_names)}
-        IDcoarse_names = root.children_names()
+        IDcoarse_names = root.get_children_names()
 
         # train the model
         log('start training')
