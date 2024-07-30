@@ -4,10 +4,12 @@ import torch.nn.functional as F
 
 
 class Hierarchical_PPNet(nn.Module):
-    def __init__(self, features, img_size, prototype_shape,
+    def __init__(self, features, img_size, 
+                 prototype_shape,
                  num_prototypes_per_class,
                  root,
-                 proto_layer_rf_info, num_classes, init_weights=True,
+                 proto_layer_rf_info, 
+                 init_weights=True,
                  prototype_distance_function = 'cosine',
                  prototype_activation_function='log',
                  genetics_mode=False,
@@ -79,13 +81,6 @@ class Hierarchical_PPNet(nn.Module):
             
             self.prototype_vectors = nn.Parameter(torch.rand(self.prototype_shape),
                                 requires_grad=True)
-            
-
-        self.ones = nn.Parameter(torch.ones(self.prototype_shape),
-                                 requires_grad=False)
-
-        self.last_layer = nn.Linear(self.num_prototypes, self.num_classes,
-                                    bias=False) # do not use bias
 
         if init_weights:
             self._initialize_weights()
@@ -281,18 +276,38 @@ class Hierarchical_PPNet(nn.Module):
             + incorrect_class_connection * negative_one_weights_locations)
 
     def _initialize_weights(self):
-        for m in self.add_on_layers.modules():
+        for m in self.modules(): # Returns an iterator over all modules in the network.   
+            if len(m._modules) > 0: # skip anything that's not a single layer
+                continue
             if isinstance(m, nn.Conv2d):
                 # every init technique has an underscore _ in the name
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-
+                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.normal_(m.weight, mean=0, std=0.1)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias, 0)            
+            elif isinstance(m, nn.Linear):
+                identity = torch.eye(m.out_features)
+                repeated_identity = identity.unsqueeze(2).repeat(1,1,self.num_prototypes_per_class).\
+                                            view(m.out_features, -1)
+                m.weight.data.copy_(1.5 * repeated_identity - 0.5)
+                
+    def get_joint_distribution(self):
+           
 
-        self.set_last_layer_incorrect_connection(incorrect_strength=-0.5)
+        batch_size = self.root.logits.size(0)
+
+        #top_level = torch.nn.functional.softmax(self.root.logits,1)            
+        top_level = self.root.logits
+        bottom_level = self.root.distribution_over_furthest_descendents(batch_size)    
+
+        names = self.root.unwrap_names_of_joint(self.root.names_of_joint_distribution())
+        idx = np.argsort(names)
+
+        bottom_level = bottom_level[:,idx]        
+        
+        return top_level, bottom_level
 
 

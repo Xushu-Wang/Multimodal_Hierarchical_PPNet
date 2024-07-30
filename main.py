@@ -45,7 +45,7 @@ def main():
             data = json.load(file)
                         
         # Step 3: Fix Tree Structure
-        root = Node('Diptera')
+        root = Node('Diptera Order')
         
         construct_tree(data['tree'], root)        
         

@@ -37,7 +37,7 @@ def get_optimizers(cfg, ppnet, root):
     internal_nodes = root.nodes_with_children()
     
     for node in internal_nodes:
-        through_protos_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+        through_protos_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
     
     through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
     
@@ -46,7 +46,7 @@ def get_optimizers(cfg, ppnet, root):
     warm_optimizer_specs = [{'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
     
     for node in internal_nodes:
-        warm_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+        warm_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
 
     warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
     
@@ -66,7 +66,7 @@ def get_optimizers(cfg, ppnet, root):
     
     
     for node in internal_nodes:
-        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "prototype_vectors"), 'lr': 3e-3})
+        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
         joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "_layer").parameters(), 'lr': 3e-3})
     
     joint_optimizer = torch.optim.Adam(joint_optimizer_specs)

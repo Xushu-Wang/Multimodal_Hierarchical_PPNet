@@ -43,7 +43,7 @@ def construct_image_ppnet(base_architecture, pretrained=True, img_size=224,
                                                          layer_filter_sizes=layer_filter_sizes,
                                                          layer_strides=layer_strides,
                                                          layer_paddings=layer_paddings,
-                                                         prototype_kernel_size=prototype_shape[2])
+                                                         prototype_kernel_size=prototype_shape)
     return Hierarchical_PPNet(features=features,
                  img_size=img_size,
                  prototype_shape=prototype_shape,
@@ -52,8 +52,8 @@ def construct_image_ppnet(base_architecture, pretrained=True, img_size=224,
                  proto_layer_rf_info=proto_layer_rf_info,
                  init_weights=True,
                  prototype_distance_function=prototype_distance_function,
-                 prototype_activation_function=prototype_activation_function,
-                 fix_prototypes=False)
+                 prototype_activation_function=prototype_activation_function
+                 )
 
 
 def construct_genetic_ppnet(length:int, num_classes:int, prototype_shape, model_path:str, prototype_distance_function = 'cosine', prototype_activation_function='log', fix_prototypes=True):
