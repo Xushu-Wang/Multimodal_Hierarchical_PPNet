@@ -705,8 +705,17 @@ def create_tree_dataloaders(
         normalize
     ])
 
+    genetic_transforms = GrossGeneticTransform()
+
         
-    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, augmented_img_transforms, mode)
+    train_dataset = TreeDataset(
+        train_df, 
+        # image_cache_dir if oversampling_rate != 1 else image_root_dir,
+        image_root_dir,
+        class_specification,
+        augmented_img_transforms,
+        mode
+    )
     train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, img_transforms, mode)
     val_dataset = TreeDataset(val_df, image_root_dir, class_specification, img_transforms, mode)
     test_dataset = TreeDataset(test_df, image_root_dir, class_specification, img_transforms, mode)
