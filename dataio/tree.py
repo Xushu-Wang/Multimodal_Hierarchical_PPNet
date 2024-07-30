@@ -117,7 +117,7 @@ class TreeDataset(Dataset):
     mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
-    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, mode=3):
+    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -126,6 +126,7 @@ class TreeDataset(Dataset):
         self.mode = mode
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
         self.image_transforms = image_transforms
+        self.genetic_transforms = genetic_transforms
 
     def mutate_genetics(self, df:pd.DataFrame):
         return df.apply(self.mutate_sample, axis=1)
@@ -158,6 +159,8 @@ class TreeDataset(Dataset):
         
         if self.mode & 1:
             genetics = row["nucraw"]
+            if self.genetic_transforms:
+                genetics = self.genetic_transforms(genetics)
             genetics = self.one_hot_encoder(genetics)
         else:
             genetics = None
@@ -548,6 +551,25 @@ class GrossImageTransform(object):
             p.flip_left_right(probability=0.5)
             return p.torch_transform()(image)
 
+def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
+    def __call__(self, image):
+        insertion_count = np.random.randint(0, insertion_amount+1)
+        deletion_count = np.random.randint(0, deletion_amount+1)
+
+        insertion_indices = np.random.randint(0, len(sample), insertion_count)
+        for idx in insertion_indices:
+            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
+        
+        deletion_indices = np.random.randint(0, len(sample), deletion_count)
+        for idx in deletion_indices:
+            sample = sample[:idx] + sample[idx+1:]
+        
+        mutation_indices = np.random.choice(len(sample), int(len(sample) * substitution_rate), replace=False)
+        for idx in mutation_indices:
+            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
+        
+        return sample
+
 def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_params):
     """
     This applies image and genetic augmentations to the training dataset.
@@ -704,16 +726,18 @@ def create_tree_dataloaders(
         transforms.ToTensor(),
         normalize
     ])
-
-    genetic_transforms = GrossGeneticTransform()
-
-        
+    augmented_genetic_transforms = GrossGeneticTransform(
+        insertion_amount=gen_aug_params.INSERTION_COUNT,
+        deletion_amount=gen_aug_params.DELETION_COUNT,
+        substitution_rate=gen_aug_params.SUBSTITUTION_RATE
+    )
     train_dataset = TreeDataset(
-        train_df, 
+        train_df,
         # image_cache_dir if oversampling_rate != 1 else image_root_dir,
         image_root_dir,
         class_specification,
         augmented_img_transforms,
+        augmented_genetic_transforms,
         mode
     )
     train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, img_transforms, mode)
