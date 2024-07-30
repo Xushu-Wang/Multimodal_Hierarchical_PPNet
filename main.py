@@ -2,6 +2,7 @@ import argparse, os
 import torch
 from utils.util import save_model_w_condition, create_logger, makedir
 from os import mkdir
+import json
 
 from configs.cfg import get_cfg_defaults
 from prototype.push import push_prototypes
@@ -39,17 +40,17 @@ def main():
         # NOTE: Use val_loader. We're not using test_loader until we're almost done with the paper.
         train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
 
-        # print(train_loader.dataset[0])
-        # print(train_loader.dataset[1])
-
+        with open("class_trees/example.json", 'r') as file:
+            data = json.load(file)
+                        
         # Step 3: Fix Tree Structure
-        root = Node("Diptera")
-        # construct_tree(json_data, root)
+        root = Node('Diptera Order')
         
-        root.assign_all_descendents()
+        construct_tree(data['tree'], root)        
         
-        log(print_tree(root))
+        print_tree(root)
         
+        root.assign_all_descendents()    
         
         # Remember to specify prototypes directory
         
@@ -85,10 +86,10 @@ def main():
         
         
         # dictionaries
-        class_names = os.listdir(cfg.train_dir)
+        class_names = os.listdir("datasets/full_bioscan_images")
         class_names.sort()
         label2name = {i : name for (i,name) in enumerate(class_names)}
-        IDcoarse_names = root.children_names()
+        IDcoarse_names = root.get_children_names()
 
         # train the model
         log('start training')

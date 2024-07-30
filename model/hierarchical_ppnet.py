@@ -4,14 +4,15 @@ import torch.nn.functional as F
 
 
 class Hierarchical_PPNet(nn.Module):
-    def __init__(self, features, img_size, prototype_shape,
+    def __init__(self, features, img_size, 
+                 prototype_shape,
+                 num_prototypes_per_class,
                  root,
-                 proto_layer_rf_info, num_classes, init_weights=True,
+                 proto_layer_rf_info, 
+                 init_weights=True,
                  prototype_distance_function = 'cosine',
                  prototype_activation_function='log',
                  genetics_mode=False,
-                 fix_prototypes=False,
-                 rearrange_logit_map=None
         ):
         """
         Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
@@ -23,22 +24,11 @@ class Hierarchical_PPNet(nn.Module):
         
         self.img_size = img_size
         self.prototype_shape = prototype_shape
-        self.num_prototypes = prototype_shape[0]
-        self.num_classes = num_classes
+        self.num_prototypes_per_class = num_prototypes_per_class
         self.epsilon = 1e-4
-        self.fix_prototypes = fix_prototypes
-
-        if self.fix_prototypes:
-            if self.prototype_shape[3] != 1:
-                raise NotImplementedError("Fix_prototypes only supported for 1x1 prototypes")
             
         self.prototype_distance_function = prototype_distance_function
         self.prototype_activation_function = prototype_activation_function
-        
-        # a onehot indication matrix for each prototype's class identity
-        self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
-
-        num_prototypes_per_class = self.num_prototypes // self.num_classes
         
         
         for name, num_children in root.class_to_num_children().items():
@@ -54,8 +44,6 @@ class Hierarchical_PPNet(nn.Module):
             root.set_node_attr(name,"num_prototypes_per_class",num_prototypes_per_class)
             root.set_node_attr(name,"prototype_shape",shape)  
                     
-        for j in range(self.num_prototypes):
-            self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
         self.proto_layer_rf_info = proto_layer_rf_info
 
@@ -63,8 +51,6 @@ class Hierarchical_PPNet(nn.Module):
         self.features = features
 
     
-
-
         if self.prototype_distance_function == 'cosine':
             self.add_on_layers = nn.Sequential()
             
@@ -95,13 +81,6 @@ class Hierarchical_PPNet(nn.Module):
             
             self.prototype_vectors = nn.Parameter(torch.rand(self.prototype_shape),
                                 requires_grad=True)
-            
-
-        self.ones = nn.Parameter(torch.ones(self.prototype_shape),
-                                 requires_grad=False)
-
-        self.last_layer = nn.Linear(self.num_prototypes, self.num_classes,
-                                    bias=False) # do not use bias
 
         if init_weights:
             self._initialize_weights()
@@ -119,13 +98,13 @@ class Hierarchical_PPNet(nn.Module):
     def classifier(self, conv_features, node):        
                 
         if self.prototype_distance_function == 'cosine':
-            similarity = self.cosine_similarity(conv_features)
+            similarity = self.cosine_similarity(conv_features, node.name)
             max_similarities = F.max_pool2d(similarity,
                             kernel_size=(similarity.size()[2],
                                         similarity.size()[3]))
             min_distances = -1 * max_similarities
         elif self.prototype_distance_function == 'l2':
-            distances = self.l2_distance(conv_features)
+            distances = self.l2_distance(conv_features, node.name)
             
             # global min pooling
             min_distances = -F.max_pool2d(-distances,
@@ -148,45 +127,19 @@ class Hierarchical_PPNet(nn.Module):
             self.classifier(conv_features,node)
     
 
-    def cosine_similarity(self, x, with_width_dim=False):
-        sqrt_dims = (self.prototype_shape[2] * self.prototype_shape[3]) ** .5
+    def cosine_similarity(self, x, name, with_width_dim=False):
+        sqrt_dims = (self.prototype_shape * self.prototype_shape) ** .5
+        
         x_norm = F.normalize(x, dim=1) / sqrt_dims
-        normalized_prototypes = F.normalize(self.prototype_vectors, dim=1) / sqrt_dims
-
-        if self.fix_prototypes:
-            offsetting_tensor = self.find_offsetting_tensor(x, normalized_prototypes)
-            normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
-            normalized_prototypes = torch.gather(normalized_prototypes, 3, offsetting_tensor)
-            
-            if with_width_dim:
-                similarities = F.conv2d(x_norm, normalized_prototypes)
-                
-                # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
-                similarities = similarities.reshape((similarities.shape[0], self.num_classes, similarities.shape[1] // self.num_classes, 1))
-                # Take similarities to [3200, 40, 1]
-                similarities = similarities.reshape((similarities.shape[0] * similarities.shape[1], similarities.shape[2], similarities.shape[3]))
-                # Take similarities to [3200, 40, 40]
-                similarities = F.pad(similarities, (0, x.shape[3] - similarities.shape[2], 0, 0), value=-1)
-                similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(similarities)
-
-                # print(similarities.shape, similarity_offsetting_tensor.shape)
-                similarities = torch.gather(similarities, 2, similarity_offsetting_tensor)
-                # Take similarities to [80, 40, 40, 40]
-                similarities = similarities.reshape((similarities.shape[0] // self.num_classes, self.num_classes, similarities.shape[1], similarities.shape[2]))
-
-                # Take similarities to [80, 1600, 40]
-                similarities = similarities.reshape((similarities.shape[0], similarities.shape[1] * similarities.shape[2], similarities.shape[3]))
-                similarities = similarities.unsqueeze(2)
-
-                return similarities
+        normalized_prototypes = F.normalize(getattr(self,"ones_" + name), dim=1) / sqrt_dims
 
         return F.conv2d(x_norm, normalized_prototypes)
     
-    def l2_distance(self, x):
+    def l2_distance(self, x, name):
         '''
         apply self.prototype_vectors as l2-convolution filters on input x
         '''
-        x2_patch_sum = F.conv2d(input=x**2, weight=self.ones)
+        x2_patch_sum = F.conv2d(input=x**2, weight=getattr(self,"ones_" + name))
 
         p2 = torch.sum(self.prototype_vectors ** 2, dim=(1, 2, 3))
         # p2 is a vector of shape (num_prototypes,)
@@ -323,17 +276,38 @@ class Hierarchical_PPNet(nn.Module):
             + incorrect_class_connection * negative_one_weights_locations)
 
     def _initialize_weights(self):
-        for m in self.add_on_layers.modules():
+        for m in self.modules(): # Returns an iterator over all modules in the network.   
+            if len(m._modules) > 0: # skip anything that's not a single layer
+                continue
             if isinstance(m, nn.Conv2d):
                 # every init technique has an underscore _ in the name
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-
+                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.normal_(m.weight, mean=0, std=0.1)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias, 0)            
+            elif isinstance(m, nn.Linear):
+                identity = torch.eye(m.out_features)
+                repeated_identity = identity.unsqueeze(2).repeat(1,1,self.num_prototypes_per_class).\
+                                            view(m.out_features, -1)
+                m.weight.data.copy_(1.5 * repeated_identity - 0.5)
+                
+    def get_joint_distribution(self):
+           
 
-        self.set_last_layer_incorrect_connection(incorrect_strength=-0.5)
+        batch_size = self.root.logits.size(0)
+
+        #top_level = torch.nn.functional.softmax(self.root.logits,1)            
+        top_level = self.root.logits
+        bottom_level = self.root.distribution_over_furthest_descendents(batch_size)    
+
+        names = self.root.unwrap_names_of_joint(self.root.names_of_joint_distribution())
+        idx = np.argsort(names)
+
+        bottom_level = bottom_level[:,idx]        
+        
+        return top_level, bottom_level
+
 
