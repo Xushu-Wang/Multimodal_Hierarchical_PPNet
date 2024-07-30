@@ -520,6 +520,34 @@ def check_cached_images(source, image_cache_dir, log=print):
 
     return True
 
+class GrossImageTransform(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, image):
+        r = np.random.randint(0, 4)
+
+        if r == 0:
+            p = Augmentor.Pipeline()
+            p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
+            p.flip_left_right(probability=0.5)
+            return p.torch_transform()(image)
+        elif r == 1:
+            p = Augmentor.Pipeline()
+            p.skew(probability=1, magnitude=0.2)
+            p.flip_left_right(probability=0.5)
+            return p.torch_transform()(image)
+        elif r == 2:
+            p = Augmentor.Pipeline()
+            p.shear(probability=1, max_shear_left=10, max_shear_right=10)
+            p.flip_left_right(probability=0.5)
+            return p.torch_transform()(image)
+        else:
+            p = Augmentor.Pipeline()
+            p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
+            p.flip_left_right(probability=0.5)
+            return p.torch_transform()(image)
+
 def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_params):
     """
     This applies image and genetic augmentations to the training dataset.
@@ -543,10 +571,10 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_param
         ToTensor()]
     )
     
-    # skew_transform = v2.Compose([
-    #     v2.RandomAffine(degrees=0, shear=45),
-    #     v2.RandomHorizontalFlip(),
-    # ])
+    skew_transform = v2.Compose([
+        v2.RandomAffine(degrees=0, shear=45),
+        v2.RandomHorizontalFlip(),
+    ])
 
     shear_transform = v2.Compose([
         v2.RandomAffine(degrees=0, shear=10),
@@ -627,8 +655,9 @@ def create_tree_dataloaders(
         old_train_size = len(train_df)
         start_t = time.time()
         if oversampling_rate != 1:
-            raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
-            train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
+            # raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
+            # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
+            train_df = oversample(train_df, oversampling_rate, seed)
         new_train_size = len(train_df)
         
         log(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
@@ -667,8 +696,17 @@ def create_tree_dataloaders(
         transforms.ToTensor(),
         normalize
     ])
+
+    augmented_img_transforms = transforms.Compose([
+        transforms.ToPILImage(),
+        GrossImageTransform(),
+        transforms.Resize(size=(256, 256)),
+        transforms.ToTensor(),
+        normalize
+    ])
+
         
-    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, img_transforms, mode)
+    train_dataset = TreeDataset(train_df, image_cache_dir if oversampling_rate != 1 else image_root_dir, class_specification, augmented_img_transforms, mode)
     train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, img_transforms, mode)
     val_dataset = TreeDataset(val_df, image_root_dir, class_specification, img_transforms, mode)
     test_dataset = TreeDataset(test_df, image_root_dir, class_specification, img_transforms, mode)
