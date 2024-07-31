@@ -6,7 +6,6 @@ import json
 
 from configs.cfg import get_cfg_defaults
 from prototype.push import push_prototypes
-from dataio.tree import get_dataloaders
 
 from model.node import Node
 from model.hierarchical_ppnet import Hierarchical_PPNet
@@ -25,8 +24,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
     parser.add_argument('--configs', type=str, default='configs/image.yaml')
-    args = parser.parse_args()
-
     cfg.merge_from_file(args.configs)
     
     args = parser.parse_args()
@@ -85,22 +82,15 @@ def main():
             'CEDA': False
         }    
         
-        
-        # dictionaries
-        class_names = os.listdir("datasets/full_bioscan_images")
-        class_names.sort()
-        label2name = {i : name for (i,name) in enumerate(class_names)}
-        IDcoarse_names = root.get_children_names()
-
         # train the model
-        log('start training')
+        log('Starting training, wish me luck!')
     
         # warm epoch
         for epoch in range(cfg.OPTIM.NUM_WARM_EPOCHS):
             log('epoch: \t{0}'.format(epoch))    	
             
             tnt.coarse_warm(model=ppnet_multi, log=log)
-            _ = tnt.train(model=ppnet_multi, dataloader=train_loader, label2name=label2name, optimizer=warm_optimizer, coefs = coefs, class_specific=class_specific, log=log, warm_up = True)	
+            _ = tnt.train(model=ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer, coefs = coefs, class_specific=class_specific, log=log, warm_up = True)	
 
         # proto epoch
 

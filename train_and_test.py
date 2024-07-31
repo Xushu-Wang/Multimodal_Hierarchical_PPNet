@@ -17,7 +17,7 @@ def CE(logits,target):
      return torch.sum(torch.sum(- target * torch.log(probs))) 
 
 
-def _train_or_test(model, dataloader, label2name, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
+def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
     '''
     model: the multi-gpu model
     dataloader:
@@ -370,20 +370,20 @@ def _OOD_test(model, dataloader, label2name, IDroot, OODroot, optimizer=None, cl
 
 
 
-def train(model, dataloader, label2name, optimizer, coefs, class_specific=False, log=print, warm_up = False):
+def train(model, dataloader, optimizer, coefs, class_specific=False, log=print, warm_up = False):
     assert(optimizer is not None)
     log('train')
-    return _train_or_test(model=model, dataloader=dataloader, label2name=label2name, optimizer=optimizer, coefs=coefs,
+    return _train_or_test(model=model, dataloader=dataloader, optimizer=optimizer, coefs=coefs,
                           class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs['CEDA'])
 
 def valid(model, dataloader, label2name, coefs = None, class_specific=False, log=print):
     log('valid')
-    return _train_or_test(model=model, dataloader=dataloader, label2name=label2name, optimizer=None, coefs=coefs,
+    return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs=coefs,
                           class_specific=class_specific, log=log)
 
 def test(model, dataloader, label2name, coefs = None, class_specific=False, log=print, class_acc = False):
     #log('test')
-    return _train_or_test(model=model, dataloader=dataloader, label2name=label2name, optimizer=None, coefs = coefs,
+    return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs = coefs,
                       class_specific=class_specific, log=log, class_acc=class_acc)
 
 def OOD_test(model, dataloader, label2name, IDroot, OODroot, args = None, class_specific=False, log=print, class_acc = True):

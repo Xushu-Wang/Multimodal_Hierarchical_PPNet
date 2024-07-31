@@ -3,173 +3,78 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-
-class Hierarchical_PPNet(nn.Module):
-    def __init__(self, features, img_size, 
-                 prototype_shape,
+class TreeNode():
+    def __init__(self,
+                 int_location,
+                 named_location,
                  num_prototypes_per_class,
-                 root,
-                 proto_layer_rf_info, 
-                 init_weights=True,
-                 prototype_distance_function = 'cosine',
-                 prototype_activation_function='log',
-                 genetics_mode=False,
-        ):
+                 prototype_shape,
+                 tree_specification,
+                 fix_prototypes
+    ):
         """
-        Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
+        int_location: the 2nd child of the 1st class will look like (1,2) (1 indexing)
+        named_location: the 2nd child of the 1st class will look like ("class_1", "class_2")
+        num_prototypes_per_class: the number of prototypes per class
+        prototype_shape: the shape of the prototype (minus the number of prototypes) length 3
+        tree_specification: the tree specification
+        fix_prototypes: whether to fix the prototypes or not
         """
-                
-        super().__init__()
-        
-        self.root = root
-        
-        self.img_size = img_size
-        self.prototype_shape = prototype_shape
-        self.num_prototypes_per_class = num_prototypes_per_class
-        self.epsilon = 1e-4
-            
-        self.prototype_distance_function = prototype_distance_function
-        self.prototype_activation_function = prototype_activation_function
-        
-        
-        for name, num_children in root.class_to_num_children().items():
-            setattr(self,"num_" + name, num_children)
-            
-        for name,shape in root.class_to_proto_shape(x_per_child=num_prototypes_per_class, dimension=prototype_shape).items():
-            setattr(self,name + "_prototype_shape",shape)
-            setattr(self,"num_" + name + "_prototypes",shape[0])
-            setattr(self,name + "_prototype_vectors", nn.Parameter(torch.rand(shape), requires_grad=True))
-            setattr(self,name + "_layer", nn.Linear(shape[0], getattr(self,"num_" + name), bias = False))
-            setattr(self,"ones_" + name, nn.Parameter(torch.ones(shape), requires_grad=False))
-            
-            root.set_node_attr(name,"num_prototypes_per_class",num_prototypes_per_class)
-            root.set_node_attr(name,"prototype_shape",shape)  
-                    
 
-        self.proto_layer_rf_info = proto_layer_rf_info
+        if prototype_shape != 3:
+            raise ValueError("Prototype_shape must be of length 3, leave out the number of prototypes man, come on.")
 
-        # this has to be named features to allow the precise loading
-        self.features = features
+        self.int_location = int_location
+        self.named_location = named_location
+        self.num_classes = len(tree_specification)
+        self.num_prototypes = self.num_classes * num_prototypes_per_class
+        self.full_prototype_shape = (self.num_prototypes, prototype_shape[0], prototype_shape[1], prototype_shape[2]) 
+        self.fix_prototypes = fix_prototypes
 
+        self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
+        for j in range(self.num_prototypes):
+            self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
+
+        self.children = []
+
+        self.prototype_vectors = nn.Parameter(
+            torch.randn(self.full_prototype_shape),
+            requires_grad=True
+        )
+        self.last_layer = nn.Linear(self.num_prototypes, self.num_classes,
+                                    bias=False)
+        
+        self.set_last_layer_incorrect_connection(-0.5)
+        self.create_children()
+
+    def create_children(self):
+        i = 1 # 0 Is reserved for not_classified
+        for name, child in self.tree_specification.items():
+            if child is None:
+                continue
+            self.children.append(TreeNode(self.int_location + [i],
+                                          self.named_location + [name],
+                                          self.num_prototypes,
+                                          child))
+            i += 1
     
-        if self.prototype_distance_function == 'cosine':
-            self.add_on_layers = nn.Sequential()
-            
-            self.prototype_vectors = nn.Parameter(torch.randn(self.prototype_shape),
-                                requires_grad=True)
-            
-        elif self.prototype_distance_function == 'l2':
-            proto_depth = self.prototype_shape[1]
-            
-            features_name = str(self.features).upper()
-            if features_name.startswith('VGG') or features_name.startswith('RES'):
-                first_add_on_layer_in_channels = \
-                    [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
-            elif features_name.startswith('DENSE'):
-                first_add_on_layer_in_channels = \
-                    [i for i in features.modules() if isinstance(i, nn.BatchNorm2d)][-1].num_features
-            elif genetics_mode:
-                first_add_on_layer_in_channels = [i for i in features.modules() if isinstance(i, nn.Conv2d)][-1].out_channels
-            else:
-                raise Exception('other base base_architecture NOT implemented')
-
-            self.add_on_layers = nn.Sequential(
-                nn.Conv2d(in_channels=first_add_on_layer_in_channels, out_channels=proto_depth, kernel_size=1),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=proto_depth, out_channels=proto_depth, kernel_size=1),
-                nn.Sigmoid()
-            )
-            
-            self.prototype_vectors = nn.Parameter(torch.rand(self.prototype_shape),
-                                requires_grad=True)
-
-        if init_weights:
-            self._initialize_weights()
-
-    def conv_features(self, x):
+    def set_last_layer_incorrect_connection(self, incorrect_strength):
         '''
-        the feature input to prototype layer
+        the incorrect strength will be actual strength if -0.5 then input -0.5
         '''
-        x = self.features(x)
-        x = self.add_on_layers(x)
+        positive_one_weights_locations = torch.t(self.prototype_class_identity)
+        negative_one_weights_locations = 1 - positive_one_weights_locations
 
-        return x
-    
-    
-    def classifier(self, conv_features, node):        
-                
-        if self.prototype_distance_function == 'cosine':
-            similarity = self.cosine_similarity(conv_features, node.name)
-            max_similarities = F.max_pool2d(similarity,
-                            kernel_size=(similarity.size()[2],
-                                        similarity.size()[3]))
-            min_distances = -1 * max_similarities
-        elif self.prototype_distance_function == 'l2':
-            distances = self.l2_distance(conv_features, node.name)
-            
-            # global min pooling
-            min_distances = -F.max_pool2d(-distances,
-                                        kernel_size=(distances.size()[2],
-                                                    distances.size()[3]))
-            
-                    
-        min_distances = min_distances.view(-1, getattr(self,"num_" + node.name + "_prototypes"))
-        prototype_activations = self.distance_2_similarity(min_distances)
-        logits = getattr(self, node.name + "_layer")(prototype_activations)
-        
-        setattr(node, "logits", logits)
-        setattr(node, "min_distances", min_distances)
-        
-    def forward(self, x):
-
-        conv_features = self.conv_features(x)
-
-        for node in self.root.nodes_with_children():
-            self.classifier(conv_features,node)
-    
-
-    def cosine_similarity(self, x, name, with_width_dim=False):
-        sqrt_dims = (self.prototype_shape * self.prototype_shape) ** .5
-        
-        x_norm = F.normalize(x, dim=1) / sqrt_dims
-        normalized_prototypes = F.normalize(getattr(self,"ones_" + name), dim=1) / sqrt_dims
-
-        return F.conv2d(x_norm, normalized_prototypes)
-    
-    def l2_distance(self, x, name):
-        '''
-        apply self.prototype_vectors as l2-convolution filters on input x
-        '''
-        x2_patch_sum = F.conv2d(input=x**2, weight=getattr(self,"ones_" + name))
-
-        p2 = torch.sum(self.prototype_vectors ** 2, dim=(1, 2, 3))
-        # p2 is a vector of shape (num_prototypes,)
-        # then we reshape it to (num_prototypes, 1, 1)
-        p2_reshape = p2.view(-1, 1, 1)
-
-        xp = F.conv2d(input=x, weight=self.prototype_vectors)
-        intermediate_result = - 2 * xp + p2_reshape  # use broadcast
-        # x2_patch_sum and intermediate_result are of the same shape
-        distances = F.relu(x2_patch_sum + intermediate_result)
-
-        return distances
-
-    def distance_2_similarity(self, distances):
-        if self.prototype_activation_function == 'log':
-            return torch.log((distances + 1) / (distances + self.epsilon))
-        elif self.prototype_activation_function == 'linear':
-            return -distances
-        else:
-            raise NotImplementedError
-        
-    
-    # Prototype Pruning Starts from Here
+        correct_class_connection = 1
+        incorrect_class_connection = incorrect_strength
+        self.last_layer.weight.data.copy_(
+            correct_class_connection * positive_one_weights_locations
+            + incorrect_class_connection * negative_one_weights_locations)
 
     def find_offsetting_tensor(self, x, normalized_prototypes):
         """
         This finds the tensor used to offset each prototype to a different spatial location.
         """
-
         # TODO - This should really only be done once on initialization.
         # This is a major waste of time
         arange1 = torch.arange(normalized_prototypes.shape[0] // self.num_classes).view((normalized_prototypes.shape[0]  // self.num_classes, 1)).repeat((1, normalized_prototypes.shape[0]  // self.num_classes))
@@ -199,50 +104,156 @@ class Hierarchical_PPNet(nn.Module):
 
         return eye.to(similarities.device)
 
-    def push_forward(self, x):
-        '''this method is needed for the pushing operation'''
-        # Possibly better to go through and change push with this similarity metric
-        conv_output = self.conv_features(x)
-        if self.prototype_distance_function == 'cosine':
-            similarities = self.cosine_similarity(conv_output)
-            distances = -1 * similarities
-        elif self.prototype_distance_function == 'l2':
-            distances = self.l2_distance(conv_output)
-        return conv_output, distances
+    def cosine_similarity(self, x, with_width_dim=False):
+        sqrt_dims = (self.full_prototype_shape[2] * self.full_prototype_shape[3]) ** .5
+        x_norm = F.normalize(x, dim=1) / sqrt_dims
+        normalized_prototypes = F.normalize(self.prototype_vectors, dim=1) / sqrt_dims
 
-    def push_forward_fixed(self,x):
-        conv_output = self.conv_features(x)
-        similarities = self.cosine_similarity(conv_output)
+        if self.fix_prototypes:
+            offsetting_tensor = self.find_offsetting_tensor(x, normalized_prototypes)
+            normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
+            normalized_prototypes = torch.gather(normalized_prototypes, 3, offsetting_tensor)
+            
+            if with_width_dim:
+                similarities = F.conv2d(x_norm, normalized_prototypes)
+                
+                # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
+                similarities = similarities.reshape((similarities.shape[0], self.num_classes, similarities.shape[1] // self.num_classes, 1))
+                # Take similarities to [3200, 40, 1]
+                similarities = similarities.reshape((similarities.shape[0] * similarities.shape[1], similarities.shape[2], similarities.shape[3]))
+                # Take similarities to [3200, 40, 40]
+                similarities = F.pad(similarities, (0, x.shape[3] - similarities.shape[2], 0, 0), value=-1)
+                similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(similarities)
+
+                # print(similarities.shape, similarity_offsetting_tensor.shape)
+                similarities = torch.gather(similarities, 2, similarity_offsetting_tensor)
+                # Take similarities to [80, 40, 40, 40]
+                similarities = similarities.reshape((similarities.shape[0] // self.num_classes, self.num_classes, similarities.shape[1], similarities.shape[2]))
+
+                # Take similarities to [80, 1600, 40]
+                similarities = similarities.reshape((similarities.shape[0], similarities.shape[1] * similarities.shape[2], similarities.shape[3]))
+                similarities = similarities.unsqueeze(2)
+
+                return similarities
+
+        return F.conv2d(x_norm, normalized_prototypes)
+
+    def get_logits(self, conv_features):
+        # NOTE: x is conv_features
+        similarity = self.cosine_similarity(conv_features)
+        max_similarities = F.max_pool2d(similarity,
+                        kernel_size=(similarity.size()[2],
+                                    similarity.size()[3]))
+        min_distances = -1 * max_similarities
+
+        min_distances = min_distances.view(-1, self.num_prototypes)
+        prototype_activations = self.distance_2_similarity(min_distances)
+        logits = self.last_layer(prototype_activations)
+
+        return logits, min_distances
+    
+    def push_get_dist(self, conv_features):
+        similarities = self.cosine_similarity(conv_features)
         distances = -1 * similarities
 
-        return conv_output, distances
+        return distances
 
-    def prune_prototypes(self, prototypes_to_prune):
+    def __forward__(self, conv_features):
+        logits, min_distances = self.get_logits(conv_features)
+        return {
+            "int_location": self.int_location,
+            "named_location": self.named_location,
+            "logits": logits,
+            "min_distances": min_distances,
+            "children": [child(conv_features) for child in self.children]
+        }
+    
+    def push_forward(self, conv_features):
+        return {
+            "int_location": self.int_location,
+            "named_location": self.named_location,
+            "distances": self.push_get_dist(conv_features),
+            "children": [child.push_forward(conv_features) for child in self.children]
+        }
+
+    def __repr__(self):
+        return f"TreeNode: [{'>'.join(self.named_location)}]"
+
+
+class Hierarchical_PPNet(nn.Module):
+    def __init__(self, 
+                 features,
+                 img_size, 
+                 prototype_shape,
+                 num_prototypes_per_class,
+                 tree_specification,
+                 proto_layer_rf_info, 
+                 init_weights=True,
+                 genetics_mode=False,
+        ):
+        """
+        Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
+        
+        NOTE: Prototype shape is a 3-tuple, it does not include the number of prototypes. This is non-standard.
+        """
+        
+        super().__init__()
+        
+        # Construct PPNet Tree
+        self.root = self.construct_last_layer_tree(tree_specification)
+        
+        self.tree_specification = tree_specification
+        self.img_size = img_size
+        self.prototype_shape = prototype_shape
+        self.genetics_mode = genetics_mode
+
+        self.num_prototypes_per_class = num_prototypes_per_class
+            
+        self.proto_layer_rf_info = proto_layer_rf_info
+
+        # this has to be named features to allow the precise loading
+        self.features = features
+
+        self.add_on_layers = nn.Sequential()        
+        self.prototype_vectors = nn.Parameter(torch.randn(self.prototype_shape),
+                            requires_grad=True)
+            
+        if init_weights:
+            self._initialize_weights()
+
+    def construct_last_layer_tree(self):
+        """
+        This constructs the tree that will be used to determine the last layer.
+        """
+        root = TreeNode(
+            int_location=[],
+            named_location=[],
+            num_prototypes_per_class=self.num_prototypes,
+            prototype_shape=self.prototype_shape,
+            tree_specification=self.tree_specification["tree"],
+            fix_prototypes=self.genetics_mode)
+        return root
+
+    def conv_features(self, x):
         '''
-        prototypes_to_prune: a list of indices each in
-        [0, current number of prototypes - 1] that indicates the prototypes to
-        be removed
+        the feature input to prototype layer
         '''
-        prototypes_to_keep = list(set(range(self.num_prototypes)) - set(prototypes_to_prune))
+        x = self.features(x)
+        x = self.add_on_layers(x)
+        return x
+            
+    def forward(self, x):
+        conv_features = self.conv_features(x)
+        logit_tree = self.root(conv_features)
 
-        self.prototype_vectors = nn.Parameter(self.prototype_vectors.data[prototypes_to_keep, ...],
-                                              requires_grad=True)
-
-        self.prototype_shape = list(self.prototype_vectors.size())
-        self.num_prototypes = self.prototype_shape[0]
-
-        # changing self.last_layer in place
-        # changing in_features and out_features make sure the numbers are consistent
-        self.last_layer.in_features = self.num_prototypes
-        self.last_layer.out_features = self.num_classes
-        self.last_layer.weight.data = self.last_layer.weight.data[:, prototypes_to_keep]
-
-        # self.ones is nn.Parameter
-        self.ones = nn.Parameter(self.ones.data[prototypes_to_keep, ...],
-                                 requires_grad=False)
-        # self.prototype_class_identity is torch tensor
-        # so it does not need .data access for value update
-        self.prototype_class_identity = self.prototype_class_identity[prototypes_to_keep, :]
+        return logit_tree
+    
+    def push_forward(self, x):
+        '''this method is needed for the pushing operation'''
+        conv_output = self.conv_features(x)
+        distance_tree = self.root.push_forward(conv_output)
+        
+        return conv_output, distance_tree
 
     def __repr__(self):
         rep = (
@@ -263,41 +274,22 @@ class Hierarchical_PPNet(nn.Module):
                           self.num_classes,
                           self.epsilon)
 
-    def set_last_layer_incorrect_connection(self, incorrect_strength):
-        '''
-        the incorrect strength will be actual strength if -0.5 then input -0.5
-        '''
-        positive_one_weights_locations = torch.t(self.prototype_class_identity)
-        negative_one_weights_locations = 1 - positive_one_weights_locations
-
-        correct_class_connection = 1
-        incorrect_class_connection = incorrect_strength
-        self.last_layer.weight.data.copy_(
-            correct_class_connection * positive_one_weights_locations
-            + incorrect_class_connection * negative_one_weights_locations)
-
     def _initialize_weights(self):
-        for m in self.modules(): # Returns an iterator over all modules in the network.   
-            if len(m._modules) > 0: # skip anything that's not a single layer
-                continue
+        for m in self.add_on_layers.modules():
             if isinstance(m, nn.Conv2d):
                 # every init technique has an underscore _ in the name
-                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.normal_(m.weight, mean=0, std=0.1)
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)            
-            elif isinstance(m, nn.Linear):
-                identity = torch.eye(m.out_features)
-                repeated_identity = identity.unsqueeze(2).repeat(1,1,self.num_prototypes_per_class).\
-                                            view(m.out_features, -1)
-                m.weight.data.copy_(1.5 * repeated_identity - 0.5)
+                nn.init.constant_(m.bias, 0)
+
+        # NOTE - Last Layer Intialization Occurs in TreeNode 
                 
     def get_joint_distribution(self):
-           
-
         batch_size = self.root.logits.size(0)
 
         #top_level = torch.nn.functional.softmax(self.root.logits,1)            
@@ -310,5 +302,3 @@ class Hierarchical_PPNet(nn.Module):
         bottom_level = bottom_level[:,idx]        
         
         return top_level, bottom_level
-
-
