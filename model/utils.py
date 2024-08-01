@@ -26,52 +26,40 @@ def position_encodings(self, x):
     return torch.cat([x, pos_vec], dim=1)
 
 
-def get_optimizers(cfg, ppnet, root): 
-    
+def get_optimizers(cfg, ppnet): 
     # through_protos_optimizer
     
-    through_protos_optimizer_specs = [{'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
-	 {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
-    
-    
-    internal_nodes = root.nodes_with_children()
-    
-    for node in internal_nodes:
-        through_protos_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
-    
+    through_protos_optimizer_specs = [
+        {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
+        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
+        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+    ]
     through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
     
     # warm optimizer
     
-    warm_optimizer_specs = [{'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
-    
-    for node in internal_nodes:
-        warm_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
-
+    warm_optimizer_specs = [
+        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
+        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+    ]
     warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
     
     # last layer optimizer
-    
-    last_layers_specs = []
-    
-    for node in internal_nodes:
-        last_layers_specs.append({'params': getattr(ppnet, node.name + "_layer").parameters(), 'lr': 3e-3})
-
+    last_layers_specs = [
+        {'params': ppnet.root.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+    ]
     last_layer_optimizer = torch.optim.SGD(last_layers_specs,momentum=.9)
     
     # joint optimizer
-    
-    joint_optimizer_specs = [{'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
-	 {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}]
-    
-    
-    for node in internal_nodes:
-        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "_prototype_vectors"), 'lr': 3e-3})
-        joint_optimizer_specs.append({'params': getattr(ppnet, node.name + "_layer").parameters(), 'lr': 3e-3})
+    joint_optimizer_specs = [
+        {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
+        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
+        {'params': ppnet.root.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
+        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+    ]
     
     joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
 
-    
     return through_protos_optimizer, warm_optimizer, last_layer_optimizer, joint_optimizer
 
 

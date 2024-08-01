@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-class TreeNode():
+class TreeNode(nn.Module):
     def __init__(self,
                  int_location,
                  named_location,
@@ -20,17 +20,21 @@ class TreeNode():
         tree_specification: the tree specification
         fix_prototypes: whether to fix the prototypes or not
         """
+        super().__init__()
 
-        if prototype_shape != 3:
+        if len(prototype_shape) != 3:
             raise ValueError("Prototype_shape must be of length 3, leave out the number of prototypes man, come on.")
 
         self.int_location = int_location
         self.named_location = named_location
         self.num_classes = len(tree_specification)
         self.num_prototypes = self.num_classes * num_prototypes_per_class
+        self.num_prototypes_per_class = num_prototypes_per_class
+        self.prototype_shape = prototype_shape
         self.full_prototype_shape = (self.num_prototypes, prototype_shape[0], prototype_shape[1], prototype_shape[2]) 
         self.fix_prototypes = fix_prototypes
-
+        self.tree_specification = tree_specification
+        
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
@@ -47,15 +51,25 @@ class TreeNode():
         self.set_last_layer_incorrect_connection(-0.5)
         self.create_children()
 
+    def get_prototype_parameters(self):
+        # Forgive me for this confusing black magic. It just puts all the parameters into a list
+        return [self.prototype_vectors] + [param for child in self.children for param in child.get_prototype_parameters()]
+
+    def get_last_layer_parameters(self):
+        return [p for p in self.last_layer.parameters()] + [param for child in self.children for param in child.get_last_layer_parameters()]
+
     def create_children(self):
         i = 1 # 0 Is reserved for not_classified
         for name, child in self.tree_specification.items():
             if child is None:
                 continue
-            self.children.append(TreeNode(self.int_location + [i],
-                                          self.named_location + [name],
-                                          self.num_prototypes,
-                                          child))
+            self.children.append(TreeNode(int_location=self.int_location + [i],
+                                          named_location=self.named_location + [name],
+                                          num_prototypes_per_class=self.num_prototypes_per_class,
+                                          prototype_shape=self.prototype_shape,
+                                          tree_specification=child,
+                                          fix_prototypes=self.fix_prototypes
+                                          ))
             i += 1
     
     def set_last_layer_incorrect_connection(self, incorrect_strength):
@@ -186,9 +200,8 @@ class Hierarchical_PPNet(nn.Module):
                  img_size, 
                  prototype_shape,
                  num_prototypes_per_class,
-                 tree_specification,
+                 class_specification,
                  proto_layer_rf_info, 
-                 init_weights=True,
                  genetics_mode=False,
         ):
         """
@@ -199,10 +212,9 @@ class Hierarchical_PPNet(nn.Module):
         
         super().__init__()
         
-        # Construct PPNet Tree
-        self.root = self.construct_last_layer_tree(tree_specification)
-        
-        self.tree_specification = tree_specification
+        self.tree_specification = class_specification["tree"]
+        self.levels = class_specification["levels"]
+                
         self.img_size = img_size
         self.prototype_shape = prototype_shape
         self.genetics_mode = genetics_mode
@@ -214,13 +226,12 @@ class Hierarchical_PPNet(nn.Module):
         # this has to be named features to allow the precise loading
         self.features = features
 
-        self.add_on_layers = nn.Sequential()        
-        self.prototype_vectors = nn.Parameter(torch.randn(self.prototype_shape),
-                            requires_grad=True)
+        # Construct PPNet Tree
+        self.root = self.construct_last_layer_tree()
+        
+        # TODO - Handle different image ppnet sizes you know what I mean
+        self.add_on_layers = nn.Sequential()
             
-        if init_weights:
-            self._initialize_weights()
-
     def construct_last_layer_tree(self):
         """
         This constructs the tree that will be used to determine the last layer.
@@ -228,9 +239,9 @@ class Hierarchical_PPNet(nn.Module):
         root = TreeNode(
             int_location=[],
             named_location=[],
-            num_prototypes_per_class=self.num_prototypes,
+            num_prototypes_per_class=self.num_prototypes_per_class,
             prototype_shape=self.prototype_shape,
-            tree_specification=self.tree_specification["tree"],
+            tree_specification=self.tree_specification,
             fix_prototypes=self.genetics_mode)
         return root
 
@@ -256,23 +267,7 @@ class Hierarchical_PPNet(nn.Module):
         return conv_output, distance_tree
 
     def __repr__(self):
-        rep = (
-            'PPNet(\n'
-            '\tfeatures: {},\n'
-            '\timg_size: {},\n'
-            '\tprototype_shape: {},\n'
-            '\tproto_layer_rf_info: {},\n'
-            '\tnum_classes: {},\n'
-            '\tepsilon: {}\n'
-            ')'
-        )
-
-        return rep.format(self.features,
-                          self.img_size,
-                          self.prototype_shape,
-                          self.proto_layer_rf_info,
-                          self.num_classes,
-                          self.epsilon)
+        return '<Hierarchical_PPNet>'
 
     def _initialize_weights(self):
         for m in self.add_on_layers.modules():

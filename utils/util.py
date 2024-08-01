@@ -86,7 +86,6 @@ def handle_run_name_weirdness(cfg):
     print(os.path.join("output", cfg.RUN_NAME))
     root_run_name = cfg.RUN_NAME
     while os.path.exists(os.path.join("output", mode_name, cfg.RUN_NAME)):
-        print("WAA")
         i += 1
         cfg.RUN_NAME = f"{root_run_name}_{i}"
 

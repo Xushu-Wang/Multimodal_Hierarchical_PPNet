@@ -40,7 +40,6 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     total_cluster_cost = 0
     total_separation_cost = 0
     total_l1 = 0
- 
         
     coarse_names = model.module.root.get_children_names()
     num_coarse = len(coarse_names)
@@ -58,9 +57,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
 
     fineLabel2coarseLabel = {label : model.module.root.children_to_labels[model.module.root.closest_descendent_for(name).name] for label, name in enumerate(fine_names)}     
             
-
     for i, (image, label) in enumerate(dataloader):
-        
         input = image.cuda()
         target = label.cuda()
 
@@ -71,7 +68,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
 
         cross_entropy = 0
         cluster_cost = 0
-        separation_cost = 0        
+        separation_cost = 0
         l1 = 0
         noise_cross_ent = 0
 
@@ -142,7 +139,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                           
             loss.backward()
             
-            if CEDA:              
+            if CEDA:
                 noise = torch.stack([normalize(torch.rand((3,32,32)), mean, std) for n in range(batch_size)]).cuda()
                 _ = model(noise) 
                 for node in model.module.root.nodes_with_children():
@@ -476,12 +473,14 @@ def warm_only(model, log=print):
         p.requires_grad = False
     for p in model.module.add_on_layers.parameters():
         p.requires_grad = True    
-    for node in model.module.root.nodes_with_children():
-        vecs = getattr(model.module,node.name + "_prototype_vectors")
-        vecs.requires_grad = True
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = False                     
+
+    prototype_vecs = model.module.root.get_prototype_parameters()
+    for p in prototype_vecs:
+        p.requires_grad = True
+
+    layers = model.module.root.get_last_layer_parameters()
+    for l in layers:
+        l.requires_grad = False            
     log('warm')
    
 # up to protos opts

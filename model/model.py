@@ -1,3 +1,4 @@
+import json
 import torch
 
 from model.features.genetic_features import GeneticCNN2D
@@ -90,4 +91,29 @@ def construct_genetic_ppnet(length:int, num_classes:int, prototype_shape, model_
     )
     
 def construct_tree_ppnet(cfg):
-    return Hierarchical_PPNet()
+    class_specification = json.load(open(cfg.DATASET.TREE_SPECIFICATION_FILE, "r"))
+
+    if cfg.DATASET.MODE == 1:
+        # Genetics Mode
+        raise NotImplementedError("Mode 1 not implemented yet")
+    if cfg.DATASET.MODE == 2:
+        # Image Mode
+        features = base_architecture_to_features["resnetbioscan"](pretrained=True)
+        layer_filter_sizes, layer_strides, layer_paddings = features.conv_info()
+        proto_layer_rf_info = compute_proto_layer_rf_info_v2(img_size=cfg.DATASET.IMAGE.SIZE,
+                                                            layer_filter_sizes=layer_filter_sizes,
+                                                            layer_strides=layer_strides,
+                                                            layer_paddings=layer_paddings,
+                                                            prototype_kernel_size=cfg.DATASET.IMAGE.PROTOTYPE_SHAPE[1])
+
+        return Hierarchical_PPNet(
+            features=features,
+            img_size=cfg.DATASET.IMAGE.SIZE,
+            prototype_shape=cfg.DATASET.IMAGE.PROTOTYPE_SHAPE,
+            num_prototypes_per_class=cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS,
+            class_specification=class_specification,
+            proto_layer_rf_info=proto_layer_rf_info,
+
+        )
+    if cfg.DATASET.MODE == 3:
+        raise NotImplementedError("Mode 3 not implemented yet")
