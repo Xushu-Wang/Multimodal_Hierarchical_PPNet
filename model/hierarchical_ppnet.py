@@ -172,8 +172,9 @@ class TreeNode(nn.Module):
 
         return distances
 
-    def __forward__(self, conv_features):
+    def forward(self, conv_features):
         logits, min_distances = self.get_logits(conv_features)
+        return (logits, min_distances, [child(conv_features) for child in self.children])
         return {
             "int_location": self.int_location,
             "named_location": self.named_location,
@@ -182,6 +183,8 @@ class TreeNode(nn.Module):
             "children": [child(conv_features) for child in self.children]
         }
     
+
+
     def push_forward(self, conv_features):
         return {
             "int_location": self.int_location,

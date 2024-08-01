@@ -42,28 +42,20 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     total_l1 = 0
         
     coarse_names = model.module.root.get_children_names()
-    num_coarse = len(coarse_names)
     coarse_class_correct = np.array([0 for i in range(model.module.root.num_children())])
     coarse_class_total = np.array([0 for i in range(model.module.root.num_children())])
 
     fine_names = [x for x in label2name.values()]
-    num_fine = len(fine_names)
     fine_class_correct = np.array([0 for i in range(len(fine_names))])
     fine_class_total = np.array([0 for i in range(len(fine_names))])
 
-    num_parents = len([node for node in model.module.root.nodes_with_children()])
-
     model.module.root.assign_unif_distributions()
 
-    fineLabel2coarseLabel = {label : model.module.root.children_to_labels[model.module.root.closest_descendent_for(name).name] for label, name in enumerate(fine_names)}     
-            
     for i, (image, label) in enumerate(dataloader):
         input = image.cuda()
         target = label.cuda()
 
-        batch_names = [label2name[y.item()] for y in label]     
         batch_size = len(target)
-
         batch_start = time.time()   
 
         cross_entropy = 0
@@ -77,8 +69,30 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         # torch.enable_grad() has no effect outside of no_grad()
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
         with grad_req:
-            
-            _ = model(input) 
+            logits, min_distances, child_output = model(input)
+
+            for level_index in target.shape[1]:
+                """
+                Iterate over each value in the target tensor, which represents the class of the example at each level of the hierarchy.
+                """
+                level_values = target[:,level_index]
+                # Unclassified examples are marked with 0. We are gonna ignore them.
+                classified_mask = level_values > 0
+
+                if classified_mask.sum() == 0:
+                    break
+
+                classified_logits = logits[classified_mask]
+                classified_target = level_values[classified_mask]
+                classified_min_distances = min_distances[classified_mask]
+
+                # NOTE: we subtract 1 from the target because the classified target is 1-indexed (0 represents unclassified)
+                cross_entropy += torch.nn.functional.cross_entropy(classified_logits,classified_target-1)
+                # TODO - Figure out why copilot wants to do  * len(classified_target) / dataloader.batch_size
+                
+
+                # TODO -> This line won't work b/c 
+                logits, min_distances, child_output = child_output
 
             for node in model.module.root.nodes_with_children():
                 
@@ -94,7 +108,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                 if node.name == "root":                    
                     root_y = node_y
                     
-                if warm_up:                
+                if warm_up:
                     if node.name == "root":
                         cross_entropy += torch.nn.functional.cross_entropy(node_logits,node_y) 
                         cluster_cost_, separation_cost_ = auxiliary_costs(node_y,node.num_prototypes_per_class,node.num_children(),node.prototype_shape,node.min_distances[children_idx,:])                                    
