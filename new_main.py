@@ -74,9 +74,9 @@ def main():
                 joint_lr_scheduler.step()
 
             # Testing Epochs
-            accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+            accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                             class_specific=class_specific, log=log)
-            save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=accu,
+            save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=accus.min(),
                                         target_accu=0.70, log=log)
 
             # Pushing Epochs

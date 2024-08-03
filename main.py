@@ -70,7 +70,6 @@ def main():
         
         optimizers = [through_protos_optimizer,warm_optimizer,joint_optimizer]
 
-
         log('start training')
         
         # Prepare loss function

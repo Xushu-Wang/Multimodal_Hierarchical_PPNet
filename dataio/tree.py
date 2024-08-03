@@ -744,33 +744,56 @@ def create_tree_dataloaders(
         substitution_rate=gen_aug_params.SUBSTITUTION_RATE
     )
     train_dataset = TreeDataset(
-        train_df,
+        source_df=train_df,
         # image_cache_dir if oversampling_rate != 1 else image_root_dir,
+        image_root_dir=image_root_dir,
+        class_specification=class_specification,
+        image_transforms=augmented_img_transforms,
+        genetic_transforms=augmented_genetic_transforms,
+        mode=mode
+    )
+    train_push_dataset = TreeDataset(
+        source_df=train_push_df,
+        image_root_dir=image_root_dir,
+        class_specification=class_specification,
+        image_transforms=img_transforms,
+        genetic_transforms=None,
+        mode=mode
+    )
+    val_dataset = TreeDataset(
+        val_df,
         image_root_dir,
         class_specification,
-        augmented_img_transforms,
-        augmented_genetic_transforms,
+        img_transforms,
+        None,
         mode
     )
-    train_push_dataset = TreeDataset(train_push_df, image_root_dir, class_specification, img_transforms, mode)
-    val_dataset = TreeDataset(val_df, image_root_dir, class_specification, img_transforms, mode)
-    test_dataset = TreeDataset(test_df, image_root_dir, class_specification, img_transforms, mode)
+    test_dataset = TreeDataset(
+        test_df,
+        image_root_dir,
+        class_specification,
+        img_transforms,
+        None,
+        mode
+    )
 
     train_loader = DataLoader(
             train_dataset, batch_size=train_batch_size, shuffle=True,
-            num_workers=4, pin_memory=False, collate_fn=collate_fn)
+            num_workers=2, pin_memory=False, collate_fn=collate_fn,
+            
+    )
     
     train_push_loader = DataLoader(
             train_push_dataset, batch_size=train_push_batch_size, shuffle=True,
-            num_workers=4, pin_memory=False, collate_fn=collate_fn)
+            num_workers=2, pin_memory=False, collate_fn=collate_fn)
     
     val_loader = DataLoader(
             val_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=4, pin_memory=False, collate_fn=collate_fn)
+            num_workers=2, pin_memory=False, collate_fn=collate_fn)
     
     test_loader = DataLoader(
             test_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=4, pin_memory=False, collate_fn=collate_fn)  
+            num_workers=2, pin_memory=False, collate_fn=collate_fn)  
 
     return train_loader, train_push_loader, val_loader, test_loader
 

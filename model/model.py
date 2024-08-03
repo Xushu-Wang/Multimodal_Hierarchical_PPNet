@@ -95,7 +95,35 @@ def construct_tree_ppnet(cfg):
 
     if cfg.DATASET.MODE == 1:
         # Genetics Mode
-        raise NotImplementedError("Mode 1 not implemented yet")
+        m = GeneticCNN2D(720, 1, include_connected_layer=False)
+    
+        # Remove the fully connected layer
+        weights = torch.load(cfg.MODEL.GENETIC_BACKBONE_PATH)
+
+        for k in list(weights.keys()):
+            if "conv" not in k:
+                del weights[k]
+        
+        m.load_state_dict(weights)
+
+        # NOTE - Layer_paddings is different from the padding in the image models
+        layer_filter_sizes, layer_strides, layer_paddings = m.conv_info()
+
+        proto_layer_rf_info = compute_proto_layer_rf_info_v2(img_size=720,
+                                                         layer_filter_sizes=layer_filter_sizes,
+                                                         layer_strides=layer_strides,
+                                                         layer_paddings=layer_paddings,
+                                                         prototype_kernel_size=cfg.DATASET.GENETIC.PROTOTYPE_SHAPE[1])
+        return Hierarchical_PPNet(
+            features=m,
+            img_size=0,
+            prototype_shape=cfg.DATASET.GENETIC.PROTOTYPE_SHAPE,
+            num_prototypes_per_class=cfg.DATASET.GENETIC.NUM_PROTOTYPES_PER_CLASS,
+            class_specification=class_specification,
+            proto_layer_rf_info=proto_layer_rf_info,
+            mode=cfg.DATASET.MODE
+        )
+
     if cfg.DATASET.MODE == 2:
         # Image Mode
         features = base_architecture_to_features["resnetbioscan"](pretrained=True)
@@ -113,7 +141,7 @@ def construct_tree_ppnet(cfg):
             num_prototypes_per_class=cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS,
             class_specification=class_specification,
             proto_layer_rf_info=proto_layer_rf_info,
-
+            mode=cfg.DATASET.MODE
         )
     if cfg.DATASET.MODE == 3:
         raise NotImplementedError("Mode 3 not implemented yet")

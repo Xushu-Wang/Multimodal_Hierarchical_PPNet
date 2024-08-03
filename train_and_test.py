@@ -33,42 +33,115 @@ def get_cluster_and_sep_cost(min_distances, target, num_classes):
     return cluster_cost, separation_cost
 
 def get_l1_cost(node):
-    l1_mask = (1 - torch.t(node.prototype_class_identity))
-    l1_mask = l1_mask.cuda()
-    l1 = (node.last_layer.weight * l1_mask).norm(p=1)
+    l1_mask = (
+        1 - torch.t(node.prototype_class_identity).cuda()
+    )
+    l1 = torch.linalg.vector_norm(
+        node.last_layer.weight * l1_mask, ord=1
+    )
     
     return l1
 
-def recursive_get_loss(node, logits, min_distances, child_output, target, prev_mask, level):
+def print_accuracy_tree(accuracy_tree, log=print):
+    print_accuracy_tree_rec(accuracy_tree["children"], log)
+
+def print_accuracy_tree_rec(accuracy_tree, log=print, level=0):
+    for entry in accuracy_tree:
+        if(entry["total"] == 0):
+            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: N/A')
+        else:
+            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)')
+        print_accuracy_tree_rec(entry["children"], log, level + 1)
+
+
+
+def recursive_get_loss(node, logits, min_distances, child_output, target, prev_mask, level, correct_arr, total_arr, accuracy_tree):
+    """
+    Node: the current node in the tree
+    logits: the logits for the current node
+    min_distances: the minimum distances for the current node
+    child_output: the output of the children of the current node
+    target: the target labels
+    prev_mask: the mask of the previous node
+    level: the current level in the tree
+    correct_tuple: tuple of correct prediction counts by level
+    total_tuple: tuple of total prediction counts by level
+    accuracy_tree: object to keep track of accuracy at each split of the tree
+    """
     # Mask out unclassified examples
     mask = target[:,level] > 0
+    # Mask out examples that don't belong to the current node
     mask = prev_mask & mask
     num_parents_in_batch = 1
 
-    # TODO - I am suspicious that we do this twice. Hmmmm.
+    if mask.sum() == 0:
+        return 0, 0, 0, 0, 0
+
     cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
     cluster_cost, separation_cost = get_cluster_and_sep_cost(
         min_distances[mask], target[mask][:, level], logits.size(1))
 
     l1_cost = get_l1_cost(node)
-    for i, (c_logits, c_min_distances, c_child_output) in enumerate(child_output):
-        # Mask out irrelevant examples
-        correct_mask = (target[:,level+1] - 1) == i
-        new_mask = mask & correct_mask
 
-        if new_mask.sum() == 0:
+    # Update correct and total counts
+    _, predicted = torch.max(logits[mask], 1)
+    correct = predicted == (target[mask][:, level] - 1)
+    # if level >= 1:
+    #     print(level, correct, predicted, target[mask][:, level] - 1)
+    correct_arr[level] += correct.sum().item()
+    total_arr[level] += len(predicted)
+
+    for i in range(logits.shape[1]):
+        class_mask = (target[mask][:, level] - 1) == i
+        class_correct = correct[class_mask]
+        accuracy_tree["children"][i]["correct"] += class_correct.sum()
+        accuracy_tree["children"][i]["total"] += class_mask.sum()
+        
+    for i, (c_logits, c_min_distances, c_child_output) in enumerate(child_output):
+        applicable_mask = target[:,level] - 1 == i
+        
+        if applicable_mask.sum() == 0:
             continue
 
         new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch = recursive_get_loss(
-            node.child_nodes[i], c_logits, c_min_distances, c_child_output, target, new_mask, level + 1)
+            node.child_nodes[i],
+            c_logits,
+            c_min_distances,
+            c_child_output,
+            target,
+            mask & applicable_mask,
+            level + 1,
+            correct_arr,
+            total_arr,
+            accuracy_tree["children"][i],
+        )
         
-        cross_entropy += new_cross_entropy
-        cluster_cost += new_cluster_cost
-        separation_cost += new_separation_cost
-        l1_cost += new_l1_cost
-        num_parents_in_batch += new_num_parents_in_batch
+        cross_entropy = cross_entropy + new_cross_entropy
+        cluster_cost = cluster_cost + new_cluster_cost 
+        separation_cost = separation_cost + new_separation_cost
+        l1_cost = l1_cost + new_l1_cost
+        num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
 
     return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
+
+def construct_accuract_tree_rec(node):
+    return {
+        "int_location": node.int_location,
+        "named_location": node.named_location,
+        "correct": 0,
+        "total": 0,
+        "children": [
+            construct_accuract_tree_rec(child) for child in node.all_child_nodes
+        ]
+    }
+
+def construct_accuracy_tree(root):
+    """
+    This creates an object that can be used to keep track of the accuracy at each split of the tree.
+    """
+    return {
+        "int_location": [],
+        "children": [construct_accuract_tree_rec(child) for child in root.all_child_nodes]}
 
 def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
     '''
@@ -84,18 +157,25 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     start = time.time()
     
     n_examples = 0
-    n_coarse_correct = 0
-    n_fine_correct = 0
     n_batches = 0
-    
+
+    correct_arr = np.zeros(len(model.module.levels)) # This is the number of correct predictions at each level
+    total_arr = np.zeros(len(model.module.levels)) # This is the total number of predictions at each level
+    accuracy_tree = construct_accuracy_tree(model.module.root)
+
     total_cross_entropy = 0
-    total_noise_cross_ent = 0
     total_cluster_cost = 0
     total_separation_cost = 0
     total_l1 = 0
+    torch.autograd.set_detect_anomaly(True)
         
     for i, ((genetics, image), label) in enumerate(dataloader):
-        input = image.cuda()
+        if model.module.mode == 1:
+            input = genetics.cuda()
+        elif model.module.mode == 2:
+            input = image.cuda()
+        else:
+            raise NotImplementedError("Multimodal not implemented")
         target = label.type(torch.LongTensor).cuda()
 
         batch_size = len(target)
@@ -112,17 +192,18 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
         with grad_req:
             logits, min_distances, child_output = model(input)
-            cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch = recursive_get_loss(
+            cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
                 node=model.module.root,
                 logits=logits,
                 min_distances=min_distances,
                 child_output=child_output,
                 target=target,
                 prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
-                level=0
+                level=0,
+                correct_arr=correct_arr,
+                total_arr=total_arr,
+                accuracy_tree=accuracy_tree
             )
-
-            print(cluster_cost, separation_cost, l1_cost)
 
             # TODO - Maybe do this weird warm up BS
 
@@ -199,8 +280,6 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         del target
 
         batch_end = time.time()
-
-        print(f"Batch {i} took {batch_end - batch_start:.2f} seconds")
         
     end = time.time()
 
@@ -211,8 +290,12 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     log('\tcluster: \t{0:.2f}'.format(total_cluster_cost / n_batches))
     log('\tseparation: \t{0:.2f}'.format(total_separation_cost / n_batches))
     log('\tl1: \t{0:.2f}'.format(total_l1 / n_batches))        
+    for i, level in enumerate(model.module.levels):
+        log(f'\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
 
-    return 0,0    
+    print_accuracy_tree(accuracy_tree, log)
+
+    return correct_arr / total_arr
 
 def train(model, dataloader, optimizer, coefs, class_specific=False, log=print, warm_up = False):
     assert(optimizer is not None)
@@ -220,22 +303,15 @@ def train(model, dataloader, optimizer, coefs, class_specific=False, log=print, 
     return _train_or_test(model=model, dataloader=dataloader, optimizer=optimizer, coefs=coefs,
                           class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs['CEDA'])
 
-def valid(model, dataloader, label2name, coefs = None, class_specific=False, log=print):
+def valid(model, dataloader, coefs = None, class_specific=False, log=print):
     log('valid')
     return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs=coefs,
                           class_specific=class_specific, log=log)
 
-def test(model, dataloader, label2name, coefs = None, class_specific=False, log=print, class_acc = False):
+def test(model, dataloader, coefs = None, class_specific=False, log=print, class_acc = False):
     #log('test')
     return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs = coefs,
                       class_specific=class_specific, log=log, class_acc=class_acc)
-
-def OOD_test(model, dataloader, label2name, IDroot, OODroot, args = None, class_specific=False, log=print, class_acc = True):
-    #log('test')
-    return _OOD_test(model=model, dataloader=dataloader, label2name=label2name,IDroot=IDroot, OODroot = OODroot, optimizer=None, 
-                  class_specific=class_specific, log=log, class_acc=class_acc)
-
-
 
 def make_one_hot(target, target_one_hot):
     target_copy = torch.LongTensor(len(target))
@@ -267,36 +343,6 @@ def auxiliary_costs(label,num_prototypes_per_class,num_classes,prototype_shape,m
 
     return cluster_cost, separation_cost
     
-
-def get_l1(model,node, mask = True):
-
-    if mask:
-        identity = torch.eye(node.num_children()).cuda()
-        repeated_identity = identity.unsqueeze(2).repeat(1,1,node.num_prototypes_per_class).\
-                                view(node.num_children(), -1)
-        l1_mask = 1 - repeated_identity
-        weight = getattr(getattr(model.module,node.name + "_layer"),'weight') * l1_mask
-
-    else:
-        weight = getattr(getattr(model.module,node.name + "_layer"),'weight')
-    
-    return weight.norm(p=1)    
-
-
-def elastic_net_reg(model,node):
-    # l1 reg on off-prototype weights, l2 on on-proto weights
-
-    identity = torch.eye(node.num_children()).cuda()
-    repeated_identity = identity.unsqueeze(2).repeat(1,1,node.num_prototypes_per_class).\
-                            view(node.num_children(), -1)
-    l1_mask = 1 - repeated_identity
-    weight = getattr(getattr(model.module,node.name + "_layer"),'weight')
-    off_weight = weight * l1_mask
-    on_weight = weight * repeated_identity
-    
-    return off_weight.norm(p=1) + 1/10 * on_weight.norm(p=2)           
-
-# warm only opts
 
 def coarse_warm(model, log=print):
     for p in model.module.features.parameters():
@@ -384,12 +430,14 @@ def joint(model, log=print):
         p.requires_grad = True
     for p in model.module.add_on_layers.parameters():
         p.requires_grad = True
-    for node in model.module.root.nodes_with_children():
-        vecs = getattr(model.module,node.name + "_prototype_vectors")
-        vecs.requires_grad = True
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = True                     
+
+    prototype_vecs = model.module.root.get_prototype_parameters()
+    for p in prototype_vecs:
+        p.requires_grad = True
+
+    layers = model.module.root.get_last_layer_parameters()
+    for l in layers:
+        l.requires_grad = True            
     log('joint')
 
 

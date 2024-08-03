@@ -8,14 +8,19 @@ import json
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("source", type=str, help="Source file for the class tree")
+argparser.parse_args("min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
 
 args = argparser.parse_args()
+
+if(args.min_samples < 3):
+    print("Minimum number of samples must be at least 3")
+    exit()
 
 df = pd.read_csv(args.source, sep="\t")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels, data, parent=None):
+def question_level(levels, data, parent=None, min_samples=3):
     if len(levels) == 0:
         return
     if len(data[data[levels[0]] != "not_classified"]) == 0:
@@ -25,7 +30,7 @@ def question_level(levels, data, parent=None):
     option_count = 0
 
     for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts().items():
-        if count > 3:
+        if count > min_samples:
             option_count += 1
 
     if option_count == 0:
@@ -43,7 +48,7 @@ def question_level(levels, data, parent=None):
     
     while True:
         for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts()[:6].items():
-            if count > 3:
+            if count > min_samples:
                 print(f"{val: <16}\t{count} samples")
 
         count = input(f"How many of the largest {levels[0]}{par_string} would you like to include? (max {option_count}) ")
@@ -76,11 +81,11 @@ def question_level(levels, data, parent=None):
         if o == "not_classified":
             tree[o] = None
             continue
-        tree[o] = question_level(levels[1:], data[data[levels[0]] == o], o)
+        tree[o] = question_level(levels[1:], data[data[levels[0]] == o], o, min_samples)
 
     return tree
 
-tree = question_level(levels,df)
+tree = question_level(levels,df, min_samples=args.min_samples)
 
 while True:
     outpath = input("Output path: ")

@@ -3,6 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+class LeafNode(nn.Module):
+    def __init__(self,
+                 int_location,
+                 named_location,
+    ):
+        super().__init__()
+        self.int_location = int_location
+        self.named_location = named_location
+        self.child_nodes = []
+        self.all_child_nodes = []
+        self.parent = False
+
 class TreeNode(nn.Module):
     def __init__(self,
                  int_location,
@@ -34,12 +46,14 @@ class TreeNode(nn.Module):
         self.full_prototype_shape = (self.num_prototypes, prototype_shape[0], prototype_shape[1], prototype_shape[2]) 
         self.fix_prototypes = fix_prototypes
         self.tree_specification = tree_specification
+        self.parent = True
         
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
         self.child_nodes = []
+        self.all_child_nodes = [] # All child nodes includes leafs, child nodes does not
 
         self.prototype_vectors = nn.Parameter(
             torch.randn(self.full_prototype_shape),
@@ -60,17 +74,24 @@ class TreeNode(nn.Module):
 
     def create_children(self):
         i = 1 # 0 Is reserved for not_classified
+        if self.tree_specification is None:
+            return
         for name, child in self.tree_specification.items():
             if child is None:
-                continue
-            self.child_nodes.append(TreeNode(int_location=self.int_location + [i],
-                                          named_location=self.named_location + [name],
-                                          num_prototypes_per_class=self.num_prototypes_per_class,
-                                          prototype_shape=self.prototype_shape,
-                                          tree_specification=child,
-                                          fix_prototypes=self.fix_prototypes
-                                          ))
+                self.all_child_nodes.append(LeafNode(int_location=self.int_location + [i],
+                                            named_location=self.named_location + [name]))
+            else:
+                node = TreeNode(int_location=self.int_location + [i],
+                                            named_location=self.named_location + [name],
+                                            num_prototypes_per_class=self.num_prototypes_per_class,
+                                            prototype_shape=self.prototype_shape,
+                                            tree_specification=child,
+                                            fix_prototypes=self.fix_prototypes
+                                            )
+                self.child_nodes.append(node)
+                self.all_child_nodes.append(node)
             i += 1
+        
     
     def set_last_layer_incorrect_connection(self, incorrect_strength):
         '''
@@ -177,7 +198,9 @@ class TreeNode(nn.Module):
 
     def forward(self, conv_features):
         logits, min_distances = self.get_logits(conv_features)
-        return (logits, min_distances, [child(conv_features) for child in self.child_nodes])
+        return (logits, min_distances, [
+            child(conv_features) for child in self.child_nodes
+        ])
         # return {
         #     "int_location": self.int_location,
         #     "named_location": self.named_location,
@@ -211,7 +234,7 @@ class Hierarchical_PPNet(nn.Module):
                  num_prototypes_per_class,
                  class_specification,
                  proto_layer_rf_info, 
-                 genetics_mode=False,
+                 mode,
         ):
         """
         Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
@@ -226,7 +249,8 @@ class Hierarchical_PPNet(nn.Module):
                 
         self.img_size = img_size
         self.prototype_shape = prototype_shape
-        self.genetics_mode = genetics_mode
+        self.genetics_mode = mode & 1
+        self.mode = mode
 
         self.num_prototypes_per_class = num_prototypes_per_class
             

@@ -1,7 +1,9 @@
 # Multimodal_Hierarchical_PPNet
 
 ## Configuring Datasets Folder
-Navigate to the datasets folder on slurm and run the following commands:
+Create a datasets folder one level outside of this directory (otherwise VSCode will attempt to index this massive folder making for an unbearable editing experience).
+
+Navigate to the datasets folder on slurm and run the following commands
 ```
 ln -s /usr/project/xtmp/xw214/augmented_images augmented_images
 ln -s /usr/project/xtmp/xw214/source_files source_files
@@ -14,3 +16,9 @@ The dataset will return (genetics_tensor,image_tensor), label.
 The dataloader will return (genetics_tensors, image_tensors), labels
 
 If mode is 2 or 3, you'll get (genetic_tensors, None), labels or (None, image_tensors), labels.
+
+## Configuring Output Folder
+From the project directory run 
+```
+ln -s /usr/project/xtmp/xw214/output ../output
+```
