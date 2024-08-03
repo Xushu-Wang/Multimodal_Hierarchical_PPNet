@@ -16,6 +16,50 @@ def CE(logits,target):
      probs = torch.nn.functional.softmax(logits, 1)    
      return torch.sum(torch.sum(- target * torch.log(probs))) 
 
+def get_cluster_and_sep_cost(min_distances, target, num_classes):
+    target_one_hot = torch.zeros(target.size(0), num_classes)
+    target_one_hot = target_one_hot.cuda()            
+    make_one_hot(target, target_one_hot)
+    num_prototypes_per_class = min_distances.size(1) // num_classes
+    one_hot_repeat = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
+                        view(target_one_hot.size(0),-1)
+
+    inverted_distances, _ = torch.max((0 - min_distances) * one_hot_repeat, dim=1)
+    cluster_cost = torch.mean(0 - inverted_distances)
+
+    flipped_one_hot_repeat = 1 - one_hot_repeat
+    inverted_distances_to_nontarget_prototypes, _ = \
+        torch.max((0 - min_distances) * flipped_one_hot_repeat, dim=1)
+    separation_cost = torch.mean(0 - inverted_distances_to_nontarget_prototypes)
+
+    return cluster_cost, separation_cost
+
+def get_l1_cost(model, node, mask = True):
+    pass
+
+def recursive_get_loss(min_distances, child_output, target, prev_mask, level):
+    # Mask out unclassified examples
+    mask = target > 0
+    mask *= prev_mask
+
+    logits, min_distances, child_output = child_output
+
+    # TODO - I am suspicious that we do this twice. Hmmmm.
+    cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level])
+    cluster_cost, separation_cost = get_cluster_and_sep_cost(
+        min_distances[mask], target[mask][:, level], c_logits.size(1))
+    l1_cost = get_l1_cost()
+
+    for i, (c_logits, c_min_distances, c_child_output) in enumerate(child_output):
+        # Mask out irrelevant examples
+        correct_mask = c_logits.argmax(dim=1) == target[:,i]
+        new_cross_entropy, new_cluster_cost, new_separation_cost = recursive_get_loss(c_logits, c_min_distances, c_child_output, target, (mask | correct_mask), level + 1)
+        
+        cross_entropy += new_cross_entropy
+        cluster_cost += new_cluster_cost
+        separation_cost += new_separation_cost
+
+    return cross_entropy, cluster_cost, separation_cost
 
 def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
     '''
@@ -414,7 +458,6 @@ def make_one_hot(target, target_one_hot):
 
 
 def auxiliary_costs(label,num_prototypes_per_class,num_classes,prototype_shape,min_distances):
-
     if label.size(0) == 0: 
         return 0, 0
     
