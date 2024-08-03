@@ -31,6 +31,10 @@ def question_level(levels, data, parent=None):
     if option_count == 0:
         print("No samples left. Adding not_classified to the tree.")
         return None
+    
+    if option_count == 1:
+        print(f"Only one option left. Adding not_classified to the tree.")
+        return None
 
     if parent:
         par_string = f" (parent: {parent})"

@@ -179,14 +179,14 @@ class TreeDataset(Dataset):
         """
         Label is a tensor of indicies for each level of the tree.
 
-        0 represents not_classified.
+        0 represents not_classified (or ignored, like in cases with only one class)
         """
         tensor = torch.zeros(len(self.levels))
 
         tree = self.indexed_tree
 
         for i, level in enumerate(self.levels):
-            if row[level] == "not_classified":
+            if row[level] == "not_classified" or row[level] not in tree:
                 tensor[i:] = 0
                 break
             else:
@@ -405,15 +405,27 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     else:
         shortages = np.zeros(2)
         for k,v in tree.items():
-            if k == "not_classified":
-                continue
-
             if v==None:
-                not_classified = source_df[source_df[levels[0]] == k][source_df[levels[1]] == "not_classified"]
-                child_test = not_classified.sample(count_per_leaf[2], random_state=seed)
-                child_val = not_classified.drop(child_test.index).sample(count_per_leaf[1], random_state=seed)
-                child_train = not_classified.drop(child_test.index).drop(child_val.index).sample(count_per_leaf[0], random_state=seed)
+                not_classified = source_df[source_df[levels[0]] == k]
+
+                temp_count_per_leaf = count_per_leaf
                 child_shortages = np.zeros(2)
+
+                if len(not_classified) < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
+                    log(f"Only {len(not_classified)} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
+                    
+                    temp_count_per_leaf = proportional_assign(len(not_classified), count_per_leaf)
+
+                    log(f"New counts for {k}")
+                    log(f"Train:\t\t{temp_count_per_leaf[0]}")
+                    log(f"Validation:\t{temp_count_per_leaf[1]}")
+                    log(f"Test:\t\t{temp_count_per_leaf[2]}")
+
+                    child_shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
+
+                child_test = not_classified.sample(temp_count_per_leaf[2], random_state=seed)
+                child_val = not_classified.drop(child_test.index).sample(temp_count_per_leaf[1], random_state=seed)
+                child_train = not_classified.drop(child_test.index).drop(child_val.index).sample(temp_count_per_leaf[0], random_state=seed)
                 child_count_tree = {"not_classified": (len(child_train), len(child_val), len(child_test))}
             else:
                 child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(

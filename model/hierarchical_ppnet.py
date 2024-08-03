@@ -39,7 +39,7 @@ class TreeNode(nn.Module):
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
-        self.children = []
+        self.child_nodes = []
 
         self.prototype_vectors = nn.Parameter(
             torch.randn(self.full_prototype_shape),
@@ -53,17 +53,17 @@ class TreeNode(nn.Module):
 
     def get_prototype_parameters(self):
         # Forgive me for this confusing black magic. It just puts all the parameters into a list
-        return [self.prototype_vectors] + [param for child in self.children for param in child.get_prototype_parameters()]
+        return [self.prototype_vectors] + [param for child in self.child_nodes for param in child.get_prototype_parameters()]
 
     def get_last_layer_parameters(self):
-        return [p for p in self.last_layer.parameters()] + [param for child in self.children for param in child.get_last_layer_parameters()]
+        return [p for p in self.last_layer.parameters()] + [param for child in self.child_nodes for param in child.get_last_layer_parameters()]
 
     def create_children(self):
         i = 1 # 0 Is reserved for not_classified
         for name, child in self.tree_specification.items():
             if child is None:
                 continue
-            self.children.append(TreeNode(int_location=self.int_location + [i],
+            self.child_nodes.append(TreeNode(int_location=self.int_location + [i],
                                           named_location=self.named_location + [name],
                                           num_prototypes_per_class=self.num_prototypes_per_class,
                                           prototype_shape=self.prototype_shape,
@@ -152,6 +152,9 @@ class TreeNode(nn.Module):
 
         return F.conv2d(x_norm, normalized_prototypes)
 
+    def distance_2_similarity(self, distances):
+        return -1 * distances
+
     def get_logits(self, conv_features):
         # NOTE: x is conv_features
         similarity = self.cosine_similarity(conv_features)
@@ -174,23 +177,26 @@ class TreeNode(nn.Module):
 
     def forward(self, conv_features):
         logits, min_distances = self.get_logits(conv_features)
-        return (logits, min_distances, [child(conv_features) for child in self.children])
-        return {
-            "int_location": self.int_location,
-            "named_location": self.named_location,
-            "logits": logits,
-            "min_distances": min_distances,
-            "children": [child(conv_features) for child in self.children]
-        }
+        return (logits, min_distances, [child(conv_features) for child in self.child_nodes])
+        # return {
+        #     "int_location": self.int_location,
+        #     "named_location": self.named_location,
+        #     "logits": logits,
+        #     "min_distances": min_distances,
+        #     "children": [child(conv_features) for child in self.child_nodes]
+        # }
     
-
+    def cuda(self):
+        for child in self.child_nodes:
+            child.cuda()
+        return super().cuda()
 
     def push_forward(self, conv_features):
         return {
             "int_location": self.int_location,
             "named_location": self.named_location,
             "distances": self.push_get_dist(conv_features),
-            "children": [child.push_forward(conv_features) for child in self.children]
+            "children": [child.push_forward(conv_features) for child in self.child_nodes]
         }
 
     def __repr__(self):
@@ -234,6 +240,23 @@ class Hierarchical_PPNet(nn.Module):
         
         # TODO - Handle different image ppnet sizes you know what I mean
         self.add_on_layers = nn.Sequential()
+
+        self.nodes_with_children = self.get_nodes_with_children()
+
+    def cuda(self):
+        self.root.cuda()
+        return super().cuda()
+
+
+    def get_nodes_with_children(self):
+        nodes_with_children = []
+        def get_nodes_with_children_recursive(node):
+            if len(node.child_nodes) > 0:
+                nodes_with_children.append(node)
+                for child in node.child_nodes:
+                    get_nodes_with_children_recursive(child)
+        get_nodes_with_children_recursive(self.root)
+        return nodes_with_children
             
     def construct_last_layer_tree(self):
         """

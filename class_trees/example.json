@@ -3,7 +3,7 @@
         "Diptera": {
             "Cecidomyiidae": {
                 "Asteromyia": null,
-                "Endaphis": { "Endaphis fugitiva": null }
+                "Endaphis": null
             },
             "Chironomidae": {
                 "Tanytarsus": {
@@ -22,7 +22,7 @@
                     "Telenomus laeviceps": null,
                     "Telenomus podisi": null
                 },
-                "Trissolcus": { "Trissolcus hyalinipennis": null }
+                "Trissolcus": null
             },
             "Braconidae": {
                 "Dinotrema": {
@@ -36,5 +36,10 @@
             }
         }
     },
-    "levels": ["order", "family", "genus", "species"]
+    "levels": [
+        "order",
+        "family",
+        "genus",
+        "species"
+    ]
 }

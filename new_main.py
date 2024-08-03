@@ -36,10 +36,12 @@ def main():
 
     try:
         train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
-        tree_ppnet = construct_tree_ppnet(cfg)
+        tree_ppnet = construct_tree_ppnet(cfg).cuda()
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
         # TODO - Handle multi models
+
+        tree_ppnet_multi = tree_ppnet_multi
 
         class_specific = True
 
