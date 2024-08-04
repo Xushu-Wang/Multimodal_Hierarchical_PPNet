@@ -112,7 +112,7 @@ def main():
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer
-                torch.save(ppnet, os.path.join(cfg.OUTPUT.IMG_DIR, str(epoch) + '_push_weights.pth'))
+                torch.save(tree_ppnet, os.path.join(cfg.OUTPUT.IMG_DIR, str(epoch) + '_push_weights.pth'))
 
     except Exception as e:
         # Print e with the traceback
