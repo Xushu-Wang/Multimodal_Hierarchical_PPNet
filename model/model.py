@@ -121,7 +121,9 @@ def construct_tree_ppnet(cfg):
             num_prototypes_per_class=cfg.DATASET.GENETIC.NUM_PROTOTYPES_PER_CLASS,
             class_specification=class_specification,
             proto_layer_rf_info=proto_layer_rf_info,
-            mode=cfg.DATASET.MODE
+            mode=cfg.DATASET.MODE,
+            genetic_tree_ppnet_path = cfg.MODEL.MULTI.GENETIC_TREE_PPNET_PATH,
+            image_tree_ppnet_path = cfg.MODEL.MULTI.IMAGE_TREE_PPNET_PATH
         )
 
     if cfg.DATASET.MODE == 2:

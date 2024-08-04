@@ -374,6 +374,21 @@ def warm_only(model, log=print):
         l.requires_grad = False            
     log('warm')
    
+
+def last_only(model, log=print):
+    for p in model.module.features.parameters():
+        p.requires_grad = False
+    for p in model.module.add_on_layers.parameters():
+        p.requires_grad = False
+
+    for p in model.module.root.get_prototype_parameters():
+        p.requires_grad = False
+    
+    for l in model.module.root.get_last_layer_parameters():
+        l.requires_grad = True
+    
+    log('\tlast layer')
+
 # up to protos opts
 
 def coarse_up_to_protos(model, log=print):

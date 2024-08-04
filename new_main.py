@@ -35,7 +35,7 @@ def main():
         mkdir(cfg.OUTPUT.IMG_DIR)
 
     try:
-        train_loader, train_push_loader, val_loader, test_loader = get_dataloaders(cfg, log)
+        train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log)
         tree_ppnet = construct_tree_ppnet(cfg).cuda()
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
@@ -84,7 +84,7 @@ def main():
                 push.push_prototypes(
                     train_push_loader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel=tree_ppnet_multi, # pytorch network with prototype_vectors
-                    preprocess_input_function=cfg.OUTPUT.PREPROCESS_INPUT_FUNCTION, # normalize if needed
+                    preprocess_input_function=image_normalizer, # normalize if needed
                     prototype_layer_stride=1,
                     root_dir_for_saving_prototypes=cfg.OUTPUT.IMG_DIR, # if not None, prototypes will be saved here
                     epoch_number=epoch, # if not provided, prototypes saved previously will be overwritten
@@ -106,9 +106,9 @@ def main():
                     log('iteration: \t{0}'.format(i))
                     _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
-                    accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                    accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                     class_specific=class_specific, log=log)
-                    save_model_w_condition(model=ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accu, target_accu=0.70, log=log)
+                    save_model_w_condition(model=tree_ppnet_multi, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer

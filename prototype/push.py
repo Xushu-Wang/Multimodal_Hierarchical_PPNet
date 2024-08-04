@@ -180,7 +180,7 @@ def nodal_update_prototypes_on_batch(
                 # Get the receptive field boundary of the image patch
                 # that generates the representation
                 protoL_rf_info = prototype_network_parallel.module.proto_layer_rf_info
-                rf_prototype_j = compute_rf_prototype(search_batch.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
+                rf_prototype_j = compute_rf_prototype(search_batch_input.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
 
                 # Get the whole image
                 original_img_j = search_batch_input[rf_prototype_j[0]]
@@ -199,7 +199,7 @@ def nodal_update_prototypes_on_batch(
                 node.proto_rf_boxes[j, 3] = rf_prototype_j[3]
                 node.proto_rf_boxes[j, 4] = rf_prototype_j[4]
                 if node.proto_rf_boxes.shape[1] == 6 and search_y is not None:
-                    node.proto_rf_boxes[j, 5] = search_y[rf_prototype_j[0]].item()
+                    node.proto_rf_boxes[j, 5] = search_y[rf_prototype_j[0],level].item()
 
                 # Find the highly activated region of the original image
                 proto_dist_img_j = proto_dist_[img_index_in_batch, j, :, :]
@@ -225,7 +225,7 @@ def nodal_update_prototypes_on_batch(
                 node.proto_bound_boxes[j, 3] = proto_bound_j[2]
                 node.proto_bound_boxes[j, 4] = proto_bound_j[3]
                 if node.proto_bound_boxes.shape[1] == 6 and search_y is not None:
-                    node.proto_bound_boxes[j, 5] = search_y[rf_prototype_j[0]].item()
+                    node.proto_bound_boxes[j, 5] = search_y[rf_prototype_j[0],level].item()
                 
                 if dir_for_saving_prototypes is not None:
                     # save the numpy array of the prototype self activation
@@ -244,6 +244,7 @@ def nodal_update_prototypes_on_batch(
                         heatmap = cv2.applyColorMap(np.uint8(255*rescaled_act_img_j), cv2.COLORMAP_JET)
                         heatmap = np.float32(heatmap) / 255
                         heatmap = heatmap[...,::-1]
+                        # Clamp heatmap to [0,1]
                         overlayed_original_img_j = 0.5 * original_img_j + 0.3 * heatmap
                         plt.imsave(os.path.join(dir_for_saving_prototypes,
                                                 prototype_img_filename_prefix + '-original_with_self_act' + str(j) + '.png'),
@@ -286,13 +287,10 @@ def nodal_update_prototypes_on_batch(
             existing_df = pd.concat([existing_df,patch_df])
 
             patch_df = existing_df.reset_index()
+        print(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"))
         patch_df.to_csv(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"), index=False)
 
     del class_to_img_index_dict
-
-
-
-
 
 # push each prototype to the nearest patch in the training set
 def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0,1])
@@ -332,7 +330,11 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         else:
             raise NotImplementedError("Mode not implemented")
 
-        if preprocess_input_function is not None:
+        """
+        search_batch_input is the raw input image, this is used for generating output images.
+        search_batch is the input to the network, this is used for generating the feature maps. This may be normalzied
+        """
+        if preprocess_input_function is not None and prototype_network_parallel.module.mode == 2:
             # print('preprocessing input for pushing ...')
             # search_batch = copy.deepcopy(search_batch_input)
             search_batch = preprocess_input_function(search_batch_input)

@@ -53,7 +53,8 @@ class TreeNode(nn.Module):
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
-        self.child_nodes = []
+        # NOTE - This really should be a module list. Instead we provide methods to manually get the parameters. It isn't ideal and may lead to bugs. BEWARE.
+        self.child_nodes = nn.ModuleList([])
         self.all_child_nodes = [] # All child nodes includes leafs, child nodes does not
 
         self.prototype_vectors = nn.Parameter(
@@ -223,6 +224,83 @@ class TreeNode(nn.Module):
     def __repr__(self):
         return f"TreeNode: [{'>'.join(self.named_location)}]"
 
+class MultiTreeNode(TreeNode):
+    def __init__(self,
+                 int_location,
+                 named_location,
+                 num_prototypes_per_class,
+                 prototype_shape,
+                 tree_specification,
+                 fix_prototypes
+    ):
+        super().__init__(int_location, named_location, num_prototypes_per_class, prototype_shape, tree_specification, fix_prototypes)
+        self.child_nodes = nn.ModuleList(self.child_nodes)
+        self.all_child_nodes = nn.ModuleList(self.all_child_nodes)
+
+        self.genetic_node = TreeNode(int_location, named_location, num_prototypes_per_class, prototype_shape, tree_specification, fix_prototypes)
+        self.image_node = TreeNode(int_location, named_location, num_prototypes_per_class, prototype_shape, tree_specification, fix_prototypes)
+
+        self.meta_last_layer = None
+
+    def get_prototype_parameters(self):
+        return [self.prototype_vectors] + [param for child in self.child_nodes for param in child.get_prototype_parameters()]
+
+    def get_last_layer_parameters(self):
+        return [p for p in self.last_layer.parameters()] + [param for child in self.child_nodes for param in child.get_last_layer_parameters()]
+
+    def forward(self, conv_features):
+        """
+        This recursively forwards through the network.
+
+        Note conv_feautres is now a two-ple
+        """
+        logits, min_distances = self.get_logits(conv_features)
+        return (logits, min_distances, [
+            child(conv_features) for child in self.child_nodes
+        ])
+    
+    def get_logits(self, conv_features):
+        genetic_conv_features, image_conv_features = conv_features
+
+        genetic_logits, genetic_min_distances = self.genetic_node.get_logits(genetic_conv_features)
+        image_logits, image_min_distances = self.image_node.get_logits(image_conv_features)
+
+        return 
+    
+    def push_forward(self, conv_features):
+        """
+        This one is not recursive, because I realized doing it recursive was a bad idea.
+        """
+        return conv_features, self.push_get_dist(conv_features)
+
+    def push_forward_recusrive(self, conv_features):
+        raise NotImplementedError()
+    
+    def create_children(self):
+        i = 1 # 0 Is reserved for not_classified
+        if self.tree_specification is None:
+            return
+        for name, child in self.tree_specification.items():
+            if child is None:
+                self.all_child_nodes.append(
+                    MultiTreeNode(int_location=self.int_location + [i],
+                                            named_location=self.named_location + [name])
+                    )
+            else:
+                node = MultiTreeNode(int_location=self.int_location + [i],
+                                            named_location=self.named_location + [name],
+                                            num_prototypes_per_class=self.num_prototypes_per_class,
+                                            prototype_shape=self.prototype_shape,
+                                            tree_specification=child,
+                                            fix_prototypes=self.fix_prototypes
+                                            )
+                self.child_nodes.append(node)
+                self.all_child_nodes.append(node)
+            i += 1
+
+    def __repr__(self):
+        return f"MultiTreeNode: [{'>'.join(self.named_location)}]"
+
 
 class Hierarchical_PPNet(nn.Module):
     def __init__(self, 
@@ -233,6 +311,9 @@ class Hierarchical_PPNet(nn.Module):
                  class_specification,
                  proto_layer_rf_info, 
                  mode,
+                 genetic_tree_ppnet_path="NA",
+                 image_tree_ppnet_path="NA"
+
         ):
         """
         Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
@@ -241,6 +322,17 @@ class Hierarchical_PPNet(nn.Module):
         """
         
         super().__init__()
+
+        if mode == 0:
+            raise ValueError("Illegal Mode")
+        
+        if mode == 3:
+            raise NotImplementedError()
+            if genetic_tree_ppnet_path == "NA" or image_tree_ppnet_path == "NA":
+                raise ValueError("You must provide the paths to both the genetic and image ppnets")
+
+            self.genetic_tree_ppnet = torch.load(genetic_tree_ppnet_path)
+            self.image_tree_ppnet = torch.load(image_tree_ppnet_path)
         
         self.tree_specification = class_specification["tree"]
         self.levels = class_specification["levels"]
@@ -249,6 +341,7 @@ class Hierarchical_PPNet(nn.Module):
         self.prototype_shape = prototype_shape
         self.genetics_mode = mode & 1
         self.mode = mode
+        self.prototype_activation_function = "linear" # NOTE: This implementation doesn't support l2 loss...
 
         self.num_prototypes_per_class = num_prototypes_per_class
             
@@ -271,7 +364,7 @@ class Hierarchical_PPNet(nn.Module):
 
 
     def get_nodes_with_children(self):
-        nodes_with_children = []
+        nodes_with_children = nn.ModuleList()
         def get_nodes_with_children_recursive(node):
             if len(node.child_nodes) > 0:
                 nodes_with_children.append(node)
@@ -284,6 +377,10 @@ class Hierarchical_PPNet(nn.Module):
         """
         This constructs the tree that will be used to determine the last layer.
         """
+        if self.mode == 3:
+            root = None
+            return root
+        
         root = TreeNode(
             int_location=[],
             named_location=[],

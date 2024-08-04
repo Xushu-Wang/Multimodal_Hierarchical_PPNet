@@ -727,10 +727,13 @@ def create_tree_dataloaders(
     )
 
     # Sorry for this nastiness
-    img_transforms = transforms.Compose([
+    push_img_transforms = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize(size=(256, 256)),
         transforms.ToTensor(),
+    ])
+    img_transforms = transforms.Compose([
+        push_img_transforms,
         normalize
     ])
 
@@ -759,10 +762,11 @@ def create_tree_dataloaders(
         source_df=train_push_df,
         image_root_dir=image_root_dir,
         class_specification=class_specification,
-        image_transforms=img_transforms,
+        image_transforms=push_img_transforms,
         genetic_transforms=None,
         mode=mode
     )
+
     val_dataset = TreeDataset(
         val_df,
         image_root_dir,
@@ -798,7 +802,7 @@ def create_tree_dataloaders(
             test_dataset, batch_size=test_batch_size, shuffle=False,
             num_workers=2, pin_memory=False, collate_fn=collate_fn)  
 
-    return train_loader, train_push_loader, val_loader, test_loader
+    return train_loader, train_push_loader, val_loader, test_loader, normalize
 
 def get_dataloaders(cfg, log):
     log("Getting Dataloaders")
