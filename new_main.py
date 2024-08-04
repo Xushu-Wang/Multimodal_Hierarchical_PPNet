@@ -80,12 +80,10 @@ def main():
                                         target_accu=0.70, log=log)
 
             # Pushing Epochs
-            print(os.path.join(cfg.OUTPUT.IMG_DIR, str(epoch) + '_' + 'push_weights.pth'))
             if epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
                 push.push_prototypes(
                     train_push_loader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel=tree_ppnet_multi, # pytorch network with prototype_vectors
-                    class_specific=class_specific,
                     preprocess_input_function=cfg.OUTPUT.PREPROCESS_INPUT_FUNCTION, # normalize if needed
                     prototype_layer_stride=1,
                     root_dir_for_saving_prototypes=cfg.OUTPUT.IMG_DIR, # if not None, prototypes will be saved here
@@ -93,15 +91,14 @@ def main():
                     prototype_img_filename_prefix=cfg.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX,
                     prototype_self_act_filename_prefix=cfg.OUTPUT.PROTOTYPE_SELF_ACT_FILENAME_PREFIX,
                     proto_bound_boxes_filename_prefix=cfg.OUTPUT.PROTO_BOUND_BOXES_FILENAME_PREFIX,
-                    save_prototype_class_identity=True,
                     log=log,
-                    no_save=cfg.OUTPUT.NO_SAVE,
-                    fix_prototypes=cfg.DATASET.GENETIC.FIX_PROTOTYPES)
+                    no_save=cfg.OUTPUT.NO_SAVE
+                )
                 
-                accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                 class_specific=class_specific, log=log)
-                save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push', accu=accu,
-                                            target_accu=0.70, log=log)
+                save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
+                                            target_accu=0.70, log=log, accu=accus.min())
 
                 # Optimize last layer
                 tnt.last_only(model=tree_ppnet_multi, log=log)

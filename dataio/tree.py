@@ -193,6 +193,9 @@ class TreeDataset(Dataset):
                 tensor[i] = tree[row[level]]["idx"] + 1
                 tree = tree[row[level]]
         
+        # Convert float tensor to int tensor
+        tensor = tensor.long()
+
         return tensor
 
     def __len__(self):

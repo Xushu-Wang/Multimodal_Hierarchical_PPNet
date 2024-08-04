@@ -47,6 +47,7 @@ class TreeNode(nn.Module):
         self.fix_prototypes = fix_prototypes
         self.tree_specification = tree_specification
         self.parent = True
+        self.level = len(int_location)
         
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
         for j in range(self.num_prototypes):
@@ -197,17 +198,13 @@ class TreeNode(nn.Module):
         return distances
 
     def forward(self, conv_features):
+        """
+        This recursively forwards through the network
+        """
         logits, min_distances = self.get_logits(conv_features)
         return (logits, min_distances, [
             child(conv_features) for child in self.child_nodes
         ])
-        # return {
-        #     "int_location": self.int_location,
-        #     "named_location": self.named_location,
-        #     "logits": logits,
-        #     "min_distances": min_distances,
-        #     "children": [child(conv_features) for child in self.child_nodes]
-        # }
     
     def cuda(self):
         for child in self.child_nodes:
@@ -215,12 +212,13 @@ class TreeNode(nn.Module):
         return super().cuda()
 
     def push_forward(self, conv_features):
-        return {
-            "int_location": self.int_location,
-            "named_location": self.named_location,
-            "distances": self.push_get_dist(conv_features),
-            "children": [child.push_forward(conv_features) for child in self.child_nodes]
-        }
+        """
+        This one is not recursive, because I realized doing it recursive was a bad idea.
+        """
+        return conv_features, self.push_get_dist(conv_features)
+
+    def push_forward_recusrive(self, conv_features):
+        raise NotImplementedError()
 
     def __repr__(self):
         return f"TreeNode: [{'>'.join(self.named_location)}]"
@@ -312,9 +310,10 @@ class Hierarchical_PPNet(nn.Module):
     def push_forward(self, x):
         '''this method is needed for the pushing operation'''
         conv_output = self.conv_features(x)
-        distance_tree = self.root.push_forward(conv_output)
+        distance_tree = self.root.push_forward_recursive(conv_output)
         
         return conv_output, distance_tree
+    
 
     def __repr__(self):
         return '<Hierarchical_PPNet>'

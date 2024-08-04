@@ -83,14 +83,14 @@ def handle_run_name_weirdness(cfg):
     mode_name = "genetic_only" if cfg.DATASET.MODE == 1 else ("image_only" if cfg.DATASET.MODE == 2 else "joint")
     # Check if RUN_NAME already exists in output, change it if it doesn't
     i = 0
-    print(os.path.join("output", cfg.RUN_NAME))
+    print(os.path.join("../output", cfg.RUN_NAME))
     root_run_name = cfg.RUN_NAME
-    while os.path.exists(os.path.join("output", mode_name, cfg.RUN_NAME)):
+    while os.path.exists(os.path.join("../output", mode_name, cfg.RUN_NAME)):
         i += 1
         cfg.RUN_NAME = f"{root_run_name}_{i}"
 
     if cfg.OUTPUT.MODEL_DIR == '':
-        cfg.OUTPUT.MODEL_DIR = os.path.join("output", mode_name, cfg.RUN_NAME)
+        cfg.OUTPUT.MODEL_DIR = os.path.join("../output", mode_name, cfg.RUN_NAME)
         # If the model directory doesn't exist, create it
         makedir(cfg.OUTPUT.MODEL_DIR)
     cfg.OUTPUT.IMG_DIR = os.path.join(cfg.OUTPUT.MODEL_DIR, "images")
