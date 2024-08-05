@@ -87,7 +87,7 @@ def handle_run_name_weirdness(cfg):
     root_run_name = cfg.RUN_NAME
     while os.path.exists(os.path.join("../output", mode_name, cfg.RUN_NAME)):
         i += 1
-        cfg.RUN_NAME = f"{root_run_name}_{i}"
+        cfg.RUN_NAME = f"{root_run_name}_{i:03d}"
 
     if cfg.OUTPUT.MODEL_DIR == '':
         cfg.OUTPUT.MODEL_DIR = os.path.join("../output", mode_name, cfg.RUN_NAME)

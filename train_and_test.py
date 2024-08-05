@@ -42,6 +42,17 @@ def get_l1_cost(node):
     
     return l1
 
+def get_multi_last_layer_l1_cost(node):
+    l1_mask = (
+        1- torch.t(node.logit_class_identity).cuda()
+    )
+    l1 = torch.linalg.vector_norm(
+        node.multi_last_layer.weight * l1_mask, ord=1
+    )
+
+    return l1
+
+
 def print_accuracy_tree(accuracy_tree, log=print):
     print_accuracy_tree_rec(accuracy_tree["children"], log)
 
@@ -54,13 +65,91 @@ def print_accuracy_tree_rec(accuracy_tree, log=print, level=0):
         print_accuracy_tree_rec(entry["children"], log, level + 1)
 
 
-
-def recursive_get_loss(node, logits, min_distances, child_output, target, prev_mask, level, correct_arr, total_arr, accuracy_tree):
+def recursive_get_loss_multi(
+        conv_features,
+        node,
+        target,
+        prev_mask,
+        level,
+        correct_arr,
+        total_arr,
+        accuracy_tree
+    ):
     """
+    This is the same as recursive get loss, but uses the multi logits
+    """
+    logits, (genetic_min_distances, image_min_distances) = node(conv_features)
+    
+    # Mask out unclassified examples
+    mask = target[:,level] > 0
+    # Mask out examples that don't belong to the current node
+    mask = prev_mask & mask
+    num_parents_in_batch = 1
+
+    if mask.sum() == 0:
+        return 0, 0, 0, 0, 0
+
+    cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
+    
+    genetic_cluster_cost, genetic_separation_cost = get_cluster_and_sep_cost(
+        genetic_min_distances[mask], target[mask][:, level], logits.size(1))
+    image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
+        image_min_distances[mask], target[mask][:, level], logits.size(1))
+    
+    cluster_cost = genetic_cluster_cost + image_cluster_cost
+    separation_cost = genetic_separation_cost + image_separation_cost
+
+    genetic_l1_cost = get_l1_cost(node.genetic_tree_node)
+    image_l1_cost = get_l1_cost(node.image_tree_node)
+    multi_layer_l1_cost = get_multi_last_layer_l1_cost(node)
+
+    l1_cost = genetic_l1_cost + image_l1_cost + multi_layer_l1_cost
+
+    # Update correct and total counts
+    _, predicted = torch.max(logits[mask], 1)
+    correct = predicted == (target[mask][:, level] - 1)
+
+    correct_arr[level] += correct.sum().item()
+    total_arr[level] += len(predicted)
+
+    for i in range(logits.shape[1]):
+        class_mask = (target[mask][:, level] - 1) == i
+        class_correct = correct[class_mask]
+        accuracy_tree["children"][i]["correct"] += class_correct.sum()
+        accuracy_tree["children"][i]["total"] += class_mask.sum()
+        
+    for i, c_node in enumerate(node.child_nodes):
+        applicable_mask = target[:,level] - 1 == i
+        
+        if applicable_mask.sum() == 0:
+            continue
+
+        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch = recursive_get_loss_multi(
+            conv_features,
+            c_node,
+            target,
+            mask & applicable_mask,
+            level + 1,
+            correct_arr,
+            total_arr,
+            accuracy_tree["children"][i],
+        )
+        
+        cross_entropy = cross_entropy + new_cross_entropy
+        cluster_cost = cluster_cost + new_cluster_cost 
+        separation_cost = separation_cost + new_separation_cost
+        l1_cost = l1_cost + new_l1_cost
+        num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
+
+    del logits, genetic_min_distances, image_min_distances
+
+    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
+
+
+def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_arr, total_arr, accuracy_tree):
+    """
+    conv_features: The output of the convolutional layers
     Node: the current node in the tree
-    logits: the logits for the current node
-    min_distances: the minimum distances for the current node
-    child_output: the output of the children of the current node
     target: the target labels
     prev_mask: the mask of the previous node
     level: the current level in the tree
@@ -68,6 +157,8 @@ def recursive_get_loss(node, logits, min_distances, child_output, target, prev_m
     total_tuple: tuple of total prediction counts by level
     accuracy_tree: object to keep track of accuracy at each split of the tree
     """
+    logits, min_distances = node(conv_features)
+    
     # Mask out unclassified examples
     mask = target[:,level] > 0
     # Mask out examples that don't belong to the current node
@@ -97,17 +188,16 @@ def recursive_get_loss(node, logits, min_distances, child_output, target, prev_m
         accuracy_tree["children"][i]["correct"] += class_correct.sum()
         accuracy_tree["children"][i]["total"] += class_mask.sum()
         
-    for i, (c_logits, c_min_distances, c_child_output) in enumerate(child_output):
+    for i, c_node in enumerate(node.child_nodes):
+        c_logits, c_min_distances = c_node(conv_features)
         applicable_mask = target[:,level] - 1 == i
         
         if applicable_mask.sum() == 0:
             continue
 
         new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch = recursive_get_loss(
-            node.child_nodes[i],
-            c_logits,
-            c_min_distances,
-            c_child_output,
+            conv_features,
+            c_node,
             target,
             mask & applicable_mask,
             level + 1,
@@ -121,6 +211,8 @@ def recursive_get_loss(node, logits, min_distances, child_output, target, prev_m
         separation_cost = separation_cost + new_separation_cost
         l1_cost = l1_cost + new_l1_cost
         num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
+
+    del logits, min_distances
 
     return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
 
@@ -161,7 +253,12 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
 
     correct_arr = np.zeros(len(model.module.levels)) # This is the number of correct predictions at each level
     total_arr = np.zeros(len(model.module.levels)) # This is the total number of predictions at each level
-    accuracy_tree = construct_accuracy_tree(model.module.root)
+    
+    if model.module.mode == 3:
+        # I can't be bothered to implement all_child_nodes for the multimodal model. This will work, though it's gross. 
+        accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root)
+    else:
+        accuracy_tree = construct_accuracy_tree(model.module.root)
 
     total_cross_entropy = 0
     total_cluster_cost = 0
@@ -175,7 +272,9 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         elif model.module.mode == 2:
             input = image.cuda()
         else:
-            raise NotImplementedError("Multimodal not implemented")
+            input = (genetics.cuda(), image.cuda())
+            # raise NotImplementedError("Multimodal not implemented")
+        
         target = label.type(torch.LongTensor).cuda()
 
         batch_size = len(target)
@@ -191,19 +290,30 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         # torch.enable_grad() has no effect outside of no_grad()
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
         with grad_req:
-            logits, min_distances, child_output = model(input)
-            cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
-                node=model.module.root,
-                logits=logits,
-                min_distances=min_distances,
-                child_output=child_output,
-                target=target,
-                prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
-                level=0,
-                correct_arr=correct_arr,
-                total_arr=total_arr,
-                accuracy_tree=accuracy_tree
-            )
+            if model.module.mode == 3:
+                # Freeze last layer multi
+
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss_multi( 
+                    conv_features=model.module.conv_features(input),
+                    node=model.module.root,
+                    target=target,
+                    prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
+                    level=0,
+                    correct_arr=correct_arr,
+                    total_arr=total_arr,
+                    accuracy_tree=accuracy_tree
+                )
+            else:
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch =recursive_get_loss(
+                    conv_features=model.module.conv_features(input),
+                    node=model.module.root,
+                    target=target,
+                    prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
+                    level=0,
+                    correct_arr=correct_arr,
+                    total_arr=total_arr,
+                    accuracy_tree=accuracy_tree
+                )
 
             # TODO - Maybe do this weird warm up BS
 
@@ -241,10 +351,6 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
             #         coarse_class_total[root_y[j]] += 1
             #         fine_class_correct[target[j]] += (1 if fine_correct[j] else 0)
             #         fine_class_total[target[j]] += 1
-
-            del logits
-            del min_distances
-            del child_output
 
         if is_train:          
             loss = (coefs['crs_ent'] * cross_entropy
@@ -344,21 +450,6 @@ def auxiliary_costs(label,num_prototypes_per_class,num_classes,prototype_shape,m
     return cluster_cost, separation_cost
     
 
-def coarse_warm(model, log=print):
-    for p in model.module.features.parameters():
-        p.requires_grad = False
-    for p in model.module.add_on_layers.parameters():
-        p.requires_grad = True
-    model.module.root_prototype_vectors.requires_grad = True    
-    for node in model.module.root.nodes_with_children():
-        if node.name != "root":
-            vecs = getattr(model.module, node.name + "_prototype_vectors")
-            vecs.requires_grad = False
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = False                     
-    log('coarse warm')
-
 def warm_only(model, log=print):
     for p in model.module.features.parameters():
         p.requires_grad = False
@@ -389,56 +480,7 @@ def last_only(model, log=print):
     
     log('\tlast layer')
 
-# up to protos opts
-
-def coarse_up_to_protos(model, log=print):
-    for p in model.module.features.parameters():
-        p.requires_grad = True
-    for p in model.module.add_on_layers.parameters():
-        p.requires_grad = True
-    model.module.root_prototype_vectors.requires_grad = True    
-    for node in model.module.root.nodes_with_children():
-        if node.name != "root":
-            vecs = getattr(model.module,node.name + "_prototype_vectors")
-            vecs.requires_grad = False
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = False                     
-    log('coarse up to protos')
-
-def up_to_protos(model, log=print):
-    for p in model.module.features.parameters():
-        p.requires_grad = True
-    for p in model.module.add_on_layers.parameters():
-        p.requires_grad = True
-    for node in model.module.root.nodes_with_children():
-        vecs = getattr(model.module,node.name + "_prototype_vectors")
-        vecs.requires_grad = True
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = False                     
-    log('through protos')
-
-
 # joint opts
-
-def coarse_joint(model, log=print):
-    for p in model.module.features.parameters():
-        p.requires_grad = True
-    for p in model.module.add_on_layers.parameters():
-        p.requires_grad = True
-    model.module.root_prototype_vectors.requires_grad = True    
-    for p in model.module.root_layer.parameters():
-        p.requires_grad = True  
-    for node in model.module.root.nodes_with_children():
-        if node.name != "root":
-            vecs = getattr(model.module,node.name + "_prototype_vectors")
-            vecs.requires_grad = False
-            layer = getattr(model.module,node.name + "_layer")
-            for p in layer.parameters():
-                p.requires_grad = False                     
-    log('coarse joint')
-
 
 def joint(model, log=print):
     for p in model.module.features.parameters():
@@ -446,29 +488,56 @@ def joint(model, log=print):
     for p in model.module.add_on_layers.parameters():
         p.requires_grad = True
 
-    prototype_vecs = model.module.root.get_prototype_parameters()
+    prototype_vecs = model.module.get_prototype_parameters()
     for p in prototype_vecs:
         p.requires_grad = True
 
-    layers = model.module.root.get_last_layer_parameters()
+    layers = model.module.get_last_layer_parameters()
     for l in layers:
-        l.requires_grad = True            
+        l.requires_grad = True
+
+    if model.module.mode == 3:
+        for p in model.module.get_last_layer_multi_parameters():
+            p.requires_grad = False
+    
     log('joint')
+
+def multi_last_layer(model, log=print):
+    for p in model.module.features.parameters():
+        p.requires_grad = False
+    for p in model.module.add_on_layers.parameters():
+        p.requires_grad = False
+
+    prototype_vecs = model.module.get_prototype_parameters()
+    for p in prototype_vecs:
+        p.requires_grad = False
+
+    layers = model.module.get_last_layer_parameters()
+    for l in layers:
+        l.requires_grad = False
+
+    if model.module.mode == 3:
+        for p in model.module.get_last_layer_multi_parameters():
+            p.requires_grad = True
+
+    log('multi last layer')
 
 
 # last layer opts
 
 def last_layers(model, log=print):
-    for p in model.module.features.parameters():
-        p.requires_grad = False
-    for p in model.module.add_on_layers.parameters():
-        p.requires_grad = False
-    for node in model.module.root.nodes_with_children():
-        vecs = getattr(model.module,node.name + "_prototype_vectors")
-        vecs.requires_grad = False
-        layer = getattr(model.module,node.name + "_layer")
-        for p in layer.parameters():
-            p.requires_grad = True                  
-    log('last layers')
+    raise NotImplementedError("Last layers not implemented")
+    pass
+    # for p in model.module.features.parameters():
+    #     p.requires_grad = False
+    # for p in model.module.add_on_layers.parameters():
+    #     p.requires_grad = False
+    # for node in model.module.root.nodes_with_children():
+    #     vecs = getattr(model.module,node.name + "_prototype_vectors")
+    #     vecs.requires_grad = False
+    #     layer = getattr(model.module,node.name + "_layer")
+    #     for p in layer.parameters():
+    #         p.requires_grad = True                  
+    # log('last layers')
 
 

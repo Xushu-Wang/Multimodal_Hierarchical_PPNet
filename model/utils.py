@@ -32,7 +32,7 @@ def get_optimizers(cfg, ppnet):
     through_protos_optimizer_specs = [
         {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
         {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
     ]
     through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
     
@@ -40,13 +40,13 @@ def get_optimizers(cfg, ppnet):
     
     warm_optimizer_specs = [
         {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
     ]
     warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
     
     # last layer optimizer
     last_layers_specs = [
-        {'params': ppnet.root.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+        {'params': ppnet.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
     ]
     last_layer_optimizer = torch.optim.SGD(last_layers_specs,momentum=.9)
     
@@ -54,8 +54,8 @@ def get_optimizers(cfg, ppnet):
     joint_optimizer_specs = [
         {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
         {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.root.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.root.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
+        {'params': ppnet.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
+        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
     ]
     
     joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
