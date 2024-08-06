@@ -114,6 +114,13 @@ def main():
                     accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                     class_specific=class_specific, log=log)
                     save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
+                    if tree_ppnet.mode == 3:
+                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                        _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                class_specific=class_specific, coefs=coefs, log=log)
+                        accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                                        class_specific=class_specific, log=log)
+                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer

@@ -264,7 +264,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     total_cluster_cost = 0
     total_separation_cost = 0
     total_l1 = 0
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
         
     for i, ((genetics, image), label) in enumerate(dataloader):
         if model.module.mode == 1:
@@ -456,11 +456,11 @@ def warm_only(model, log=print):
     for p in model.module.add_on_layers.parameters():
         p.requires_grad = True    
 
-    prototype_vecs = model.module.root.get_prototype_parameters()
+    prototype_vecs = model.module.get_prototype_parameters()
     for p in prototype_vecs:
         p.requires_grad = True
 
-    layers = model.module.root.get_last_layer_parameters()
+    layers = model.module.get_last_layer_parameters()
     for l in layers:
         l.requires_grad = False            
     log('warm')
@@ -472,10 +472,10 @@ def last_only(model, log=print):
     for p in model.module.add_on_layers.parameters():
         p.requires_grad = False
 
-    for p in model.module.root.get_prototype_parameters():
+    for p in model.module.get_prototype_parameters():
         p.requires_grad = False
     
-    for l in model.module.root.get_last_layer_parameters():
+    for l in model.module.get_last_layer_parameters():
         l.requires_grad = True
     
     log('\tlast layer')

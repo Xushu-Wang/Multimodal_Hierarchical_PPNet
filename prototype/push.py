@@ -63,7 +63,7 @@ def nodal_update_prototypes_on_batch(
     search_batch_input,
     conv_features,
     start_index_of_search_batch,
-    prototype_network_parallel,
+    model,
     search_y,
     preprocess_input_function,
     prototype_layer_stride,
@@ -72,8 +72,8 @@ def nodal_update_prototypes_on_batch(
     prototype_activation_function_in_numpy,
     no_save
 ):
-    prototype_network_parallel.eval()
-    mode = prototype_network_parallel.module.mode
+    model.eval()
+    mode = model.mode
     dir_for_saving_prototypes = node.proto_epoch_dir
 
     level = node.level
@@ -105,7 +105,7 @@ def nodal_update_prototypes_on_batch(
 
     patch_df_list = None
 
-    if mode == 1:
+    if mode == 1 or mode == 3:
         patch_df_list = []
 
     for j in range(n_prototypes):
@@ -155,7 +155,7 @@ def nodal_update_prototypes_on_batch(
 
             if mode == 1:
                 assert search_batch_input.shape[2] == 1
-                protoL_rf_info = prototype_network_parallel.module.proto_layer_rf_info
+                protoL_rf_info = model.proto_layer_rf_info
 
                 # get the whole image
                 original_img_j = search_batch_input[batch_argmin_proto_dist_j[0]]
@@ -179,7 +179,7 @@ def nodal_update_prototypes_on_batch(
             else:
                 # Get the receptive field boundary of the image patch
                 # that generates the representation
-                protoL_rf_info = prototype_network_parallel.module.proto_layer_rf_info
+                protoL_rf_info = model.proto_layer_rf_info
                 rf_prototype_j = compute_rf_prototype(search_batch_input.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
 
                 # Get the whole image
@@ -203,9 +203,9 @@ def nodal_update_prototypes_on_batch(
 
                 # Find the highly activated region of the original image
                 proto_dist_img_j = proto_dist_[img_index_in_batch, j, :, :]
-                if prototype_network_parallel.module.prototype_activation_function == 'log':
-                    proto_act_img_j = np.log((proto_dist_img_j + 1) / (proto_dist_img_j + prototype_network_parallel.module.epsilon))
-                elif prototype_network_parallel.module.prototype_activation_function == 'linear':
+                if model.prototype_activation_function == 'log':
+                    proto_act_img_j = np.log((proto_dist_img_j + 1) / (proto_dist_img_j + model.epsilon))
+                elif model.prototype_activation_function == 'linear':
                     proto_act_img_j = max_dist - proto_dist_img_j
                 else:
                     proto_act_img_j = prototype_activation_function_in_numpy(proto_dist_img_j)
@@ -287,7 +287,6 @@ def nodal_update_prototypes_on_batch(
             existing_df = pd.concat([existing_df,patch_df])
 
             patch_df = existing_df.reset_index()
-        print(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"))
         patch_df.to_csv(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"), index=False)
 
     del class_to_img_index_dict
@@ -313,8 +312,14 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
 
     search_batch_size = dataloader.batch_size
 
-    for node in prototype_network_parallel.module.nodes_with_children:
-        init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
+    if prototype_network_parallel.module.mode == 3:
+        for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
+            init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
+        for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
+            init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
+    else:
+        for node in prototype_network_parallel.module.nodes_with_children:
+            init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
 
     for push_iter, ((genetics, image), search_y) in enumerate(dataloader):
         '''
@@ -328,7 +333,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         elif prototype_network_parallel.module.mode == 2:
             search_batch_input = image
         else:
-            raise NotImplementedError("Mode not implemented")
+            search_batch_input = (genetics, image)
 
         """
         search_batch_input is the raw input image, this is used for generating output images.
@@ -338,28 +343,66 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
             # print('preprocessing input for pushing ...')
             # search_batch = copy.deepcopy(search_batch_input)
             search_batch = preprocess_input_function(search_batch_input)
+        elif preprocess_input_function is not None and prototype_network_parallel.module.mode == 3:
+            search_batch = (search_batch_input[0], preprocess_input_function(search_batch_input[1]))
         else:
             search_batch = search_batch_input
 
         with torch.no_grad():
-            search_batch = search_batch.cuda()
+            if prototype_network_parallel.module.mode == 3:
+                search_batch = (search_batch[0].cuda(), search_batch[1].cuda())
+            else:
+                search_batch = search_batch.cuda()
+
             conv_features = prototype_network_parallel.module.conv_features(search_batch)
 
-        for node in prototype_network_parallel.module.nodes_with_children:
-            nodal_update_prototypes_on_batch(
-                node=node,
-                search_batch_input=search_batch_input,
-                conv_features=conv_features,
-                start_index_of_search_batch=start_index_of_search_batch,
-                prototype_network_parallel=prototype_network_parallel,
-                search_y=search_y,
-                preprocess_input_function=preprocess_input_function,
-                prototype_layer_stride=prototype_layer_stride,
-                prototype_img_filename_prefix=prototype_img_filename_prefix,
-                prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
-                prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
-                no_save=no_save
-            )
+        if prototype_network_parallel.module.mode == 3:
+            for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
+                nodal_update_prototypes_on_batch(
+                    node=node,
+                    search_batch_input=search_batch_input[0],
+                    conv_features=conv_features[0],
+                    start_index_of_search_batch=start_index_of_search_batch,
+                    model=prototype_network_parallel.module.genetic_hierarchical_ppnet,
+                    search_y=search_y,
+                    preprocess_input_function=preprocess_input_function,
+                    prototype_layer_stride=prototype_layer_stride,
+                    prototype_img_filename_prefix=prototype_img_filename_prefix,
+                    prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
+                    prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
+                    no_save=no_save
+                )
+            for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
+                nodal_update_prototypes_on_batch(
+                    node=node,
+                    search_batch_input=search_batch_input[1],
+                    conv_features=conv_features[1],
+                    start_index_of_search_batch=start_index_of_search_batch,
+                    model=prototype_network_parallel.module.image_hierarchical_ppnet,
+                    search_y=search_y,
+                    preprocess_input_function=preprocess_input_function,
+                    prototype_layer_stride=prototype_layer_stride,
+                    prototype_img_filename_prefix=prototype_img_filename_prefix,
+                    prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
+                    prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
+                    no_save=no_save
+                )
+        else:
+            for node in prototype_network_parallel.module.nodes_with_children:
+                nodal_update_prototypes_on_batch(
+                    node=node,
+                    search_batch_input=search_batch_input,
+                    conv_features=conv_features,
+                    start_index_of_search_batch=start_index_of_search_batch,
+                    prototype_network_parallel=prototype_network_parallel,
+                    search_y=search_y,
+                    preprocess_input_function=preprocess_input_function,
+                    prototype_layer_stride=prototype_layer_stride,
+                    prototype_img_filename_prefix=prototype_img_filename_prefix,
+                    prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
+                    prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
+                    no_save=no_save
+                )
 
     # TODO - Implement bounding box saving
     # if proto_epoch_dir != None and proto_bound_boxes_filename_prefix != None:
@@ -369,10 +412,20 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
     #             proto_bound_boxes)
 
     log('\tExecuting push ...')
-    for node in prototype_network_parallel.module.nodes_with_children:
-        prototype_update = np.reshape(node.global_min_fmap_patches,
-                                    tuple(node.full_prototype_shape))
-        node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+    if prototype_network_parallel.module.mode == 3:
+        for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
+            prototype_update = np.reshape(node.global_min_fmap_patches,
+                                        tuple(node.full_prototype_shape))
+            node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+        for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
+            prototype_update = np.reshape(node.global_min_fmap_patches,
+                                        tuple(node.full_prototype_shape))
+            node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+    else:
+        for node in prototype_network_parallel.module.nodes_with_children:
+            prototype_update = np.reshape(node.global_min_fmap_patches,
+                                        tuple(node.full_prototype_shape))
+            node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
     end = time.time()
     log('\tpush time: \t{0}'.format(end -  start))
