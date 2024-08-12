@@ -15,6 +15,8 @@ import train_and_test as tnt
 import prototype.push as push       
 from utils.util import handle_run_name_weirdness
 
+from prototype.push import get_train_dir_size
+
 
 def main():
     cfg = get_cfg_defaults()
@@ -36,6 +38,7 @@ def main():
 
     try:
         train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log)
+        
         tree_ppnet = construct_tree_ppnet(cfg).cuda()
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
@@ -68,16 +71,16 @@ def main():
                 _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer,
                             class_specific=class_specific, coefs=coefs, log=log)
             else:
+                if tree_ppnet.mode == 3:
+                    tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                class_specific=class_specific, coefs=coefs, log=log)
+                
                 tnt.joint(model=tree_ppnet_multi, log=log)
                 _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=joint_optimizer,
                             class_specific=class_specific, coefs=coefs, log=log)
                 joint_lr_scheduler.step()
             
-            if tree_ppnet.mode == 3:
-                tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
-                            class_specific=class_specific, coefs=coefs, log=log)
-
             # Testing Epochs
             accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                             class_specific=class_specific, log=log)
@@ -85,7 +88,7 @@ def main():
                                         target_accu=0.70, log=log)
 
             # Pushing Epochs
-            if epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
+            if True or epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
                 push.push_prototypes(
                     train_push_loader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel=tree_ppnet_multi, # pytorch network with prototype_vectors
@@ -99,7 +102,6 @@ def main():
                     log=log,
                     no_save=cfg.OUTPUT.NO_SAVE
                 )
-                
                 accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                 class_specific=class_specific, log=log)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',

@@ -10,6 +10,10 @@ from model.utils import decode_onehot
 from prototype.receptive_field import compute_rf_prototype
 from utils.util import makedir, find_high_activation_crop
 
+
+def get_train_dir_size(train_dir):
+    return int(os.system(f"ls -1 {train_dir} | wc -l"))
+
 def init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log):
     """
     Initializes all these variables that are normally global on each node
@@ -394,7 +398,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     search_batch_input=search_batch_input,
                     conv_features=conv_features,
                     start_index_of_search_batch=start_index_of_search_batch,
-                    prototype_network_parallel=prototype_network_parallel,
+                    model=prototype_network_parallel.module,
                     search_y=search_y,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,

@@ -8,7 +8,7 @@ import json
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("source", type=str, help="Source file for the class tree")
-argparser.parse_args("min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
+argparser.add_argument("--min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
 
 args = argparser.parse_args()
 
@@ -16,7 +16,11 @@ if(args.min_samples < 3):
     print("Minimum number of samples must be at least 3")
     exit()
 
+print("Opening source file...")
+
 df = pd.read_csv(args.source, sep="\t")
+
+print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 

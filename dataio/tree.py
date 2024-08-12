@@ -16,6 +16,8 @@ import tqdm
 import json
 from torchvision.transforms.functional import center_crop
 
+from prototype.push import get_train_dir_size
+
 class GeneticOneHot(object):
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
 
@@ -123,6 +125,7 @@ class TreeDataset(Dataset):
 
         self.tree, self.levels = class_specification["tree"], class_specification["levels"]
         self.indexed_tree = self.generate_tree_indicies(self.tree)
+
         self.mode = mode
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
         self.image_transforms = image_transforms
@@ -135,7 +138,7 @@ class TreeDataset(Dataset):
         """
         This is deeply gross and I appologize for it.
         """
-        tree = {k: v for k,v in sorted(tree.items())}
+        tree = {k: v for k,v in tree.items()}
         tree["idx"] = idx
 
         idx = 0
@@ -438,7 +441,7 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
                     count_per_leaf,
                     train_not_classified_proportion,
                     seed,
-                    k
+                    k,
                 )
             shortages += child_shortages
 
@@ -452,7 +455,7 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     shortages = shortages.astype(int)
 
     # Handle not_classified
-    not_classified = source_df[source_df[levels[0]] == "not_classified"]
+    not_classified = source_df[(source_df[levels[0]] == "not_classified") | (~source_df[levels[0]].isin([c for c in tree.keys()]))]
     train_not_classified_count = train_not_classified_proportion[levels[0]] * (len(tree.keys()) - 1) * count_per_leaf[0]
     train_not_classified_count = int(train_not_classified_count)
 
@@ -464,7 +467,7 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
         # raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
     else:
         not_classified_sample_amounts = shortages
-    
+
     test_sample = not_classified.sample(not_classified_sample_amounts[1], random_state=seed)
     validation_sample = not_classified.drop(test_sample.index).sample(not_classified_sample_amounts[0], random_state=seed)
 
@@ -696,7 +699,7 @@ def create_tree_dataloaders(
             # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
             train_df = oversample(train_df, oversampling_rate, seed)
         new_train_size = len(train_df)
-        
+
         log(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
         log(f"And it only took {time.time() - start_t:.2f} seconds")
 
@@ -708,6 +711,8 @@ def create_tree_dataloaders(
         train_push_path = os.path.join(output_dir, "train_push.tsv")
         val_path = os.path.join(output_dir, "val.tsv")
         test_path = os.path.join(output_dir, "test.tsv")
+
+        train_df, train_push_df, val_df, test_df = remove_images_for_which_there_exists_no_file_in_the_directory([train_df, train_push_df, val_df, test_df], image_root_dir, log)
 
         train_df.to_csv(train_path, sep="\t", index=False)
         log(f"Saved train dataset to {train_path}")
@@ -829,6 +834,33 @@ def get_dataloaders(cfg, log):
         seed=cfg.SEED,
         log=log
     )
+
+def remove_images_for_which_there_exists_no_file_in_the_directory(dfs, image_root_dir, log=print):
+    """
+    The astute amoung you may notice that this could lead to situations where we have 0 samples of a certain class!
+
+    You forget that this entire dataset balancing process isn't guaranteed to work! It often yells.
+
+    This is in the spirit of that.
+    """
+    
+    file_names = set(os.listdir(image_root_dir))
+
+    new_dfs = []
+
+    for i,df in enumerate(dfs):
+        image_files = df["image_file"]
+        missing_files = [f for f in image_files if f not in file_names]
+
+        if len(missing_files) > 0:
+            log(f"Removing {len(missing_files)} rows with missing images.")
+            df = df[~df["image_file"].isin(missing_files)]
+            for f in missing_files:
+                log(f"Missing file: {f}")
+        
+        new_dfs.append(df)
+    
+    return new_dfs
 
 class GeneticDataset(Dataset):
     
