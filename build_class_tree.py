@@ -9,11 +9,16 @@ import json
 argparser = argparse.ArgumentParser()
 argparser.add_argument("source", type=str, help="Source file for the class tree")
 argparser.add_argument("--min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
+argparser.add_argument("--min-leaves", type=int, help="Minimum number of leaves for a classification task", default=2)
 
 args = argparser.parse_args()
 
 if(args.min_samples < 3):
     print("Minimum number of samples must be at least 3")
+    exit()
+
+if(args.min_leaves < 2):
+    print("Minimum number of leaves must be at least 2")
     exit()
 
 print("Opening source file...")
@@ -41,10 +46,10 @@ def question_level(levels, data, parent=None, min_samples=3):
         print("No samples left. Adding not_classified to the tree.")
         return None
     
-    if option_count == 1:
-        print(f"Only one option left. Adding not_classified to the tree.")
+    if option_count < args.min_leaves:
+        print(f"Only {option_count} options left. Adding not_classified to the tree.")
         return None
-
+    
     if parent:
         par_string = f" (parent: {parent})"
     else:

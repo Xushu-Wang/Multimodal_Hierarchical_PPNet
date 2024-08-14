@@ -1,0 +1,208 @@
+{
+    "tree": {
+        "Diptera": {
+            "Cecidomyiidae": {
+                "Asteromyia": null,
+                "Endaphis": null,
+                "Campylomyza": null,
+                "Dasineura": null,
+                "Prodiplosis": null
+            },
+            "Chironomidae": {
+                "Tanytarsus": null,
+                "Smittia": null,
+                "Metriocnemus": null,
+                "Halocladius": null,
+                "Limnophyes": null,
+                "Chaetocladius": null
+            },
+            "Phoridae": {
+                "Megaselia": {
+                    "Megaselia normwoodleyi": null,
+                    "Megaselia steptoeae": null,
+                    "Megaselia manuelzumbadoi": null,
+                    "Megaselia torbjornekremi": null,
+                    "Megaselia artborkenti": null,
+                    "Megaselia wiegmanae": null,
+                    "Megaselia thomaspapei": null,
+                    "Megaselia carthayensis": null,
+                    "Megaselia tropizona": null,
+                    "Megaselia halterata": null
+                },
+                "Apocephalus": null,
+                "Metopina_group": null,
+                "Metopina": null,
+                "Coniceromyia": null,
+                "Chonocephalus": null
+            },
+            "Sciaridae": {
+                "Hyperlasion": null,
+                "Bradysia": null,
+                "Corynoptera": null,
+                "Pseudolycoriella": null,
+                "Sciara": null,
+                "Scatopsciara": null,
+                "Cosmosciara": null,
+                "Pseudosciara": null,
+                "Cratyna": null,
+                "Lycoriella": null
+            },
+            "Ceratopogonidae": null,
+            "Psychodidae": null,
+            "Dolichopodidae": {
+                "Chrysotus": null,
+                "Sympycnus": null,
+                "Achradocera": null,
+                "Medetera": null,
+                "Dolichopus": null
+            },
+            "Sphaeroceridae": {
+                "Pterogramma": null,
+                "Bifronsina": null,
+                "Rachispoda": null,
+                "Spelobia": null,
+                "Archiceroptera": null,
+                "Robustagramma": null,
+                "Trachyopella": null,
+                "Leptocera": null,
+                "Rudolfina": null,
+                "Coproica": null
+            },
+            "Drosophilidae": null,
+            "Hybotidae": null,
+            "Mycetophilidae": null,
+            "Muscidae": {
+                "Coenosia": null,
+                "Atherigona": null,
+                "Lispe": null,
+                "Neodexiopsis": null,
+                "Musca": null
+            },
+            "Limoniidae": null,
+            "Chloropidae": null,
+            "Scatopsidae": null,
+            "Milichiidae": {
+                "Pholeomyia": null,
+                "Milichiella": null,
+                "Desmometopa": null,
+                "Neophyllomyza": null,
+                "Paramyia": null
+            },
+            "Ephydridae": null,
+            "Agromyzidae": null,
+            "Tachinidae": null,
+            "Empididae": null
+        },
+        "Hymenoptera": {
+            "Scelionidae": null,
+            "Braconidae": {
+                "Dinotrema": null,
+                "Heterospilus": null,
+                "Glyptapanteles": null,
+                "alyMalaise01": null,
+                "Cotesia": null,
+                "Apanteles": null,
+                "Hormius": null,
+                "Leiophron": null,
+                "Aphidius": null,
+                "Blacus": null
+            },
+            "Bethylidae": null,
+            "Diapriidae": null,
+            "Platygastridae": null,
+            "Ichneumonidae": {
+                "Orthocentrus": null,
+                "Chilocyrtus": null,
+                "Stenomacrus": null,
+                "Plectiscus": null,
+                "tersiMalaise01": null,
+                "Tersilochus": null
+            },
+            "Formicidae": {
+                "Pseudomyrmex": null,
+                "Crematogaster": null,
+                "Pheidole": null,
+                "Procryptocerus": null,
+                "Camponotus": null,
+                "Leptothorax": null
+            },
+            "Mymaridae": {
+                "Lymaenon": null,
+                "Anagrus": null,
+                "Polynema": null,
+                "Alaptus": null,
+                "Gonatocerus": null
+            },
+            "Figitidae": null,
+            "Eulophidae": null,
+            "Trichogrammatidae": null,
+            "Aphelinidae": null,
+            "Pteromalidae": null,
+            "Encyrtidae": null,
+            "Dryinidae": null
+        },
+        "Coleoptera": {
+            "Staphylinidae": null,
+            "Chrysomelidae": null,
+            "Curculionidae": null,
+            "Coccinellidae": null,
+            "Ptilodactylidae": null,
+            "Mordellidae": null,
+            "Scirtidae": null,
+            "Throscidae": null,
+            "Elateridae": null,
+            "Nitidulidae": null,
+            "Ptinidae": null,
+            "Aderidae": null,
+            "Lycidae": null,
+            "Scraptiidae": null,
+            "Carabidae": null,
+            "Latridiidae": null,
+            "Corylophidae": null,
+            "Erotylidae": null,
+            "Lampyridae": null,
+            "Dytiscidae": null
+        },
+        "Hemiptera": {
+            "Cicadellidae": null,
+            "Aleyrodidae": null,
+            "Rhyparochromidae": null,
+            "Aphididae": {
+                "Aphis": null,
+                "Euceraphis": null,
+                "Rhopalosiphum": null,
+                "Macrosiphum": null
+            },
+            "Issidae": null,
+            "Miridae": null,
+            "Cixiidae": null,
+            "Tropiduchidae": null,
+            "Ceratocombidae": null,
+            "Delphacidae": null
+        },
+        "Lepidoptera": {
+            "Tineidae": null,
+            "Gelechiidae": {
+                "gelMalaise01": null,
+                "Aristotelia": null,
+                "gelBioLep01": null,
+                "Battaristis": null,
+                "geleBioLep01": null
+            },
+            "Cosmopterigidae": null,
+            "Gracillariidae": null,
+            "Crambidae": null,
+            "Nepticulidae": null,
+            "Psychidae": null,
+            "Autostichidae": null,
+            "Pyralidae": null,
+            "Blastobasidae": null
+        }
+    },
+    "levels": [
+        "order",
+        "family",
+        "genus",
+        "species"
+    ]
+}

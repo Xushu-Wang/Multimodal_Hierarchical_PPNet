@@ -68,7 +68,7 @@ def nodal_update_prototypes_on_batch(
     conv_features,
     start_index_of_search_batch,
     model,
-    search_y,
+    full_search_y,
     preprocess_input_function,
     prototype_layer_stride,
     prototype_img_filename_prefix,
@@ -79,6 +79,14 @@ def nodal_update_prototypes_on_batch(
     model.eval()
     mode = model.mode
     dir_for_saving_prototypes = node.proto_epoch_dir
+
+    mask = torch.ones(full_search_y.shape[0], dtype=torch.bool)
+    for i, class_index in enumerate(node.int_location):
+        mask &= (full_search_y[:,i] == class_index).bool()
+
+    mask = mask.bool()
+    
+    search_y = full_search_y[mask]
 
     level = node.level
 
@@ -368,7 +376,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     conv_features=conv_features[0],
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.genetic_hierarchical_ppnet,
-                    search_y=search_y,
+                    full_search_y=search_y,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -383,7 +391,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     conv_features=conv_features[1],
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.image_hierarchical_ppnet,
-                    search_y=search_y,
+                    full_search_y=search_y,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -399,7 +407,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     conv_features=conv_features,
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module,
-                    search_y=search_y,
+                    full_search_y=search_y,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,

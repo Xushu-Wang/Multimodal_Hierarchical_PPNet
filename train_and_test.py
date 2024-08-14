@@ -118,7 +118,9 @@ def recursive_get_loss_multi(
         accuracy_tree["children"][i]["correct"] += class_correct.sum()
         accuracy_tree["children"][i]["total"] += class_mask.sum()
         
-    for i, c_node in enumerate(node.child_nodes):
+    for c_node in node.child_nodes:
+        i = c_node.int_location[-1] - 1
+        
         applicable_mask = target[:,level] - 1 == i
         
         if applicable_mask.sum() == 0:
@@ -188,7 +190,9 @@ def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_ar
         accuracy_tree["children"][i]["correct"] += class_correct.sum()
         accuracy_tree["children"][i]["total"] += class_mask.sum()
         
-    for i, c_node in enumerate(node.child_nodes):
+    for c_node in node.child_nodes:
+        i = c_node.int_location[-1] - 1
+
         c_logits, c_min_distances = c_node(conv_features)
         applicable_mask = target[:,level] - 1 == i
         
@@ -233,7 +237,9 @@ def construct_accuracy_tree(root):
     """
     return {
         "int_location": [],
-        "children": [construct_accuract_tree_rec(child) for child in root.all_child_nodes]}
+        "children": [
+            construct_accuract_tree_rec(child) for child in root.all_child_nodes
+        ]}
 
 def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
     '''
@@ -275,7 +281,8 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
             input = (genetics.cuda(), image.cuda())
             # raise NotImplementedError("Multimodal not implemented")
         
-        target = label.type(torch.LongTensor).cuda()
+        target = label.type(torch.LongTensor)
+        target = target.cuda()
 
         batch_size = len(target)
         batch_start = time.time()   
@@ -292,7 +299,6 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         with grad_req:
             if model.module.mode == 3:
                 # Freeze last layer multi
-
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss_multi( 
                     conv_features=model.module.conv_features(input),
                     node=model.module.root,

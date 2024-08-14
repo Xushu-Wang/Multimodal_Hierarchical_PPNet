@@ -40,6 +40,7 @@ class TreeNode(nn.Module):
         self.int_location = int_location
         self.named_location = named_location
         self.num_classes = len(tree_specification)
+        self.tree_specification = tree_specification
         self.num_prototypes = self.num_classes * num_prototypes_per_class
         self.num_prototypes_per_class = num_prototypes_per_class
         self.prototype_shape = prototype_shape
@@ -74,6 +75,8 @@ class TreeNode(nn.Module):
         return [p for p in self.last_layer.parameters()] + [param for child in self.child_nodes for param in child.get_last_layer_parameters()]
 
     def create_children(self):
+        if self.int_location == [1,8]:
+            print(self.tree_specification)
         i = 1 # 0 Is reserved for not_classified
         if self.tree_specification is None:
             return
@@ -93,6 +96,7 @@ class TreeNode(nn.Module):
                 self.all_child_nodes.append(node)
             i += 1
         
+        self.all_child_nodes.sort(key=lambda x: x.int_location)
     
     def set_last_layer_incorrect_connection(self, incorrect_strength):
         '''

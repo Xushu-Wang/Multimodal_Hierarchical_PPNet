@@ -158,7 +158,7 @@ class TreeDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        image_path = os.path.join(self.image_root_dir, row["image_file"])
+        image_path = os.path.join(self.image_root_dir, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
         
         if self.mode & 1:
             genetics = row["nucraw"]
@@ -259,8 +259,8 @@ def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image
 
         # Copy each image in source_df["image_path"] to temp_image_path
         for idx, row in source_df.iterrows():
-            image_path = os.path.join(image_path, row["image_file"])
-            temp_image_path = os.path.join(temp_image_path, row["image_file"])
+            image_path = os.path.join(image_path, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
+            temp_image_path = os.path.join(temp_image_path, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
             shutil.copy(image_path, temp_image_path)
 
         # Get the indicies of all duplicated IDs in source_df
@@ -697,7 +697,7 @@ def create_tree_dataloaders(
         if oversampling_rate != 1:
             # raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
             # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
-            train_df = oversample(train_df, oversampling_rate, seed)
+            train_df = oversample(train_df, len(train_df) * oversampling_rate, seed)
         new_train_size = len(train_df)
 
         log(f"Oversampled train from {old_train_size:,} samples to {new_train_size:,} samples")
@@ -843,6 +843,8 @@ def remove_images_for_which_there_exists_no_file_in_the_directory(dfs, image_roo
 
     This is in the spirit of that.
     """
+
+    return dfs
     
     file_names = set(os.listdir(image_root_dir))
 
