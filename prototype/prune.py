@@ -1,99 +1,121 @@
-import os
-import shutil
-from collections import Counter
-import numpy as np
 import torch
 
-from utils.util import makedir
-import prototype.find_nearest as find_nearest
+"""
+This updates the prototype mask of a node to only include the best prototypes for each class as defined by output weights.
+"""
+def nodal_prune_prototypes_weights(
+    node,
+    log=print
+):
+    # Get the n best prototypes per class
+    corresponding_weights = node.last_layer.weight.data[node.prototype_class_identity.T.bool()]
+    corresponding_weights = corresponding_weights.view(node.num_prototypes_per_class, -1)
 
-def prune_prototypes(dataloader,
-                     prototype_network_parallel,
-                     k,
-                     prune_threshold,
-                     preprocess_input_function,
-                     original_model_dir,
-                     epoch_number,
-                     #model_name=None,
-                     log=print,
-                     copy_prototype_imgs=True):
-    ### run global analysis
-    nearest_train_patch_class_ids = \
-        find_nearest.find_k_nearest_patches_to_prototypes(dataloader=dataloader,
-                                                          prototype_network_parallel=prototype_network_parallel,
-                                                          k=k,
-                                                          preprocess_input_function=preprocess_input_function,
-                                                          full_save=False,
-                                                          log=log)
+    # Get the indicies of the best prototypes per class
+    best_prototypes = torch.argsort(corresponding_weights, dim=0, descending=True)[:node.max_num_prototypes_per_class]
 
-    ### find prototypes to prune
-    original_num_prototypes = prototype_network_parallel.module.num_prototypes
-    
-    prototypes_to_prune = []
-    for j in range(prototype_network_parallel.module.num_prototypes):
-        class_j = torch.argmax(prototype_network_parallel.module.prototype_class_identity[j]).item()
-        nearest_train_patch_class_counts_j = Counter(nearest_train_patch_class_ids[j])
-        # if no such element is in Counter, it will return 0
-        if nearest_train_patch_class_counts_j[class_j] < prune_threshold:
-            prototypes_to_prune.append(j)
+    # Best prototypes
+    node.prototype_mask.data.zero_()
+    node.prototype_mask.data[best_prototypes] = 1
 
-    log('k = {}, prune_threshold = {}'.format(k, prune_threshold))
-    log('{} prototypes will be pruned'.format(len(prototypes_to_prune)))
+"""
+This function unmasks all prototypes.
+"""
+def unprune_prototypes(
+    node,
+    log=print
+):
+    node.prototype_mask.data[:] = 1
 
-    ### bookkeeping of prototypes to be pruned
-    class_of_prototypes_to_prune = \
-        torch.argmax(
-            prototype_network_parallel.module.prototype_class_identity[prototypes_to_prune],
-            dim=1).numpy().reshape(-1, 1)
-    prototypes_to_prune_np = np.array(prototypes_to_prune).reshape(-1, 1)
-    prune_info = np.hstack((prototypes_to_prune_np, class_of_prototypes_to_prune))
-    makedir(os.path.join(original_model_dir, 'pruned_prototypes_epoch{}_k{}_pt{}'.format(epoch_number,
-                                          k,
-                                          prune_threshold)))
-    np.save(os.path.join(original_model_dir, 'pruned_prototypes_epoch{}_k{}_pt{}'.format(epoch_number,
-                                          k,
-                                          prune_threshold), 'prune_info.npy'),
-            prune_info)
+"""
+This function prunes prototypes according to the approach described in the supplement to This Looks Like That.
 
-    ### prune prototypes
-    prototype_network_parallel.module.prune_prototypes(prototypes_to_prune)
-    #torch.save(obj=prototype_network_parallel.module,
-    #           f=os.path.join(original_model_dir, 'pruned_prototypes_epoch{}_k{}_pt{}'.format(epoch_number,
-    #                                              k,
-    #                                              prune_threshold),
-    #                          model_name + '-pruned.pth'))
-    if copy_prototype_imgs:
-        original_img_dir = os.path.join(original_model_dir, 'img', 'epoch-%d' % epoch_number)
-        dst_img_dir = os.path.join(original_model_dir,
-                                   'pruned_prototypes_epoch{}_k{}_pt{}'.format(epoch_number,
-                                                                               k,
-                                                                               prune_threshold),
-                                   'img', 'epoch-%d' % epoch_number)
-        makedir(dst_img_dir)
-        prototypes_to_keep = list(set(range(original_num_prototypes)) - set(prototypes_to_prune))
+k: Number of nearest neighbors to consider
+tau: Pruning threshold
+"""
+def prune_prototypes_quality(
+    prototype_network_parallel,
+    dataloader,
+    k,
+    tau,
+    log=print
+):
+    for node in prototype_network_parallel.module.nodes_with_children:
+        nodal_init_pruning_datastructures(node, k)
+
+    for i, (inputs, labels) in enumerate(dataloader):
+        conv_features = prototype_network_parallel.module.conv_features(inputs)
+        labels = labels.cuda()
+
+        for node in prototype_network_parallel.module.nodes_with_children:
+            nodal_update_pruning_datastructures(
+                node,
+                conv_features,
+                labels,
+                k,
+                log=log
+            )
         
-        for idx in range(len(prototypes_to_keep)):
-            shutil.copyfile(src=os.path.join(original_img_dir, 'prototype-img%d.png' % prototypes_to_keep[idx]),
-                            dst=os.path.join(dst_img_dir, 'prototype-img%d.png' % idx))
-            
-            shutil.copyfile(src=os.path.join(original_img_dir, 'prototype-img-original%d.png' % prototypes_to_keep[idx]),
-                            dst=os.path.join(dst_img_dir, 'prototype-img-original%d.png' % idx))
-            
-            shutil.copyfile(src=os.path.join(original_img_dir, 'prototype-img-original_with_self_act%d.png' % prototypes_to_keep[idx]),
-                            dst=os.path.join(dst_img_dir, 'prototype-img-original_with_self_act%d.png' % idx))
-            
-            shutil.copyfile(src=os.path.join(original_img_dir, 'prototype-self-act%d.npy' % prototypes_to_keep[idx]),
-                            dst=os.path.join(dst_img_dir, 'prototype-self-act%d.npy' % idx))
+
+def nodal_update_pruning_datastructures(
+    node,
+    conv_features,
+    labels,
+    k,
+    log=print
+):
+    distances = node.push_get_dist(conv_features)
+
+    # for i in range(node.num_prototypes_per_class):
+    #     for j in range(node.num_classes):
+    #         if 
 
 
-            bb = np.load(os.path.join(original_img_dir, 'bb%d.npy' % epoch_number))
-            bb = bb[prototypes_to_keep]
-            np.save(os.path.join(dst_img_dir, 'bb%d.npy' % epoch_number),
-                    bb)
-
-            bb_rf = np.load(os.path.join(original_img_dir, 'bb-receptive_field%d.npy' % epoch_number))
-            bb_rf = bb_rf[prototypes_to_keep]
-            np.save(os.path.join(dst_img_dir, 'bb-receptive_field%d.npy' % epoch_number),
-                    bb_rf)
+def nodal_init_pruning_datastructures(node, k):
+    node.best_prototype_max = [float("inf")] * node.num_prototypes_per_class
+    node.best_prototype_indices = [[0] * k] * node.num_prototypes_per_class
     
-    return prune_info
+def nodal_clear_pruning_datastructures(node):
+    del node.best_prototype_distances
+    del node.best_prototype_indices
+
+"""
+This function finds the x best prototypes (based on weights) per class, and masks the rest.
+It then optimizes the network with the masked prototypes.
+"""
+def prune_prototypes(
+    prototype_network_parallel, # pytorch network with prototype_vectors
+    dataloader,
+    pruning_type='weights',
+    k=0,
+    tau=0,
+    log=print,
+):
+    if pruning_type == 'weights':
+        if prototype_network_parallel.module.mode == 3:
+            for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
+                nodal_prune_prototypes_weights(
+                    node,
+                    log=log
+                )
+            for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
+                nodal_prune_prototypes_weights(
+                    node,
+                    log=log
+                )
+        else:
+            for node in prototype_network_parallel.module.nodes_with_children:
+                nodal_prune_prototypes_weights(
+                    node,
+                    log=log
+                )
+    elif pruning_type == 'quality':
+        prune_prototypes_quality(
+            prototype_network_parallel,
+            dataloader,
+            k,
+            tau,
+            log=log
+        )
+    else:
+        raise ValueError('Invalid pruning type')

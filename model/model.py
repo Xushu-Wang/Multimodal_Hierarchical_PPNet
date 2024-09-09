@@ -125,6 +125,7 @@ def construct_tree_ppnet(cfg, log=print):
                 class_specification=class_specification,
                 proto_layer_rf_info=proto_layer_rf_info,
                 mode=1,
+                max_num_prototypes_per_class=cfg.DATASET.GENETIC.MAX_NUM_PROTOTYPES_PER_CLASS,
             )
 
     if cfg.DATASET.MODE >> 1:
@@ -147,7 +148,8 @@ def construct_tree_ppnet(cfg, log=print):
                 num_prototypes_per_class=cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS,
                 class_specification=class_specification,
                 proto_layer_rf_info=proto_layer_rf_info,
-                mode=2
+                mode=2,
+                max_num_prototypes_per_class=cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS,
             )
 
     if cfg.DATASET.MODE == 1:

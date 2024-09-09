@@ -185,7 +185,6 @@ class TreeDataset(Dataset):
         0 represents not_classified (or ignored, like in cases with only one class)
         """
         tensor = torch.zeros(len(self.levels))
-
         tree = self.indexed_tree
 
         for i, level in enumerate(self.levels):

@@ -1,7 +1,7 @@
-RUN_NAME: "test_run"
+RUN_NAME: "massive_run"
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/example.json"
+    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 3
     TRAIN_VAL_TEST_SPLIT: [400, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
@@ -11,7 +11,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/test_run_169"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive_run_003"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -22,13 +22,13 @@ DATASET:
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
-        NUM_PROTOTYPES_PER_CLASS: 10
-        PPNET_PATH: "../output/image_only/test_run/0nopush0.7019.pth"
+        NUM_PROTOTYPES_PER_CLASS: 8
+        PPNET_PATH: "../output/image_only/realish_run_025/1_push0.7997.pth"
 
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
-        NUM_PROTOTYPES_PER_CLASS: 10
-        PPNET_PATH: "../output/genetic_only/test_run_004/5nopush0.9712.pth"
+        NUM_PROTOTYPES_PER_CLASS: 8
+        PPNET_PATH: "../output/genetic_only/massive_run_040/5_push0.9078.pth"
 
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
