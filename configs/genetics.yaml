@@ -1,12 +1,15 @@
-RUN_NAME: "prune_test"
+RUN_NAME: "150_Lite_GenFullTest_Quality"
 
 MODEL:
     GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
-    PRUNE: true
+    # PRUNE: true
+    PRUNING_TYPE: "quality"
+    PRUNING_K: 6
+    PRUNING_TAU: 3
 
 DATASET:
-    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
-    TREE_SPECIFICATION_FILE: "class_trees/example.json"
+    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/example.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 1
     TRAIN_VAL_TEST_SPLIT: [100, 25, 25] # Number of unaugmented samples per leaf in train, val, and test splits.
@@ -16,7 +19,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/prune_test_003"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -28,7 +31,7 @@ DATASET:
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 1
+    PUSH_START: 10
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     # JOINT_OPTIMIZER_LAYERS:

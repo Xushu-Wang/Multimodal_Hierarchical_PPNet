@@ -9,3 +9,8 @@ Augmented Train Size: 181,000 (100 per leaf)
 Non-Augmented Train Size: 4,525 (100 per leaf)
 Validation Size: 3,950 (25 per leaf)
 Test Size: 3,950 (25 per leaf)
+
+## 150_5
+Train:          33825 (338,250)
+Validation:     7500
+Test:           7500

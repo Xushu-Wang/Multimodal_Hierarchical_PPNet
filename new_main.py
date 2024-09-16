@@ -109,8 +109,34 @@ def main():
                                             target_accu=0.70, log=log, accu=accus.min())
 
                 # Optimize last layer
-                tnt.last_only(model=tree_ppnet_multi, log=log)
-                for i in range(10):
+                if cfg.MODEL.PRUNE and epoch >= cfg.OPTIM.PRUNE_START:
+                    if cfg.MODEL.PRUNING_TYPE == "weights":
+                        tnt.last_only(model=tree_ppnet_multi, log=log)
+                        for i in range(10):
+                            log('[weights pruning] iteration: \t{0}'.format(i))
+                            _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                        class_specific=class_specific, coefs=coefs, log=log)
+                            accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                                            class_specific=class_specific, log=log)
+                            if tree_ppnet.mode == 3:
+                                tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                                _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                        class_specific=class_specific, coefs=coefs, log=log)
+                                accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                                                class_specific=class_specific, log=log)
+
+                    prune_prototypes(
+                        tree_ppnet_multi,
+                        train_push_loader,
+                        preprocess_input_function=image_normalizer,
+                        pruning_type=cfg.MODEL.PRUNING_TYPE,
+                        k=cfg.MODEL.PRUNING_K,
+                        tau=cfg.MODEL.PRUNING_TAU,
+                        log=log
+                    )
+
+                # Optimize last layer again
+                for i in range(20):
                     log('iteration: \t{0}'.format(i))
                     _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
@@ -124,31 +150,6 @@ def main():
                         accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                         class_specific=class_specific, log=log)
                         save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
-
-                if cfg.MODEL.PRUNE:
-                    prune_prototypes(
-                        tree_ppnet_multi,
-                        train_push_loader,
-                        pruning_type=cfg.MODEL.PRUNING_TYPE,
-                        k=cfg.MODEL.PRUNING_K,
-                        tau=cfg.MODEL.PRUNING_TAU,
-                        log=log
-                    )
-                    # Optimize last layer again
-                    for i in range(10):
-                        log('[pruning] iteration: \t{0}'.format(i))
-                        _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
-                                    class_specific=class_specific, coefs=coefs, log=log)
-                        accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                        class_specific=class_specific, log=log)
-                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
-                        if tree_ppnet.mode == 3:
-                            tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                            _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
-                                    class_specific=class_specific, coefs=coefs, log=log)
-                            accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                            class_specific=class_specific, log=log)
-                            save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer

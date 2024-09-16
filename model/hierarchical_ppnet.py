@@ -298,7 +298,7 @@ class Hierarchical_PPNet(nn.Module):
     def get_nodes_with_children(self):
         nodes_with_children = []
         def get_nodes_with_children_recursive(node):
-            if len(node.child_nodes) > 0:
+            if len(node.all_child_nodes) > 0:
                 nodes_with_children.append(node)
                 for child in node.child_nodes:
                     get_nodes_with_children_recursive(child)

@@ -1,7 +1,10 @@
-RUN_NAME: "larger_run"
+RUN_NAME: "150_Lite_ImageFullTest"
+
+MODEL:
+    PRUNE: false
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/larger.json"
+    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [200, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
@@ -10,8 +13,8 @@ DATASET:
     # DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # PRE_EXISTING_IMAGES: true
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/realish_run_003"
+    PRE_EXISTING_IMAGES: true
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -26,8 +29,8 @@ DATASET:
 
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 8
-    PUSH_EPOCHS: [8, 16, 24]
+    PUSH_START: 10
+    PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3

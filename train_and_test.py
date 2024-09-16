@@ -64,6 +64,96 @@ def print_accuracy_tree_rec(accuracy_tree, log=print, level=0):
             log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)')
         print_accuracy_tree_rec(entry["children"], log, level + 1)
 
+def find_lowest_level_node(node, target):
+    if not len(node.child_nodes):
+        return node
+
+    if len(target == 1) or target[1] == 0:
+        return node
+    
+    return find_lowest_level_node(
+        node.child_nodes[target[0] - 1],
+        target[1:]
+    )
+
+def get_conditional_prob_accuracies(
+        conv_features,
+        model,
+        target
+):
+    """
+    This returns the predicted classes for each input using the conditional probability method.
+    """
+    recursive_put_accuracy_probs(
+        conv_features,
+        model.root,
+        target,
+        0,
+        target
+    )
+
+    cpu_target = target.cpu()
+
+    level_dict = {}
+
+    for node in model.nodes_with_children:
+        if not level_dict.get(len(node.int_location), False):
+            level_dict[len(node.int_location)] = []
+        
+        level_dict[len(node.int_location)].append(node)
+    
+    agreements = []
+    for level in level_dict:
+        node_probs = []
+        node_labels = []
+        for node in level_dict[level]:
+            node_probs.append(node.accu_probs)
+            for i in range(node.accu_probs.shape[1]):
+                node_labels.append(torch.tensor(node.int_location + [i + 1]))
+    
+        labels = torch.stack(node_labels,dim=1)
+        probs = torch.cat(node_probs, dim=1)
+
+        best_indicies = torch.argmax(probs, dim=1).cpu()
+        best_labels = labels[:, best_indicies].permute(1, 0)
+
+        diff = best_labels - cpu_target[:, :best_labels.shape[1]]
+        agreement = (diff == 0).all(dim=1)
+        agreements.append(agreement)
+
+    agreements = torch.stack(agreements, dim=1)
+    # This is gross, I know. I'm sorry.
+    lowest_level_classified = torch.argmax(
+        (torch.cat((cpu_target, torch.zeros((cpu_target.shape[0], 1))), dim=1) == 0).int(), dim=1
+    ) - 1
+    # Index into aggreements with lowest_level_classified
+    agreements = agreements[range(agreements.shape[0]), lowest_level_classified]
+
+    return agreements.sum().item(), len(agreements)
+
+def recursive_put_accuracy_probs(
+    conv_features,
+    node,
+    target,
+    level,
+    location_info,
+    scale=1
+):
+    """
+    This puts the softmax probabilities for each class into the node object. It scales the probabilities by the previous node's probability.
+    """
+    node.accu_probs = torch.nn.functional.softmax(node(conv_features)[0], dim=1) * scale
+    
+    for c_node in node.child_nodes:
+        i = c_node.int_location[-1] - 1
+        recursive_put_accuracy_probs(
+            conv_features,
+            c_node,
+            target,
+            level + 1,
+            location_info,
+            scale=node.accu_probs[:, i].unsqueeze(1)
+        )
 
 def recursive_get_loss_multi(
         conv_features,
@@ -292,15 +382,20 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         separation_cost = 0
         l1 = 0
 
+        total_probabalistic_correct_count = 0
+        total_probabilistic_total_count = 0
+
         num_parents_in_batch = 0
 
         # torch.enable_grad() has no effect outside of no_grad()
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
+
         with grad_req:
+            conv_features = model.module.conv_features(input)
             if model.module.mode == 3:
                 # Freeze last layer multi
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss_multi( 
-                    conv_features=model.module.conv_features(input),
+                    conv_features=conv_features,
                     node=model.module.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
@@ -311,7 +406,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                 )
             else:
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch =recursive_get_loss(
-                    conv_features=model.module.conv_features(input),
+                    conv_features=conv_features,
                     node=model.module.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
@@ -320,6 +415,14 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                     total_arr=total_arr,
                     accuracy_tree=accuracy_tree
                 )
+            
+            probabalistic_correct_count, probabilistic_total_count = get_conditional_prob_accuracies(
+                conv_features=conv_features,
+                model=model.module,
+                target=target
+            )
+            total_probabalistic_correct_count += probabalistic_correct_count
+            total_probabilistic_total_count += probabilistic_total_count
 
             # TODO - Maybe do this weird warm up BS
 
@@ -379,7 +482,6 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                 optimizer.step()
                 optimizer.zero_grad()
 
-
         n_batches += 1        
 
         total_cross_entropy += cross_entropy
@@ -392,7 +494,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         del target
 
         batch_end = time.time()
-        
+            
     end = time.time()
 
     log('\ttime: \t{0:.2f}'.format(end -  start))
@@ -401,7 +503,8 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     # log('\tnoise cross ent: \t{0:.2f}'.format(total_noise_cross_ent / n_batches))
     log('\tcluster: \t{0:.2f}'.format(total_cluster_cost / n_batches))
     log('\tseparation: \t{0:.2f}'.format(total_separation_cost / n_batches))
-    log('\tl1: \t{0:.2f}'.format(total_l1 / n_batches))        
+    log('\tl1: \t{0:.2f}'.format(total_l1 / n_batches))
+    log('\tprobabilistic accuracy: \t{0:.5f}'.format(total_probabalistic_correct_count / total_probabilistic_total_count)) 
     for i, level in enumerate(model.module.levels):
         log(f'\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
 
