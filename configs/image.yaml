@@ -1,10 +1,11 @@
-RUN_NAME: "150_Lite_ImageFullTest"
+RUN_NAME: "150_5_ImageFullTest"
 
 MODEL:
     PRUNE: false
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [200, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
@@ -14,15 +15,17 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
     AUGMENTED_IMAGE_PATH: "../datasets/augmented_images/" # Path to which augmented images will be saved
 
+    TRAIN_BATCH_SIZE: 40
+
     IMAGE:
         PROTOTYPE_SHAPE: (2048, 1, 1)
-        TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10

@@ -18,7 +18,6 @@ from utils.util import handle_run_name_weirdness
 
 from prototype.push import get_train_dir_size
 
-
 def main():
     cfg = get_cfg_defaults()
 
@@ -89,7 +88,7 @@ def main():
                                         target_accu=0.70, log=log)
 
             # Pushing Epochs
-            if True or epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
+            if epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
                 push.push_prototypes(
                     train_push_loader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel=tree_ppnet_multi, # pytorch network with prototype_vectors

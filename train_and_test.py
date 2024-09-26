@@ -76,6 +76,9 @@ def find_lowest_level_node(node, target):
         target[1:]
     )
 
+def clear_accu_probs(node):
+    node.accu_probs = None
+
 def get_conditional_prob_accuracies(
         conv_features,
         model,
@@ -128,6 +131,9 @@ def get_conditional_prob_accuracies(
     ) - 1
     # Index into aggreements with lowest_level_classified
     agreements = agreements[range(agreements.shape[0]), lowest_level_classified]
+
+    for node in model.nodes_with_children:
+        clear_accu_probs(node)
 
     return agreements.sum().item(), len(agreements)
 
@@ -508,7 +514,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     for i, level in enumerate(model.module.levels):
         log(f'\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
 
-    print_accuracy_tree(accuracy_tree, log)
+    # print_accuracy_tree(accuracy_tree, log)
 
     return correct_arr / total_arr
 

@@ -26,7 +26,3 @@ pacmap for dimensionality reduction
     * Who, what, when, where? Help!!!
 * Probability level, Bayesian, Species Accuracy
 * Get accuracy numbers
-
-## 9/16
-### Things to bring up
-* Do I need to modify my loss to enforce that this is a probability distribution?

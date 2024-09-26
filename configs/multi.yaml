@@ -1,6 +1,10 @@
-RUN_NAME: "massive_run"
+RUN_NAME: "150_Lite_MultiFullTest_Weights"
+
+MODEL:
+    PRUNE: false
 
 DATASET:
+    # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
     TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 3
@@ -11,7 +15,8 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive_run_003"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -22,18 +27,23 @@ DATASET:
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
-        NUM_PROTOTYPES_PER_CLASS: 8
-        PPNET_PATH: "../output/image_only/realish_run_025/1_push0.7997.pth"
+        NUM_PROTOTYPES_PER_CLASS: 10
+        # PPNET_PATH: "../output/image_only/150_5_ImageFullTest/0_push0.8015.pth"
+        PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
 
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 8
-        PPNET_PATH: "../output/genetic_only/massive_run_040/5_push0.9078.pth"
+        # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_None/1_push0.9701.pth"
+        # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_Quality/1_push0.9705.pth"
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_None_001/15_push0.9752.pth"
+        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality/2_push0.9762.pth"
 
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 0
-    PUSH_EPOCHS: [0, 10, 15]
+    PUSH_START: 10
+    PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3

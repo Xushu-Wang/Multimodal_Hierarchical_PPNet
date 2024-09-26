@@ -15,9 +15,20 @@ def nodal_prune_prototypes_weights(
     # Get the indicies of the best prototypes per class
     best_prototypes = torch.argsort(corresponding_weights, dim=0, descending=True)[:node.max_num_prototypes_per_class]
 
+    # Each index will be relative to the class, so we need to add the class index * num_prototypes to get the absolute index
+    diff = torch.arange(node.num_classes) * node.num_prototypes_per_class
+    # Scale diff to be the same shape as best_prototypes
+    diff = diff.unsqueeze(0).expand(node.max_num_prototypes_per_class, node.num_classes)
+    diff = diff.cuda()
+    best_prototypes += diff
+
     # Best prototypes
     node.prototype_mask.data.zero_()
-    node.prototype_mask.data[best_prototypes] = 1
+    node.prototype_mask.data[best_prototypes.flatten()] = 1
+    print(node.prototype_mask.data[:,0,0])
+
+    del corresponding_weights
+    del best_prototypes
 
 """
 This function unmasks all prototypes.
@@ -245,5 +256,6 @@ def prune_prototypes(
     else:
         raise ValueError('Invalid pruning type')
     
+    log("Pruning Info")
     for node in prototype_network_parallel.module.nodes_with_children:
-        print(node.prototype_mask.view(node.num_prototypes_per_class, -1).sum(dim=0), node.num_prototypes_per_class)
+        log(f'{node.prototype_mask.view(node.num_classes, -1).sum(dim=1)}, {node.num_prototypes_per_class}')
