@@ -15,8 +15,19 @@ from torchvision.transforms import v2, ToTensor, transforms
 import tqdm
 import json
 from torchvision.transforms.functional import center_crop
+import time
+import warnings
 
 from prototype.push import get_train_dir_size
+
+def cpu_usage(f): 
+    def wrapper(*args, **kwargs): 
+        start_cpu = time.process_time() 
+        result = f(*args, **kwargs)
+        end_cpu = time.process_time() 
+        print(f"CPU time : {end_cpu - start_cpu: .6f} s") 
+        return result
+    return wrapper
 
 class GeneticOneHot(object):
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
@@ -31,9 +42,10 @@ class GeneticOneHot(object):
         self.zero_encode_unknown = zero_encode_unknown
         self.length = length
         self.include_height_channel = include_height_channel
+        self.nucleotides = {"N": 0, "A": 1, "C": 2, "G": 3, "T": 4}
 
-    def __call__(self, genetic_string: str):
-        
+    @cpu_usage
+    def __call__(self, genetic_string: str) -> torch.Tensor:
         """
         Args:
             genetics (str): The genetic data to be transformed.
@@ -41,73 +53,24 @@ class GeneticOneHot(object):
         Returns:
             torch.Tensor: A one-hot encoded tensor of the genetic data.
         """
-        # Create a dictionary mapping nucleotides to their one-hot encoding
-        nucleotides = {"N": 0, "A": 1, "C": 2, "G": 3, "T": 4}
+        if (len(genetic_string)) > self.length: 
+            warnings.warn(f"Input length ({len(genetic_string)}) is greater than process length ({self.length}). You are losing data.")
+            genetic_string = genetic_string[:self.length]
+        else: 
+            genetic_string = genetic_string.ljust(self.length, "N")
 
-        # Convert string to (1, 2, 1, 4, 0, ...)
-        category_tensor = torch.tensor([nucleotides[n] for n in genetic_string])
-        
-        # Pad and crop
-        category_tensor = category_tensor[:self.length]
-        category_tensor = F.pad(category_tensor, (0, self.length - len(category_tensor)), value=0)
+        res = torch.zeros(self.length, 5, dtype=torch.float)
 
-        # One-hot encode
-        onehot_tensor = F.one_hot(category_tensor, num_classes=5).permute(1, 0)
-        
+        for char, row in zip(genetic_string, res): 
+            row[self.nucleotides[char]] = 1.0
+
+        res = res.permute(1, 0)
+
         # Drop the 0th channel, changing N (which is [1,0,0,0,0]) to [0,0,0,0] and making only 4 classes
-        if self.zero_encode_unknown:
-            onehot_tensor = onehot_tensor[1:, :]
+        res = res[1:, :] if self.zero_encode_unknown else res
+        res = res.unsqueeze(1) if self.include_height_channel else res
 
-        if self.include_height_channel:
-            onehot_tensor = onehot_tensor.unsqueeze(1)
-
-        return onehot_tensor.float()
-
-# class MutateGenetic(object):
-#     def __init__(self, substitution_rate: float=0.01, insertion_count: int=5, deletion_count: int=5):
-#         self.substitution_rate = substitution_rate
-#         self.insertion_count = insertion_count
-#         self.deletion_count = deletion_count
-
-#     def get_real_length(self, genetic_tensor: torch.Tensor):
-#         # Find the index of the first all zero channel efficiently
-#         summed = genetic_tensor.sum(dim=0)
-#         real_length = torch.argmin(summed)
-
-#         return real_length
-        
-
-#     def __call__(self, genetic_tensor: torch.Tensor):
-#         # Genetic tensor is a one-hot encoded tensor of the genetic data.
-#         insertion_amount = np.random.randint(0, self.insertion_count)
-#         deletion_amount = np.random.randint(0, self.deletion_count)
-
-#         real_length = self.get_real_length(genetic_tensor)
-
-#         print(genetic_tensor)
-
-#         # Substitution
-#         substitution_mask = torch.rand((1, 1, genetic_tensor.shape[2])) < self.substitution_rate
-#         # Copy the mask to the correct shape
-#         substitution_mask = substitution_mask.expand(genetic_tensor.shape[0], genetic_tensor.shape[1], genetic_tensor.shape[2])
-#         substitution_values = torch.randint(0, 4, (1, genetic_tensor.shape[2]))
-#         # One-hot encode substitution values
-#         substitution_values = F.one_hot(substitution_values, num_classes=4).permute(2,0,1).float()
-#         genetic_tensor[substitution_mask] = substitution_values[substitution_mask]
-
-#         # Insertion
-#         insertion_indices = torch.randint(0, real_length, (insertion_amount,))
-#         insertion_values = torch.randint(1, 5, (insertion_amount, genetic_tensor.shape[1]))
-#         genetic_tensor = torch.cat([genetic_tensor[:i], insertion_values, genetic_tensor[i:]], dim=0)
-
-#         # Deletion
-#         deletion_indices = torch.randint(0, real_length, (deletion_amount,))
-#         genetic_tensor = torch.cat([genetic_tensor[:i], genetic_tensor[i+1:]], dim=0)
-
-#         # Make sure the tensor is the same length
-#         genetic_tensor = F.pad(genetic_tensor, (0, self.length - len(genetic_tensor)), value=0)
-
-#         return genetic_tensor
+        return res
 
 class TreeDataset(Dataset):
     """
