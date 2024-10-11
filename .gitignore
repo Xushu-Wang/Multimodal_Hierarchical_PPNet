@@ -3,7 +3,7 @@ datasets/*
 datasets
 data
 *_temp*
-__pycache__/
+*/__pycache__/
 models/
 logs/
 scripts/
@@ -17,3 +17,4 @@ pre_existing_datasets/*
 # !pre_existing_datasets/massive_run_003
 # !pre_existing_datasets/larger_run
 temp/
+temp*
