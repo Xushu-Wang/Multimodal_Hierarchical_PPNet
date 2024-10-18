@@ -9,6 +9,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --output=logs/push_fix/150_5_ImageFullTest_40_Batch_%j.out
 
-eval "$(conda shell.bash hook)" 
-conda activate intnn
-python3 new_main.py --configs configs/image.yaml
+eval "$(conda shell.bash hook)"  &&
+conda activate intnn &&
+python3 main.py --configs configs/image.yaml

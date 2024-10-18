@@ -9,6 +9,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --output=logs/prune_fix/150_Lite_GenFullTest_Weights_40_NEW_%j.out
 
-eval "$(conda shell.bash hook)" 
-conda activate intnn
-python3 new_main.py --configs configs/genetics.yaml
+eval "$(conda shell.bash hook)" &&
+conda activate intnn &&
+python3 main.py --configs configs/genetics.yaml
