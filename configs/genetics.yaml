@@ -1,11 +1,11 @@
-RUN_NAME: "150_Lite_GenFullTest_Weights_40_Quality_6_5"
+RUN_NAME: "150_Lite_GenFullTest_Weights_40_NEW"
 
 MODEL:
     GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
     PRUNE: true
     PRUNING_TYPE: "weights"
-    PRUNING_K: 6
-    PRUNING_TAU: 5
+    PRUNING_K: 8
+    PRUNING_TAU: 8
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"

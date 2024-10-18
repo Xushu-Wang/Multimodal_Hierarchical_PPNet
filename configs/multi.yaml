@@ -1,4 +1,4 @@
-RUN_NAME: "150_Lite_MultiFullTest_Weights"
+RUN_NAME: "150_Lite_MultiFullTest_Weights_NEW"
 
 MODEL:
     PRUNE: false
@@ -37,9 +37,18 @@ DATASET:
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_None/1_push0.9701.pth"
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_Quality/1_push0.9705.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_None_001/15_push0.9752.pth"
-        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality/2_push0.9762.pth"
 
+        # 8_8
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_001/10_push0.9441.pth"
+
+        # 5_6
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/10_push0.9577.pth"
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/15_push0.9542.pth"
+        
+        # Weights
+        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
     PUSH_START: 10
