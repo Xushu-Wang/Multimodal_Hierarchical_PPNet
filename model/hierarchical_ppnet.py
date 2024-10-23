@@ -402,6 +402,11 @@ class CombinerTreeNode(nn.Module):
         # self.last_layer = nn.Linear(self.genetic_tree_node.num_prototypes + self.image_tree_node.num_prototypes, self.genetic_tree_node.num_classes,
         #                             bias=False)
         
+        # Create the correspondence map
+        self.prototype_ratio = self.genetic_tree_node.num_prototypes / self.image_tree_node.num_prototypes
+        assert self.prototype_ratio == int(self.prototype_ratio)
+        self.prototype_ratio = int(self.prototype_ratio)
+
         self.init_last_layer()
 
     def init_last_layer(self):

@@ -183,7 +183,7 @@ def recursive_get_loss_multi(
     num_parents_in_batch = 1
 
     if mask.sum() == 0:
-        return 0, 0, 0, 0, 0
+        return 0, 0, 0, 0, 0, 0
 
     cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
     
@@ -191,7 +191,19 @@ def recursive_get_loss_multi(
         genetic_min_distances[mask], target[mask][:, level], logits.size(1))
     image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
         image_min_distances[mask], target[mask][:, level], logits.size(1))
+
+    wrapped_genetic_min_distances = genetic_min_distances[mask].view(-1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio)
+    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
+    correspondence_cost = torch.sum(
+        torch.min(
+            (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
+            dim=2
+        )[0]
+    )
+
+    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis
+
     cluster_cost = genetic_cluster_cost + image_cluster_cost
     separation_cost = genetic_separation_cost + image_separation_cost
 
@@ -222,7 +234,7 @@ def recursive_get_loss_multi(
         if applicable_mask.sum() == 0:
             continue
 
-        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch = recursive_get_loss_multi(
+        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, correspondence_cost = recursive_get_loss_multi(
             conv_features,
             c_node,
             target,
@@ -239,9 +251,11 @@ def recursive_get_loss_multi(
         l1_cost = l1_cost + new_l1_cost
         num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
 
-    del logits, genetic_min_distances, image_min_distances
+        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
 
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
+    del logits, genetic_min_distances, image_min_distances, predicted, correct
+
+    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost
 
 
 def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_arr, total_arr, accuracy_tree):
@@ -366,6 +380,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     total_cluster_cost = 0
     total_separation_cost = 0
     total_l1 = 0
+    total_correspondence_cost = 0
     # torch.autograd.set_detect_anomaly(True)
         
     for i, ((genetics, image), label) in enumerate(dataloader):
@@ -400,7 +415,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
             conv_features = model.module.conv_features(input)
             if model.module.mode == 3:
                 # Freeze last layer multi
-                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss_multi( 
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost = recursive_get_loss_multi( 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
@@ -472,6 +487,9 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                           + coefs['clst'] * cluster_cost
                           + coefs['sep'] * separation_cost
                           + coefs['l1'] * l1)
+            
+            if model.module.mode == 3:
+                loss += coefs['correspondence'] * correspondence_cost / batch_size
                           
             loss.backward()
             
@@ -494,6 +512,9 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         total_cluster_cost += cluster_cost / num_parents_in_batch
         total_separation_cost += separation_cost / num_parents_in_batch
         total_l1 += l1
+
+        if model.module.mode == 3:
+            total_correspondence_cost += correspondence_cost
         # total_noise_cross_ent += noise_cross_ent.item() if CEDA else 0
             
         del input
@@ -510,6 +531,8 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     log('\tcluster: \t{0:.2f}'.format(total_cluster_cost / n_batches))
     log('\tseparation: \t{0:.2f}'.format(total_separation_cost / n_batches))
     log('\tl1: \t{0:.2f}'.format(total_l1 / n_batches))
+    if model.module.mode == 3:
+        log('\tcorrespondence: \t{0:.2f}'.format(total_correspondence_cost / n_batches))
     log('\tprobabilistic accuracy: \t{0:.5f}'.format(total_probabalistic_correct_count / total_probabilistic_total_count)) 
     for i, level in enumerate(model.module.levels):
         log(f'\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')

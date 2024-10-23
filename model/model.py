@@ -131,6 +131,8 @@ def construct_tree_ppnet(cfg, log=print):
     if cfg.DATASET.MODE >> 1:
         if cfg.DATASET.IMAGE.PPNET_PATH != "NA":
             image_ppnet = torch.load(cfg.DATASET.IMAGE.PPNET_PATH)
+            if image_ppnet.mode == 3:
+                image_ppnet = image_ppnet.image_hierarchical_ppnet
         else:
             # Image Mode
             features = base_architecture_to_features["resnetbioscan"](pretrained=True)

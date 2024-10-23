@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
     parser.add_argument('--configs', type=str, default='configs/image.yaml')
+    parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
     cfg.merge_from_file(args.configs)
 
@@ -59,6 +60,7 @@ def main():
             'clst': cfg.OPTIM.COEFS.CLST,
             'sep': cfg.OPTIM.COEFS.SEP,
             'l1': cfg.OPTIM.COEFS.L1,
+            "correspondence": cfg.OPTIM.COEFS.CORRESPONDENCE,
             'CEDA': False
         }
 
@@ -66,20 +68,21 @@ def main():
             log('epoch: \t{0}'.format(epoch))
             
             # Warm up and Training Epochs
-            if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
-                tnt.warm_only(model=tree_ppnet_multi, log=log)
-                _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer,
-                            class_specific=class_specific, coefs=coefs, log=log)
-            else:
-                if tree_ppnet.mode == 3:
-                    tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+            if not args.validate:
+                if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
+                    tnt.warm_only(model=tree_ppnet_multi, log=log)
+                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
-                
-                tnt.joint(model=tree_ppnet_multi, log=log)
-                _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=joint_optimizer,
-                            class_specific=class_specific, coefs=coefs, log=log)
-                joint_lr_scheduler.step()
+                else:
+                    if tree_ppnet.mode == 3:
+                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                        _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                    class_specific=class_specific, coefs=coefs, log=log)
+                    
+                    tnt.joint(model=tree_ppnet_multi, log=log)
+                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=joint_optimizer,
+                                class_specific=class_specific, coefs=coefs, log=log)
+                    joint_lr_scheduler.step()
             
             # Testing Epochs
             accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
@@ -87,6 +90,8 @@ def main():
             save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=accus.min(),
                                         target_accu=0.70, log=log)
 
+            if args.validate:
+                break
             # Pushing Epochs
             if epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
                 push.push_prototypes(

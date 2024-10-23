@@ -1,4 +1,4 @@
-RUN_NAME: "150_Lite_MultiFullTest_Weights_NEW"
+RUN_NAME: "Memfix-Correspondence-10-new"
 
 MODEL:
     PRUNE: false
@@ -16,8 +16,9 @@ DATASET:
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
+
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
     AUGMENTED_IMAGE_PATH: "../datasets/augmented_images/" # Path to which augmented images will be saved
@@ -30,13 +31,14 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 10
         # PPNET_PATH: "../output/image_only/150_5_ImageFullTest/0_push0.8015.pth"
         PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
+        # PPNET_PATH: "../output/image_only/larger_run/2_push0.9328.pth"
 
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 8
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_None/1_push0.9701.pth"
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_Quality/1_push0.9705.pth"
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_None_001/15_push0.9752.pth"
+        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_None_001/15_push0.9752.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality/2_push0.9762.pth"
 
@@ -48,10 +50,12 @@ DATASET:
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/15_push0.9542.pth"
         
         # Weights
-        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
+        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
+
+        # PPNET_PATH: "../output/genetic_only/larger_run/9_push0.9583.pth"
 OPTIM:
-    NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 10
+    NUM_TRAIN_EPOCHS: 50
+    PUSH_START: 50
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     # JOINT_OPTIMIZER_LAYERS:
@@ -62,6 +66,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
+        CORRESPONDENCE: 10.0
     JOINT: False
 
 OUTPUT:
