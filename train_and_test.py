@@ -192,10 +192,12 @@ def recursive_get_loss_multi(
     image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
         image_min_distances[mask], target[mask][:, level], logits.size(1))
 
-    wrapped_genetic_min_distances = genetic_min_distances[mask].view(-1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio)
+    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
+        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    )
     repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
-    correspondence_cost = torch.sum(
+    correspondence_cost = torch.mean(
         torch.min(
             (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
             dim=2
@@ -234,7 +236,7 @@ def recursive_get_loss_multi(
         if applicable_mask.sum() == 0:
             continue
 
-        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, correspondence_cost = recursive_get_loss_multi(
+        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost = recursive_get_loss_multi(
             conv_features,
             c_node,
             target,
@@ -250,6 +252,7 @@ def recursive_get_loss_multi(
         separation_cost = separation_cost + new_separation_cost
         l1_cost = l1_cost + new_l1_cost
         num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
+        correspondence_cost = correspondence_cost + new_correspondence_cost
 
         del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
 
@@ -489,7 +492,7 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
                           + coefs['l1'] * l1)
             
             if model.module.mode == 3:
-                loss += coefs['correspondence'] * correspondence_cost / batch_size
+                loss += coefs['correspondence'] * correspondence_cost
                           
             loss.backward()
             
@@ -521,11 +524,17 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
         del target
 
         batch_end = time.time()
+
+        if i%256 == 0:
+            log(f"[{i}] Memory: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
             
     end = time.time()
 
     log('\ttime: \t{0:.2f}'.format(end -  start))
 
+    log("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+    log("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+    log("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
     log('\tcross ent: \t{0:.2f}'.format(total_cross_entropy / n_batches))
     # log('\tnoise cross ent: \t{0:.2f}'.format(total_noise_cross_ent / n_batches))
     log('\tcluster: \t{0:.2f}'.format(total_cluster_cost / n_batches))
@@ -677,5 +686,4 @@ def last_layers(model, log=print):
     #     for p in layer.parameters():
     #         p.requires_grad = True                  
     # log('last layers')
-
 

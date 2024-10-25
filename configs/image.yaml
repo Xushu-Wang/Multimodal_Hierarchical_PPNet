@@ -1,4 +1,4 @@
-RUN_NAME: "retrain-test-1b"
+RUN_NAME: "image-0.0-corr"
 
 MODEL:
     PRUNE: false
@@ -31,11 +31,15 @@ DATASET:
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
-        PPNET_PATH: "../output/joint/Correspondance-1/9nopush0.9932.pth"
+        # PPNET_PATH: "../output/joint/Correspondance-1/9nopush0.9932.pth"
+        # PPNET_PATH: "../output/joint/Memfix-Correspondance-1/9nopush0.9935.pth"
+        PPNET_PATH: "../output/joint/rec_corr_fix_3_0.0_10_oversample/0nopush0.9898.pth"
+        # PPNET_PATH: "../output/joint/Correspondance-0/0nopush0.9932.pth"
+        # PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
 
 OPTIM:
     NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 10
+    PUSH_START: 5
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     # JOINT_OPTIMIZER_LAYERS:

@@ -304,7 +304,7 @@ class Hierarchical_PPNet(nn.Module):
                     get_nodes_with_children_recursive(child)
         get_nodes_with_children_recursive(self.root)
         return nodes_with_children
-            
+
     def construct_last_layer_tree(self):
         """
         This constructs the tree that will be used to determine the last layer.

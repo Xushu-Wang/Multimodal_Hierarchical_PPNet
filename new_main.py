@@ -140,7 +140,8 @@ def main():
                     )
 
                 # Optimize last layer again
-                for i in range(20):
+                # for i in range(20):
+                for i in range(5):
                     log('iteration: \t{0}'.format(i))
                     _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
