@@ -184,6 +184,7 @@ def recursive_put_accuracy_probs(
     """
     This puts the softmax probabilities for each class into the node object. It scales the probabilities by the previous node's probability.
     """
+    # TODO - This is calculated twice! BAD! We can't cache it from the main_train_loop step, because that doesn't evaluate the whole tree. This should be run first, then it should cache the logits within the tree. The get_loss function should then use the logits from the tree.
     node.accu_probs = torch.nn.functional.softmax(node(conv_features)[0], dim=1) * scale
     
     for c_node in node.child_nodes:
