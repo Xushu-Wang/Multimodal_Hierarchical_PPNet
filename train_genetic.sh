@@ -11,4 +11,4 @@
 
 eval "$(conda shell.bash hook)" 
 conda activate intnn
-python3 new_main.py --configs configs/genetics.yaml
+python3 main.py --configs configs/genetics.yaml
