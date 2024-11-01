@@ -1,4 +1,4 @@
-RUN_NAME: "rec_corr_fix_3_.01_10_oversample"
+RUN_NAME: "2.0_10_oversample_no_global"
 
 MODEL:
     PRUNE: false
@@ -61,6 +61,7 @@ OPTIM:
     PUSH_START: 5
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
+    GLOBAL_CROSSENTROPY: False
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3
     #     PROTOTYPE_VECTORS: 1e-3
@@ -69,7 +70,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: .01
+        CORRESPONDENCE: 2.0
     JOINT: False
 
 OUTPUT:

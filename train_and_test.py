@@ -6,6 +6,8 @@ from torchvision.transforms.functional import normalize
 
 from model.node import Node
 
+from pympler.tracker import SummaryTracker
+tracker = SummaryTracker()
 
 mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
@@ -238,7 +240,7 @@ def recursive_get_loss_multi(
     )
     repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
-    # Calculate the total correspondence cost. We will later divide this by the number of comparisons made to get the average correspondence cost
+    # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
     summed_correspondence_cost = torch.sum(
         torch.min(
             (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
@@ -299,7 +301,7 @@ def recursive_get_loss_multi(
         summed_correspondence_cost = summed_correspondence_cost + new_summed_correspondence_cost
         summed_correspondence_cost_count = summed_correspondence_cost_count + new_summed_correspondence_cost_count
 
-        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
+        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_summed_correspondence_cost, new_summed_correspondence_cost_count
 
     del logits, genetic_min_distances, image_min_distances, predicted, correct
 
@@ -590,13 +592,13 @@ def _train_or_test(model, dataloader, global_ce, optimizer=None, coefs = None, c
             total_correspondence_cost += correspondence_cost
         # total_noise_cross_ent += noise_cross_ent.item() if CEDA else 0
             
-        del input
-        del target
+        del input, target, correspondence_cost
 
         batch_end = time.time()
 
-        if i%256 == 0:
-            log(f"[{i}] Memory: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
+        if i%32 == 0:
+            log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
+            tracker.print_diff()
             
     end = time.time()
 
