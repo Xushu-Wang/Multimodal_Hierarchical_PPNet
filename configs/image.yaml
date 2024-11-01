@@ -1,12 +1,12 @@
-RUN_NAME: "image-0.0-corr"
+RUN_NAME: "global_ce_larger"
 
 MODEL:
     PRUNE: false
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
-    # TREE_SPECIFICATION_FILE: "class_trees/larger.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    TREE_SPECIFICATION_FILE: "class_trees/larger.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [200, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
@@ -17,8 +17,8 @@ DATASET:
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -42,6 +42,7 @@ OPTIM:
     PUSH_START: 5
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
+    GLOBAL_CROSSENTROPY: True
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3
     #     PROTOTYPE_VECTORS: 1e-3

@@ -78,14 +78,18 @@ def find_lowest_level_node(node, target):
 
 def clear_accu_probs(node):
     node.accu_probs = None
+    node.logits = None
 
 def get_conditional_prob_accuracies(
         conv_features,
         model,
-        target
+        target,
+        global_ce=True
 ):
     """
     This returns the predicted classes for each input using the conditional probability method.
+
+    If global_ce is true, the cross entropy is calculated using the conditional probabilities of each class.
     """
     recursive_put_accuracy_probs(
         conv_features,
@@ -106,14 +110,25 @@ def get_conditional_prob_accuracies(
         level_dict[len(node.int_location)].append(node)
     
     agreements = []
+    cross_entropies = []
     for level in level_dict:
         node_probs = []
         node_labels = []
+        best_probs = torch.zeros(cpu_target.shape[0]).cpu()
         for node in level_dict[level]:
-            node_probs.append(node.accu_probs)
+            accu_probs = node.accu_probs.cpu()
+            node_probs.append(accu_probs)
             for i in range(node.accu_probs.shape[1]):
-                node_labels.append(torch.tensor(node.int_location + [i + 1]))
-    
+                node_label = torch.tensor(node.int_location + [i + 1]).cpu()
+                node_labels.append(node_label)
+
+                # Find if this node corresponds to any samples, if so add them to best_probs
+                # Get a mask of all rows of cpu_target[:, :len(node_label)] that match node_label
+                # TODO - Move this up a level for a small speedup
+                if global_ce:
+                    mask = (cpu_target[:, :len(node_label)] == node_label).all(dim=1).cpu()
+                    best_probs[mask] = accu_probs[mask, i]
+
         labels = torch.stack(node_labels,dim=1)
         probs = torch.cat(node_probs, dim=1)
 
@@ -124,18 +139,37 @@ def get_conditional_prob_accuracies(
         agreement = (diff == 0).all(dim=1)
         agreements.append(agreement)
 
+        if global_ce:
+            # Calculate cross entropy, but don't use torch cross entropy because we have already softmaxed the logits
+            # Handle the case where the best_probs are 0
+            best_probs[best_probs == 0] = 1e-10
+            cross_entropy = -torch.log(best_probs)
+            cross_entropies.append(cross_entropy)
+
     agreements = torch.stack(agreements, dim=1)
+    
+    if global_ce:
+        cross_entropies = torch.stack(cross_entropies, dim=1)
+    
     # This is gross, I know. I'm sorry.
+    # Find the lowest level classified
     lowest_level_classified = torch.argmax(
         (torch.cat((cpu_target, torch.zeros((cpu_target.shape[0], 1))), dim=1) == 0).int(), dim=1
     ) - 1
+    
     # Index into aggreements with lowest_level_classified
     agreements = agreements[range(agreements.shape[0]), lowest_level_classified]
+
+    if global_ce:
+        cross_entropies = cross_entropies[range(cross_entropies.shape[0]), lowest_level_classified]
+        total_cross_entropy = torch.mean(cross_entropies)
+    else:
+        total_cross_entropy = 0
 
     for node in model.nodes_with_children:
         clear_accu_probs(node)
 
-    return agreements.sum().item(), len(agreements)
+    return agreements.sum().item(), len(agreements), total_cross_entropy
 
 def recursive_put_accuracy_probs(
     conv_features,
@@ -167,6 +201,7 @@ def recursive_get_loss_multi(
         target,
         prev_mask,
         level,
+        global_ce,
         correct_arr,
         total_arr,
         accuracy_tree
@@ -176,6 +211,8 @@ def recursive_get_loss_multi(
     """
     logits, (genetic_min_distances, image_min_distances) = node(conv_features)
     
+    node.logits = logits
+
     # Mask out unclassified examples
     mask = target[:,level] > 0
     # Mask out examples that don't belong to the current node
@@ -183,10 +220,14 @@ def recursive_get_loss_multi(
     num_parents_in_batch = 1
 
     if mask.sum() == 0:
-        return 0, 0, 0, 0, 0, 0
+        return 0, 0, 0, 0, 0, 0, 0
 
-    cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
-    
+    if global_ce:
+        cross_entropy = 0
+    else:
+        cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
+
+
     genetic_cluster_cost, genetic_separation_cost = get_cluster_and_sep_cost(
         genetic_min_distances[mask], target[mask][:, level], logits.size(1))
     image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
@@ -197,12 +238,14 @@ def recursive_get_loss_multi(
     )
     repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
-    correspondence_cost = torch.mean(
+    # Calculate the total correspondence cost. We will later divide this by the number of comparisons made to get the average correspondence cost
+    summed_correspondence_cost = torch.sum(
         torch.min(
             (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
             dim=2
         )[0]
     )
+    summed_correspondence_cost_count = wrapped_genetic_min_distances.shape[0]
 
     del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis
 
@@ -236,12 +279,13 @@ def recursive_get_loss_multi(
         if applicable_mask.sum() == 0:
             continue
 
-        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost = recursive_get_loss_multi(
+        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_summed_correspondence_cost, new_summed_correspondence_cost_count = recursive_get_loss_multi(
             conv_features,
             c_node,
             target,
             mask & applicable_mask,
             level + 1,
+            global_ce,
             correct_arr,
             total_arr,
             accuracy_tree["children"][i],
@@ -252,28 +296,42 @@ def recursive_get_loss_multi(
         separation_cost = separation_cost + new_separation_cost
         l1_cost = l1_cost + new_l1_cost
         num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
-        correspondence_cost = correspondence_cost + new_correspondence_cost
+        summed_correspondence_cost = summed_correspondence_cost + new_summed_correspondence_cost
+        summed_correspondence_cost_count = summed_correspondence_cost_count + new_summed_correspondence_cost_count
 
         del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
 
     del logits, genetic_min_distances, image_min_distances, predicted, correct
 
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost
+    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count
 
 
-def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_arr, total_arr, accuracy_tree):
+def recursive_get_loss(
+        conv_features,
+        node,
+        target,
+        prev_mask,
+        level,
+        global_ce,
+        correct_arr,
+        total_arr,
+        accuracy_tree
+    ):
     """
     conv_features: The output of the convolutional layers
     Node: the current node in the tree
     target: the target labels
     prev_mask: the mask of the previous node
     level: the current level in the tree
+    global_ce: whether to use global_ce
     correct_tuple: tuple of correct prediction counts by level
     total_tuple: tuple of total prediction counts by level
     accuracy_tree: object to keep track of accuracy at each split of the tree
     """
     logits, min_distances = node(conv_features)
     
+    node.logits = logits
+
     # Mask out unclassified examples
     mask = target[:,level] > 0
     # Mask out examples that don't belong to the current node
@@ -283,7 +341,11 @@ def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_ar
     if mask.sum() == 0:
         return 0, 0, 0, 0, 0
 
-    cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
+
+    if global_ce:
+        cross_entropy = 0
+    else:
+        cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
     cluster_cost, separation_cost = get_cluster_and_sep_cost(
         min_distances[mask], target[mask][:, level], logits.size(1))
 
@@ -318,6 +380,7 @@ def recursive_get_loss(conv_features, node, target, prev_mask, level, correct_ar
             target,
             mask & applicable_mask,
             level + 1,
+            global_ce,
             correct_arr,
             total_arr,
             accuracy_tree["children"][i],
@@ -354,7 +417,7 @@ def construct_accuracy_tree(root):
             construct_accuract_tree_rec(child) for child in root.all_child_nodes
         ]}
 
-def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
+def _train_or_test(model, dataloader, global_ce, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
     '''
     model: the multi-gpu model
     dataloader:
@@ -418,33 +481,40 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
             conv_features = model.module.conv_features(input)
             if model.module.mode == 3:
                 # Freeze last layer multi
-                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost = recursive_get_loss_multi( 
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count = recursive_get_loss_multi( 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
                     level=0,
+                    global_ce=global_ce,
                     correct_arr=correct_arr,
                     total_arr=total_arr,
                     accuracy_tree=accuracy_tree
                 )
+                correspondence_cost = summed_correspondence_cost / summed_correspondence_cost_count
             else:
-                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch =recursive_get_loss(
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
                     level=0,
+                    global_ce=global_ce,
                     correct_arr=correct_arr,
                     total_arr=total_arr,
                     accuracy_tree=accuracy_tree
                 )
             
-            probabalistic_correct_count, probabilistic_total_count = get_conditional_prob_accuracies(
+            probabalistic_correct_count, probabilistic_total_count, global_cross_entropy = get_conditional_prob_accuracies(
                 conv_features=conv_features,
                 model=model.module,
                 target=target
             )
+
+            if global_ce:
+                cross_entropy = global_cross_entropy
+
             total_probabalistic_correct_count += probabalistic_correct_count
             total_probabilistic_total_count += probabilistic_total_count
 
@@ -546,14 +616,12 @@ def _train_or_test(model, dataloader, optimizer=None, coefs = None, class_specif
     for i, level in enumerate(model.module.levels):
         log(f'\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
 
-    # print_accuracy_tree(accuracy_tree, log)
-
     return correct_arr / total_arr
 
-def train(model, dataloader, optimizer, coefs, class_specific=False, log=print, warm_up = False):
+def train(model, dataloader, optimizer, coefs, global_ce=True, class_specific=False, log=print, warm_up = False):
     assert(optimizer is not None)
     log('train')
-    return _train_or_test(model=model, dataloader=dataloader, optimizer=optimizer, coefs=coefs,
+    return _train_or_test(model=model, dataloader=dataloader, global_ce=global_ce, optimizer=optimizer, coefs=coefs,
                           class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs['CEDA'])
 
 def valid(model, dataloader, coefs = None, class_specific=False, log=print):
@@ -561,9 +629,9 @@ def valid(model, dataloader, coefs = None, class_specific=False, log=print):
     return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs=coefs,
                           class_specific=class_specific, log=log)
 
-def test(model, dataloader, coefs = None, class_specific=False, log=print, class_acc = False):
+def test(model, dataloader, coefs = None, global_ce=True, class_specific=False, log=print, class_acc = False):
     #log('test')
-    return _train_or_test(model=model, dataloader=dataloader, optimizer=None, coefs = coefs,
+    return _train_or_test(model=model, dataloader=dataloader, global_ce=global_ce, optimizer=None, coefs = coefs,
                       class_specific=class_specific, log=log, class_acc=class_acc)
 
 def make_one_hot(target, target_one_hot):

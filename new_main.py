@@ -72,21 +72,21 @@ def main():
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
                     tnt.warm_only(model=tree_ppnet_multi, log=log)
                     _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer,
-                                class_specific=class_specific, coefs=coefs, log=log)
+                                class_specific=class_specific, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, coefs=coefs, log=log)
                 else:
                     if tree_ppnet.mode == 3:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                        _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                        _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=train_loader, optimizer=last_layer_optimizer,
                                     class_specific=class_specific, coefs=coefs, log=log)
                     
                     tnt.joint(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=joint_optimizer,
+                    _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=train_loader, optimizer=joint_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
                     joint_lr_scheduler.step()
             
             # Testing Epochs
             accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                            class_specific=class_specific, log=log)
+                            class_specific=class_specific, log=log, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,)
             save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=accus.min(),
                                         target_accu=0.70, log=log)
 
@@ -108,7 +108,7 @@ def main():
                     no_save=cfg.OUTPUT.NO_SAVE
                 )
                 accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                class_specific=class_specific, log=log)
+                                class_specific=class_specific, log=log, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
                                             target_accu=0.70, log=log, accu=accus.min())
 
@@ -118,15 +118,15 @@ def main():
                         tnt.last_only(model=tree_ppnet_multi, log=log)
                         for i in range(10):
                             log('[weights pruning] iteration: \t{0}'.format(i))
-                            _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                            _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=train_loader, optimizer=last_layer_optimizer,
                                         class_specific=class_specific, coefs=coefs, log=log)
-                            accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                            accus = tnt.test(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=val_loader,
                                             class_specific=class_specific, log=log)
                             if tree_ppnet.mode == 3:
                                 tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                                _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                                _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=train_loader, optimizer=last_layer_optimizer,
                                         class_specific=class_specific, coefs=coefs, log=log)
-                                accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                                accus = tnt.test(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=val_loader,
                                                 class_specific=class_specific, log=log)
 
                     prune_prototypes(
@@ -144,15 +144,15 @@ def main():
                 for i in range(5):
                     log('iteration: \t{0}'.format(i))
                     _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
-                                class_specific=class_specific, coefs=coefs, log=log)
+                                class_specific=class_specific, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, coefs=coefs, log=log)
                     accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                    class_specific=class_specific, log=log)
+                                    class_specific=class_specific, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, log=log)
                     save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
                     if tree_ppnet.mode == 3:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                        _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=last_layer_optimizer,
+                        _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY , dataloader=train_loader, optimizer=last_layer_optimizer,
                                 class_specific=class_specific, coefs=coefs, log=log)
-                        accus = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                        accus = tnt.test(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=val_loader,
                                         class_specific=class_specific, log=log)
                         save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=accus.min(), target_accu=0.70, log=log)
 

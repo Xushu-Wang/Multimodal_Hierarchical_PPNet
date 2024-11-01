@@ -103,6 +103,10 @@ _C.OPTIM.COEFS.L1 = 5e-3
 _C.OPTIM.COEFS.CORRESPONDENCE = 5e-3 
 _C.OPTIM.CEDA = False
 
+# If true, the crossentropy term will be applied to a large vector corresponding to conditional probabilities of each species (or higher level if not classified).
+# Otherwise, the crossentropy term will be applied to each classification task and summed.
+_C.OPTIM.GLOBAL_CROSSENTROPY = True
+
 _C.OPTIM.NUM_TRAIN_EPOCHS = 30
 _C.OPTIM.NUM_WARM_EPOCHS = 1
 _C.OPTIM.NUM_PROTO_EPOCHS = 5 

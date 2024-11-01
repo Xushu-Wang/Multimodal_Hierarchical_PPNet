@@ -1,17 +1,17 @@
-RUN_NAME: "larger"
+RUN_NAME: "no_global_ce_massive"
 
 MODEL:
     GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
-    PRUNE: true
+    PRUNE: false
     PRUNING_TYPE: "weights"
     PRUNING_K: 8
     PRUNING_TAU: 8
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
     # TREE_SPECIFICATION_FILE: "class_trees/example.json"
-    TREE_SPECIFICATION_FILE: "class_trees/larger.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/larger.json"
 
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 1
@@ -25,8 +25,8 @@ DATASET:
     # Uncomment these once datasets have already been generated and you want to reuse them
     PRE_EXISTING_IMAGES: true
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -42,6 +42,7 @@ OPTIM:
     PUSH_EPOCHS: [5,10,15,20]
     PRUNE_START: 5
     NUM_WARM_EPOCHS: 0
+    GLOBAL_CROSSENTROPY: False
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3
     #     PROTOTYPE_VECTORS: 1e-3
