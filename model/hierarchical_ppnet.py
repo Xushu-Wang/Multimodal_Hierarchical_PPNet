@@ -47,7 +47,6 @@ class TreeNode(nn.Module):
         self.prototype_shape = prototype_shape
         self.full_prototype_shape = (self.num_prototypes, prototype_shape[0], prototype_shape[1], prototype_shape[2]) 
         self.fix_prototypes = fix_prototypes
-        self.tree_specification = tree_specification
         self.parent = True
         self.level = len(int_location)
         self.max_num_prototypes_per_class = max_num_prototypes_per_class
@@ -82,8 +81,6 @@ class TreeNode(nn.Module):
         return [p for p in self.last_layer.parameters()] + [param for child in self.child_nodes for param in child.get_last_layer_parameters()]
 
     def create_children(self):
-        if self.int_location == [1,8]:
-            print(self.tree_specification)
         i = 1 # 0 Is reserved for not_classified
         if self.tree_specification is None:
             return

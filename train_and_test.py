@@ -7,11 +7,11 @@ from torchvision.transforms.functional import normalize
 from model.node import Node
 
 from pympler.tracker import SummaryTracker
+
 tracker = SummaryTracker()
 
 mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
-
 
 def CE(logits,target):
      # manual definition of the cross entropy for a target which is a probability distribution    
