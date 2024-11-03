@@ -1,15 +1,16 @@
 """
 This utility script asks some questions and generates a class tree.
 """
-
+from typing import Optional, Dict, List
 import pandas as pd
 import argparse
 import json
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("source", type=str, help="Source file for the class tree")
+argparser.add_argument("--source", type=str, help="Source file for the class tree. Should be a tsv file. ", default="../datasets/source_files/metadata_cleaned_permissive.tsv")
 argparser.add_argument("--min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
 argparser.add_argument("--min-leaves", type=int, help="Minimum number of leaves for a classification task", default=2)
+argparser.add_argument("--default-count", type=int, help="Default count to avoid answering a bunch of questions manually. -1 indicates manual selection. 0 indicates choose all options. ", default=0)
 
 args = argparser.parse_args()
 
@@ -21,7 +22,7 @@ if(args.min_leaves < 2):
     print("Minimum number of leaves must be at least 2")
     exit()
 
-print("Opening source file...")
+print("Opening source file... This may take a minute. ")
 
 df = pd.read_csv(args.source, sep="\t")
 
@@ -29,60 +30,59 @@ print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels, data, parent=None, min_samples=3):
+def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0) -> Optional[Dict]: 
+    """Recursively generate a tree json file from the dataframe. 
+    Args: 
+        levels: The list of levels in the tree, e.g. order, family, genus, species. 
+                Should be in decreasing hierarchical order, i.e. most general comes first. 
+        data: the genetics dataframe read from the tsv file
+        parent: the head node of the tree
+    """
+
     if len(levels) == 0:
-        return
-    if len(data[data[levels[0]] != "not_classified"]) == 0:
-        print("No samples left. Adding not_classified to the tree.")
-        return None
+        return None 
 
-    option_count = 0
+    general_level, *_ = levels 
 
-    for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts().items():
-        if count > min_samples:
-            option_count += 1
+    # focus on only the class labels of the parent level  
+    level_series = data[general_level]
+    level_series = level_series[level_series != "not_classified"]
 
-    if option_count == 0:
-        print("No samples left. Adding not_classified to the tree.")
-        return None
+    # make sure that there are viable classes for most general level
+    if len(level_series) == 0: 
+        return None 
+
+
+    # get number of viable top level branches and filter them if below min_sample
+    top_level_counts = level_series.value_counts() 
+    top_level_counts= top_level_counts[top_level_counts > min_samples].sort_values(ascending=False)
     
-    if option_count < args.min_leaves:
-        print(f"Only {option_count} options left. Adding not_classified to the tree.")
-        return None
-    
-    if parent:
-        par_string = f" (parent: {parent})"
-    else:
-        par_string = ""
+    option_count = len(top_level_counts)
+
+    if option_count == 0 or option_count < args.min_leaves: 
+        return 
+
+    par_string = f"(parent: {parent})"
+
+    print(top_level_counts) # display the general level counts for user 
     
     while True:
-        for val, count in data[data[levels[0]] != "not_classified"][levels[0]].value_counts()[:6].items():
-            if count > min_samples:
-                print(f"{val: <16}\t{count} samples")
+        if default_count == -1: 
+            count = input(f"How many of the largest {general_level} {par_string} would you like to include? (max {option_count}) ")
+            try:
+                count = int(count)
+            except ValueError:
+                continue
+        elif default_count == 0: 
+            count = option_count
+        else:
+            count = min(option_count, default_count)
 
-        count = input(f"How many of the largest {levels[0]}{par_string} would you like to include? (max {option_count}) ")
-
-        try:
-            count = int(count)
-        except ValueError:
-            print("")
-            continue
-
-        if count <= option_count and count > 0:
+        if 0 < count <= option_count: 
             break
     
-    # while True:
-    #     include_not_classified = input(f"Would you like to include not_classified {levels[0]}? ([y]/n) ")
-    #     if not include_not_classified:
-    #         include_not_classified = "y"
-    #     if include_not_classified in ["y", "n"]:
-    #         break
-
-    options = data[data[levels[0]] != "not_classified"][levels[0]].value_counts().index[:count]
-    # if include_not_classified == "y":
-    #     options = list(options) + ["not_classified"]
-
-    print(f"Selected: {', '.join(options)}\n")
+    options = list(top_level_counts.index[:count])
+    print(f"Selected: {options}\n")
 
     tree = {}
 
@@ -90,11 +90,11 @@ def question_level(levels, data, parent=None, min_samples=3):
         if o == "not_classified":
             tree[o] = None
             continue
-        tree[o] = question_level(levels[1:], data[data[levels[0]] == o], o, min_samples)
+        tree[o] = question_level(levels[1:], data[data[general_level] == o], o, min_samples)
 
     return tree
 
-tree = question_level(levels,df, min_samples=args.min_samples)
+tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count)
 
 while True:
     outpath = input("Output path: ")
@@ -108,7 +108,7 @@ while True:
         if not outpath.endswith(".json"):
             outpath += ".json"
         with open(outpath, "w") as f:
-            json.dump(out, f)
+            json.dump(out, f, indent=4)
         break
     except FileNotFoundError:
         print("Invalid path")
