@@ -11,6 +11,7 @@ argparser.add_argument("--source", type=str, help="Source file for the class tre
 argparser.add_argument("--min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
 argparser.add_argument("--min-leaves", type=int, help="Minimum number of leaves for a classification task", default=2)
 argparser.add_argument("--default-count", type=int, help="Default count to avoid answering a bunch of questions manually. -1 indicates manual selection. 0 indicates choose all options. ", default=0)
+argparser.add_argument("--take-max", action="store_true", help="Take the maximum number of samples for each level")
 
 args = argparser.parse_args()
 
@@ -30,7 +31,7 @@ print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0) -> Optional[Dict]: 
+def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0, take_max=False) -> Optional[Dict]: 
     """Recursively generate a tree json file from the dataframe. 
     Args: 
         levels: The list of levels in the tree, e.g. order, family, genus, species. 
@@ -68,7 +69,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
     
     while True:
         if default_count == -1: 
-            count = input(f"How many of the largest {general_level} {par_string} would you like to include? (max {option_count}) ")
+            count = option_count if take_max else input(f"How many of the largest {general_level} {par_string} would you like to include? (max {option_count}) ")
             try:
                 count = int(count)
             except ValueError:
@@ -90,11 +91,11 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
         if o == "not_classified":
             tree[o] = None
             continue
-        tree[o] = question_level(levels[1:], data[data[general_level] == o], o, min_samples)
+        tree[o] = question_level(levels[1:], data[data[general_level] == o], o, min_samples, take_max=take_max)
 
     return tree
 
-tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count)
+tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count, take_max=args.take_max)
 
 while True:
     outpath = input("Output path: ")

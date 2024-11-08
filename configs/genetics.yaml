@@ -23,7 +23,6 @@ DATASET:
     # DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    PRE_EXISTING_IMAGES: true
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
     CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"

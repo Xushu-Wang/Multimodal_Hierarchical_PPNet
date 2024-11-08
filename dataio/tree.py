@@ -131,9 +131,6 @@ class TreeDataset(Dataset):
         self.image_transforms = image_transforms
         self.genetic_transforms = genetic_transforms
 
-    def mutate_genetics(self, df:pd.DataFrame):
-        return df.apply(self.mutate_sample, axis=1)
-
     def generate_tree_indicies(self, tree:dict, idx=0):
         """
         This is deeply gross and I appologize for it.
@@ -637,7 +634,6 @@ def create_tree_dataloaders(
         oversampling_rate:int,
         train_not_classified_proportions:tuple,
         tree_specification_file:str,
-        pre_existing_images:bool,
         cached_dataset_folder:str,
         cached_dataset_root:str,
         run_name:str,
@@ -658,10 +654,9 @@ def create_tree_dataloaders(
         gen_aug_params - object genetic augmentation parameters to apply to the genetic data.
         image_augmentations - list of image augmentations to apply to the image data.
         train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
-        train_end_count - The number of samples to end with in the training set.
+        train_end_count - The number of train_end_countsamples to end with in the training set.
         train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
         tree_specification_file - path to json file tree of valid classes.
-        pre_existing_images - If True, the images are assumed to be pre_existing in the image_cache_dir. If False, the images are assumed to be in the image_root_dir and will be copied to the image_cache_dir.
         mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
         seed - random seed for splitting, shuffling, transformations, etc.
     """
@@ -695,7 +690,7 @@ def create_tree_dataloaders(
         start_t = time.time()
         if oversampling_rate != 1:
             # raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
-            # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, pre_existing_images, seed)
+            # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, seed)
             train_df = oversample(train_df, len(train_df) * oversampling_rate, seed)
         new_train_size = len(train_df)
 
@@ -820,7 +815,6 @@ def get_dataloaders(cfg, log):
         oversampling_rate=cfg.DATASET.OVERSAMPLING_RATE,
         train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
         tree_specification_file=cfg.DATASET.TREE_SPECIFICATION_FILE,
-        pre_existing_images=cfg.DATASET.PRE_EXISTING_IMAGES,
         cached_dataset_folder=cfg.DATASET.CACHED_DATASET_FOLDER,
         cached_dataset_root=cfg.DATASET.CACHED_DATASET_ROOT,
         run_name=cfg.RUN_NAME,

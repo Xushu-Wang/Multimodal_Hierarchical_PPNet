@@ -32,6 +32,7 @@ class TreeNode(nn.Module):
         prototype_shape: the shape of the prototype (minus the number of prototypes) length 3
         tree_specification: the tree specification
         fix_prototypes: whether to fix the prototypes or not
+        max_num_prototypes_per_class: 
         """
         super().__init__()
 
@@ -192,6 +193,7 @@ class TreeNode(nn.Module):
         max_similarities = F.max_pool2d(similarity,
                         kernel_size=(similarity.size()[2],
                                     similarity.size()[3]))
+        # Set pruned prototype similarities to 0.
         max_similarities = self.prototype_mask * max_similarities
         min_distances = -1 * max_similarities
 
@@ -331,14 +333,6 @@ class Hierarchical_PPNet(nn.Module):
 
         return logit_tree
     
-    def push_forward(self, x):
-        '''this method is needed for the pushing operation'''
-        conv_output = self.conv_features(x)
-        distance_tree = self.root.push_forward_recursive(conv_output)
-        
-        return conv_output, distance_tree
-    
-
     def __repr__(self):
         return '<Hierarchical_PPNet>'
 
@@ -419,17 +413,21 @@ class CombinerTreeNode(nn.Module):
             correct_class_connection * positive_one_weights_locations
             + incorrect_class_connection * negative_one_weights_locations)
 
-    def get_logits(self, genetic_conv_features, image_conv_features):
+    def get_logits(self, genetic_conv_features, image_conv_features, get_middle_logits=False):
         genetic_logits, genetic_distances = self.genetic_tree_node.get_logits(genetic_conv_features)
         image_logits, image_distances = self.image_tree_node.get_logits(image_conv_features)
+
+        if get_middle_logits:
+            return (genetic_logits, image_logits), (genetic_distances, image_distances)
 
         logits = self.multi_last_layer(torch.cat((genetic_logits, image_logits), dim=1))
 
         return logits, (genetic_distances, image_distances)
     
-    def forward(self, x):
+    def forward(self, x, get_middle_logits=False):
         genetic_conv_features, image_conv_features = x
-        return self.get_logits(genetic_conv_features, image_conv_features)
+
+        return self.get_logits(genetic_conv_features, image_conv_features, get_middle_logits=get_middle_logits)
 
 class Multi_Hierarchical_PPNet(nn.Module):
     def __init__(self, genetic_hierarchical_ppnet, image_hierarchical_ppnet):
@@ -493,11 +491,11 @@ class Multi_Hierarchical_PPNet(nn.Module):
         self.image_hierarchical_ppnet.cuda()
         return super().cuda()
 
-    def forward(self, x):
+    def forward(self, x, get_middle_logits=False):
         genetic_conv_features = self.genetic_hierarchical_ppnet.conv_features(x[0])
         image_conv_features = self.image_hierarchical_ppnet.conv_features(x[1])
 
-        return self.root((genetic_conv_features, image_conv_features))
+        return self.root((genetic_conv_features, image_conv_features), get_middle_logits=get_middle_logits)
     
     def get_last_layer_parameters(self):
         return nn.ParameterList([*self.genetic_hierarchical_ppnet.get_last_layer_parameters(), *self.image_hierarchical_ppnet.get_last_layer_parameters()])

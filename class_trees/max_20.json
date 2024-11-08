@@ -1,0 +1,2240 @@
+{
+    "tree": {
+        "Diptera": {
+            "Cecidomyiidae": {
+                "Asteromyia": null,
+                "Endaphis": null,
+                "Campylomyza": {
+                    "Campylomyza flavipes": null
+                },
+                "Dasineura": null,
+                "Prodiplosis": {
+                    "Prodiplosis floricola": null
+                },
+                "Orseolia": null,
+                "Meunieriella": null,
+                "Lestodiplosis": {
+                    "Lestodiplosis juniperina": null
+                },
+                "Mycodiplosis": null,
+                "Peromyia": null,
+                "Sitodiplosis": null,
+                "Asphondylia": null,
+                "Contarinia": null,
+                "Anaretella": null,
+                "Monardia": {
+                    "Monardia toxicodendri": null
+                },
+                "Neurolyga": null,
+                "Rhopalomyia": null
+            },
+            "Chironomidae": {
+                "Tanytarsus": {
+                    "Tanytarsus hastatus": null,
+                    "Tanytarsus curvicristatus": null,
+                    "Tanytarsus formosanus": null,
+                    "Tanytarsus sp. 12XL": null,
+                    "Tanytarsus sp. 3TE": null,
+                    "Tanytarsus excavatus": null,
+                    "Tanytarsus mendax": null,
+                    "Tanytarsus ejuncidus": null,
+                    "Tanytarsus gracilentus": null,
+                    "Tanytarsus pandus": null
+                },
+                "Smittia": {
+                    "Smittia terrestris": null,
+                    "Smittia aterrima": null,
+                    "Smittia leucopogon": null,
+                    "Smittia edwardsi": null,
+                    "Smittia paranudipennis": null
+                },
+                "Metriocnemus": {
+                    "Metriocnemus albolineatus": null,
+                    "Metriocnemus picipes": null,
+                    "Metriocnemus eurynotus": null
+                },
+                "Halocladius": {
+                    "Halocladius variabilis": null
+                },
+                "Limnophyes": {
+                    "Limnophyes brachytomus": null,
+                    "Limnophyes minimus": null,
+                    "Limnophyes natalensis": null,
+                    "Limnophyes pentaplastus": null,
+                    "Limnophyes difficilis": null,
+                    "Limnophyes ninae": null
+                },
+                "Chaetocladius": {
+                    "Chaetocladius perennis": null,
+                    "Chaetocladius dissipatus": null,
+                    "Chaetocladius suecicus": null,
+                    "Chaetocladius longivirgatus": null,
+                    "Chaetocladius piger": null
+                },
+                "Chironomus": {
+                    "Chironomus columbiensis": null,
+                    "Chironomus lugubris": null,
+                    "Chironomus pseudothummi": null,
+                    "Chironomus salinarius": null
+                },
+                "Micropsectra": {
+                    "Micropsectra recurvata": null,
+                    "Micropsectra nana": null,
+                    "Micropsectra atrofasciata": null,
+                    "Micropsectra polita": null,
+                    "Micropsectra uliginosa": null
+                },
+                "Allocladius": {
+                    "Allocladius nanseni": null,
+                    "Allocladius sp. 1ES": null
+                },
+                "Dicrotendipes": {
+                    "Dicrotendipes lobiger": null,
+                    "Dicrotendipes tritomus": null
+                },
+                "Paratanytarsus": {
+                    "Paratanytarsus laccophilus": null,
+                    "Paratanytarsus austriacus": null,
+                    "Paratanytarsus penicillatus": null
+                },
+                "Polypedilum": {
+                    "Polypedilum nubeculosum": null
+                },
+                "Rheotanytarsus": {
+                    "Rheotanytarsus sp. 2TE": null
+                },
+                "Gymnometriocnemus": null,
+                "Pseudosmittia": {
+                    "Pseudosmittia tuvaluensis": null
+                },
+                "Paraphaenocladius": {
+                    "Paraphaenocladius impensus": null,
+                    "Paraphaenocladius brevinervis": null,
+                    "Paraphaenocladius pseudirritus": null
+                },
+                "Diplocladius": {
+                    "Diplocladius cultriger": null
+                },
+                "Cricotopus": {
+                    "Cricotopus obnixus": null
+                },
+                "Procladius": null,
+                "ChiroGn1": {
+                    "ChiroGn1 SADR6": null
+                },
+                "Corynoneura": {
+                    "Corynoneura arctica": null
+                },
+                "chiroJanzen01": {
+                    "chiroJanzen01 Janzen01": null
+                },
+                "Microtendipes": {
+                    "Microtendipes brevitarsis": null
+                },
+                "Orthocladius": {
+                    "Orthocladius gelidorum": null
+                },
+                "Psectrocladius": {
+                    "Psectrocladius barbimanus": null
+                },
+                "Ablabesmyia": {
+                    "Ablabesmyia monilis": null
+                },
+                "Georthocladius": null,
+                "Thienemanniella": {
+                    "Thienemanniella sp. 3LM": null
+                },
+                "Cladotanytarsus": null,
+                "Parachironomus": null,
+                "Pseudokiefferiella": null,
+                "Bryophaenocladius": null,
+                "Pseudorthocladius": {
+                    "Pseudorthocladius filiformis": null
+                },
+                "Phaenopsectra": {
+                    "Phaenopsectra punctipes": null
+                },
+                "Heleniella": null,
+                "Tvetenia": {
+                    "Tvetenia bavarica": null
+                },
+                "Camptocladius": {
+                    "Camptocladius stercorarius": null
+                },
+                "Endotribelos": null,
+                "Endochironomus": null,
+                "Macropelopia": {
+                    "Macropelopia nebulosa": null
+                },
+                "Synendotendipes": null,
+                "Tavastia": null,
+                "Parametriocnemus": null,
+                "Hydrosmittia": null,
+                "chiroJanzen2": null,
+                "OrthoGenusA": null,
+                "Cladopelma": null,
+                "Parochlus": null
+            },
+            "Phoridae": {
+                "Megaselia": {
+                    "Megaselia normwoodleyi": null,
+                    "Megaselia steptoeae": null,
+                    "Megaselia manuelzumbadoi": null,
+                    "Megaselia torbjornekremi": null,
+                    "Megaselia artborkenti": null,
+                    "Megaselia wiegmanae": null,
+                    "Megaselia thomaspapei": null,
+                    "Megaselia carthayensis": null,
+                    "Megaselia tropizona": null,
+                    "Megaselia halterata": null,
+                    "Megaselia nealevenhuisi": null,
+                    "Megaselia wendyporrasae": null,
+                    "Megaselia montywoodi": null,
+                    "Megaselia albicans": null,
+                    "Megaselia latifemorata": null,
+                    "Megaselia longicostalis": null,
+                    "Megaselia hansonix": null,
+                    "Megaselia ciliata": null,
+                    "Megaselia hentschkeae": null,
+                    "Megaselia pulicaria complex": null,
+                    "Megaselia danizona": null,
+                    "Megaselia lucifrons": null,
+                    "Megaselia crassicosta": null,
+                    "Megaselia robusta": null,
+                    "Megaselia stevemarshalli": null,
+                    "Megaselia citrinella": null,
+                    "Megaselia eccoptomera": null,
+                    "Megaselia oxboroughae": null,
+                    "Megaselia ruficornis": null,
+                    "Megaselia subtumida": null
+                },
+                "Apocephalus": null,
+                "Metopina_group": null,
+                "Metopina": {
+                    "Metopina galeata": null
+                },
+                "Coniceromyia": null,
+                "Chonocephalus": null,
+                "Dohrniphora": {
+                    "Dohrniphora cornuta": null
+                },
+                "Myriophora": null,
+                "Eibesfeldtphora": null,
+                "Pseudacteon": null,
+                "Woodiphora": null,
+                "Diocophora": null,
+                "Phymatopterella": null,
+                "Macgrathphora": {
+                    "Macgrathphora longifurca": null,
+                    "Macgrathphora caribbea": null
+                },
+                "Beckerina": null,
+                "Puliciphora": null,
+                "Pseudomyriophora": null,
+                "Cremersia": null,
+                "Macrocerides": null,
+                "Apodicrania": null,
+                "Adenophora": null,
+                "Rhyncophoromyia": null,
+                "Stichillus": null,
+                "Physoptera": null,
+                "Calamiscus": null,
+                "Enderleinphora": null,
+                "Acontistoptera": null,
+                "Ceratusa": null,
+                "Conicera": null,
+                "Brownphora": {
+                    "Brownphora sinefurca": null
+                },
+                "Trophodeinus": null,
+                "Dahliphora": null,
+                "Dacnophora": null,
+                "Phalacrotophora": null,
+                "Adelopteromyia": null,
+                "Triphleba": {
+                    "Triphleba distinguenda": null
+                },
+                "Borgmeieriphora": null,
+                "Diplonevra": {
+                    "Diplonevra nitidula": null
+                },
+                "Allochaeta": null,
+                "Trophithauma": null,
+                "Gymnophora": null,
+                "Neodohrniphora": null,
+                "Phora": null,
+                "Ecitophora": null,
+                "Travassophora": null,
+                "Syneura": null,
+                "Dinocercus": null
+            },
+            "Sciaridae": {
+                "Hyperlasion": null,
+                "Bradysia": {
+                    "Bradysia flavipila": null,
+                    "Bradysia trivittata": null,
+                    "Bradysia nomica": null,
+                    "Bradysia lobulifera": null,
+                    "Bradysia ocellaris": null,
+                    "Bradysia normalis": null,
+                    "Bradysia radicum": null,
+                    "Bradysia scabricornis": null,
+                    "Bradysia inusitata": null,
+                    "Bradysia pallipes": null,
+                    "Bradysia praecox": null,
+                    "Bradysia alpicola": null,
+                    "Bradysia iridipennis": null,
+                    "Bradysia plusiospina": null,
+                    "Bradysia impatiens": null
+                },
+                "Corynoptera": {
+                    "Corynoptera irmgardis": null,
+                    "Corynoptera subparvula": null,
+                    "Corynoptera levis": null,
+                    "Corynoptera alneti": null,
+                    "Corynoptera forcipata": null,
+                    "Corynoptera breviformis": null,
+                    "Corynoptera furcifera": null,
+                    "Corynoptera subdentata": null,
+                    "Corynoptera trepida": null,
+                    "Corynoptera perpusilla": null,
+                    "Corynoptera cursor": null
+                },
+                "Pseudolycoriella": null,
+                "Sciara": {
+                    "Sciara kitakamiensis": null
+                },
+                "Scatopsciara": {
+                    "Scatopsciara atomaria": null,
+                    "Scatopsciara nana": null,
+                    "Scatopsciara geophila": null
+                },
+                "Cosmosciara": {
+                    "Cosmosciara sp. SAEVG Morph0042": null,
+                    "Cosmosciara perniciosa": null,
+                    "Cosmosciara sp. SAEVG Morph42": null
+                },
+                "Pseudosciara": {
+                    "Pseudosciara sp.": null
+                },
+                "Cratyna": {
+                    "Cratyna cryptospina": null,
+                    "Cratyna keilini": null,
+                    "Cratyna nobilis": null
+                },
+                "Lycoriella": {
+                    "Lycoriella sativae": null,
+                    "Lycoriella agraria": null,
+                    "Lycoriella inflata": null
+                },
+                "Camptochaeta": {
+                    "Camptochaeta camptochaeta": null
+                },
+                "Peyerimhoffia": {
+                    "Peyerimhoffia vagabunda": null
+                },
+                "Ctenosciara": {
+                    "Ctenosciara hyalipennis": null
+                },
+                "Leptosciarella": null,
+                "Xylosciara": {
+                    "Xylosciara heptacantha": null
+                },
+                "Claustropyga": {
+                    "Claustropyga refrigerata": null
+                },
+                "Alpinosciara": {
+                    "Alpinosciara subtrivialis": null
+                },
+                "Dichopygina": {
+                    "Dichopygina aculeata": null
+                },
+                "Cesathrix": null
+            },
+            "Ceratopogonidae": {
+                "Forcipomyia": {
+                    "Forcipomyia bipunctata": null,
+                    "Forcipomyia sp. DB 11421": null
+                },
+                "Culicoides": {
+                    "Culicoides brevitarsis": null,
+                    "Culicoides oxystoma": null,
+                    "Culicoides leopoldoi": null,
+                    "Culicoides travisi": null,
+                    "Culicoides ZUR-6": null,
+                    "Culicoides chiopterus": null
+                },
+                "Dasyhelea": null,
+                "Atrichopogon": {
+                    "Atrichopogon minutus": null
+                },
+                "ceratoJanzen01": {
+                    "ceratoJanzen01 Janzen02": null
+                },
+                "Ceratopogon": {
+                    "Ceratopogon grandiforceps": null
+                },
+                "Serromyia": null
+            },
+            "Psychodidae": {
+                "Psychoda": {
+                    "Psychoda sp. 11GMK": null,
+                    "Psychoda albipennis": null,
+                    "Psychoda alternata": null,
+                    "Psychoda trinodulosa": null,
+                    "Psychoda satchelli": null,
+                    "Psychoda phalaenoides": null,
+                    "Psychoda sigma": null,
+                    "Psychoda grisescens": null,
+                    "Psychoda mycophila": null,
+                    "Psychoda erminea": null,
+                    "Psychoda setigera": null,
+                    "Psychoda uncinula": null
+                },
+                "Lutzomyia": {
+                    "Lutzomyia evansi": null,
+                    "Lutzomyia edentula": null,
+                    "Lutzomyia zeledoni": null,
+                    "Lutzomyia ovallesi": null,
+                    "Lutzomyia aclydifera": null
+                },
+                "Brunettia": null,
+                "Pneumia": {
+                    "Pneumia mutua": null
+                },
+                "Micropygomyia": {
+                    "Micropygomyia atroclavata": null
+                }
+            },
+            "Dolichopodidae": {
+                "Chrysotus": null,
+                "Sympycnus": {
+                    "Sympycnus pulicarius": null
+                },
+                "Achradocera": {
+                    "Achradocera arcuata": null
+                },
+                "Medetera": {
+                    "Medetera betulae": null
+                },
+                "Dolichopus": null,
+                "Condylostylus": null,
+                "Microphor": null
+            },
+            "Sphaeroceridae": {
+                "Pterogramma": null,
+                "Bifronsina": {
+                    "Bifronsina bifrons": null
+                },
+                "Rachispoda": {
+                    "Rachispoda fuscinevris": null,
+                    "Rachispoda spuleri": null,
+                    "Rachispoda trigonata": null
+                },
+                "Spelobia": null,
+                "Archiceroptera": null,
+                "Robustagramma": {
+                    "Robustagramma biangulatum": null
+                },
+                "Trachyopella": {
+                    "Trachyopella straminea": null
+                },
+                "Leptocera": {
+                    "Leptocera fontinalis": null,
+                    "Leptocera erythrocera": null
+                },
+                "Rudolfina": {
+                    "Rudolfina exuberata": null
+                },
+                "Coproica": {
+                    "Coproica ferruginata": null,
+                    "Coproica hirticula": null
+                },
+                "Chespiritos": {
+                    "Chespiritos dolabratus": null,
+                    "Chespiritos extendido": null
+                },
+                "Bromeloecia": {
+                    "Bromeloecia wolverinei": null
+                },
+                "Pullimosina": {
+                    "Pullimosina heteroneura": null
+                },
+                "Sclerocoelus": null,
+                "Ischiolepta": {
+                    "Ischiolepta pusilla": null
+                },
+                "Minilimosina": null,
+                "Pseudocollinella": {
+                    "Pseudocollinella humida": null
+                },
+                "Opacifrons": {
+                    "Opacifrons coxata": null
+                },
+                "Gonioneura": {
+                    "Gonioneura spinipennis": null
+                },
+                "Bitheca": null,
+                "Limosina": {
+                    "Limosina silvatica": null
+                },
+                "Lotophila": {
+                    "Lotophila atra": null
+                },
+                "Copromyza": null,
+                "Opalimosina": null,
+                "Lepidosina": null
+            },
+            "Drosophilidae": {
+                "Drosophila": {
+                    "Drosophila sturtevanti": null,
+                    "Drosophila emarginata": null,
+                    "Drosophila hydei": null,
+                    "Drosophila simulans": null
+                },
+                "Scaptomyza": {
+                    "Scaptomyza pallida": null
+                },
+                "Hirtodrosophila": {
+                    "Hirtodrosophila morgani": null,
+                    "Hirtodrosophila thoracis": null,
+                    "Hirtodrosophila subflavohalterata affinis 1": null
+                },
+                "Scaptodrosophila": {
+                    "Scaptodrosophila latifasciaeformis": null
+                },
+                "Zygothrica": null,
+                "Rhinoleucophenga": {
+                    "Rhinoleucophenga punctulata": null
+                },
+                "Chymomyza": {
+                    "Chymomyza caudatula": null
+                }
+            },
+            "Hybotidae": {
+                "Tachydromia": {
+                    "Tachydromia aemula": null
+                },
+                "Platypalpus": {
+                    "Platypalpus maculipes": null,
+                    "Platypalpus nigritarsis": null,
+                    "Platypalpus longicornis": null
+                },
+                "Bicellaria": {
+                    "Bicellaria simplicipes": null,
+                    "Bicellaria vana": null
+                },
+                "Trichina": {
+                    "Trichina clavipes": null
+                },
+                "Symballophthalmus": {
+                    "Symballophthalmus dissimilis": null
+                },
+                "Crossopalpus": {
+                    "Crossopalpus curvipes": null
+                },
+                "Ocydromia": {
+                    "Ocydromia glabricula": null
+                },
+                "Euthyneura": null
+            },
+            "Mycetophilidae": {
+                "Mycetophila": null,
+                "Cordyla": {
+                    "Cordyla pusilla": null
+                },
+                "Boletina": {
+                    "Boletina dissipata": null
+                },
+                "Zygomyia": null,
+                "Phronia": null,
+                "Brevicornu": null,
+                "Clastobasis": null,
+                "Sceptonia": null
+            },
+            "Muscidae": {
+                "Coenosia": {
+                    "Coenosia attenuata": null,
+                    "Coenosia morrisoni": null,
+                    "Coenosia transiens": null,
+                    "Coenosia intermedia": null
+                },
+                "Atherigona": {
+                    "Atherigona reversura": null,
+                    "Atherigona theodori": null
+                },
+                "Lispe": {
+                    "Lispe assimilis": null
+                },
+                "Neodexiopsis": {
+                    "Neodexiopsis rufitibia": null
+                },
+                "Musca": {
+                    "Musca crassirostris": null,
+                    "Musca confiscata": null
+                },
+                "Limnophora": null,
+                "Spilogona": null,
+                "Hydrotaea": {
+                    "Hydrotaea aenescens": null
+                },
+                "Helina": null,
+                "Stomoxys": {
+                    "Stomoxys calcitrans": null
+                },
+                "Thricops": null,
+                "Cyrtoneurina": {
+                    "Cyrtoneurina alifusca": null
+                },
+                "Lispocephala": null,
+                "Cyrtoneuropsis": null
+            },
+            "Limoniidae": {
+                "Ormosia": {
+                    "Ormosia lineata": null,
+                    "Ormosia depilata": null
+                },
+                "Gonomyia": null,
+                "Cheilotrichia": {
+                    "Cheilotrichia cinerascens": null
+                },
+                "Rhipidia": null,
+                "Dicranomyia": null,
+                "Teucholabis": null,
+                "Molophilus": null,
+                "Limonia": {
+                    "Limonia trivittata": null
+                }
+            },
+            "Chloropidae": {
+                "Biorbitella": null,
+                "Oscinella": null,
+                "Tricimba": null,
+                "Malloewia": null,
+                "Olcella": null,
+                "Thaumatomyia": {
+                    "Thaumatomyia trifasciata": null
+                },
+                "Apallates": null,
+                "Gaurax": null,
+                "Rhopalopterum": null,
+                "Chlorops": {
+                    "Chlorops hypostigma": null
+                },
+                "Dasyopa": null,
+                "Cetema": null,
+                "Elachiptera": null,
+                "Neorhodesiella": null,
+                "Monochaetoscinella": {
+                    "Monochaetoscinella nigricornis": null
+                }
+            },
+            "Scatopsidae": {
+                "Scatopse": {
+                    "Scatopse notata": null
+                },
+                "Apiloscatopse": {
+                    "Apiloscatopse flavocincta": null
+                },
+                "Psectrosciara": null,
+                "Colobostema": null
+            },
+            "Milichiidae": {
+                "Pholeomyia": null,
+                "Milichiella": {
+                    "Milichiella lacteipennis": null
+                },
+                "Desmometopa": null,
+                "Neophyllomyza": null,
+                "Paramyia": null,
+                "Stomosis": null,
+                "Leptometopa": null,
+                "Phyllomyza": null
+            },
+            "Ephydridae": {
+                "Scatella": null,
+                "Lamproscatella": {
+                    "Lamproscatella sibilans": null
+                },
+                "Psilopa": null,
+                "Limnellia": {
+                    "Limnellia quadrata": null
+                }
+            },
+            "Agromyzidae": {
+                "Phytomyza": {
+                    "Phytomyza obscurella": null,
+                    "Phytomyza milii": null,
+                    "Phytomyza thalictrella": null,
+                    "Phytomyza chaerophylli": null
+                },
+                "Liriomyza": {
+                    "Liriomyza flaveola": null,
+                    "Liriomyza chenopodii": null,
+                    "Liriomyza brassicae": null
+                },
+                "Cerodontha": null,
+                "Ophiomyia": {
+                    "Ophiomyia beckeri": null
+                },
+                "Melanagromyza": {
+                    "Melanagromyza obtusa": null
+                },
+                "Agromyza": null,
+                "Calycomyza": null
+            },
+            "Tachinidae": {
+                "Paradidyma": {
+                    "Paradidyma Malaise2503": null,
+                    "Paradidyma Malaise2558": null,
+                    "Paradidyma Malaise2399": null,
+                    "Paradidyma melania": null,
+                    "Paradidyma Malaise2221": null,
+                    "Paradidyma Malaise2556": null,
+                    "Paradidyma Malaise2555": null
+                },
+                "Phytomyptera": {
+                    "Phytomyptera Malaise6585": null,
+                    "Phytomyptera Malaise5935": null,
+                    "Phytomyptera Janzen7239": null
+                },
+                "Siphona": null,
+                "Calodexia": {
+                    "Calodexia Janzen3938": null,
+                    "Calodexia panamensis": null
+                },
+                "Thelyconychia": {
+                    "Thelyconychia solivaga": null
+                },
+                "Lixophaga": null,
+                "Prorhynchops": {
+                    "Prorhynchops Malaise2384": null
+                },
+                "Anisia": {
+                    "Anisia Janzen5197": null
+                },
+                "Chaetostigmoptera": {
+                    "Chaetostigmoptera Malaise8186": null
+                },
+                "Periscepsia": {
+                    "Periscepsia carbonaria": null
+                },
+                "Catharosia": {
+                    "Catharosia Malaise4051": null
+                },
+                "Pseudosiphona": null,
+                "Clausicella": {
+                    "Clausicella Malaise2315": null
+                },
+                "Actia": null,
+                "Borgmeiermyia": null,
+                "Ceromya": null,
+                "Chetogena": {
+                    "Chetogena parvipalpis": null
+                },
+                "Gnadochaeta": {
+                    "Gnadochaeta Malaise111": null
+                }
+            },
+            "Empididae": {
+                "Rhamphomyia": {
+                    "Rhamphomyia sciarina": null,
+                    "Rhamphomyia umbripennis": null
+                },
+                "Porphyrochroa": {
+                    "Porphyrochroa sp. 6 BKC-2015": null
+                },
+                "Hilara": null,
+                "Chelifera": null,
+                "Empis": null,
+                "Dolichocephala": null,
+                "Ragas": {
+                    "Ragas unica": null
+                },
+                "Hemerodromia": null
+            },
+            "Anthomyiidae": {
+                "Pegomya": null,
+                "Egle": {
+                    "Egle subarctica": null
+                },
+                "Botanophila": {
+                    "Botanophila profuga": null,
+                    "Botanophila adusta": null,
+                    "Botanophila striolata": null
+                },
+                "Coenosopsia": null,
+                "Delia": {
+                    "Delia platura": null
+                },
+                "Lasiomma": null,
+                "Pegoplata": {
+                    "Pegoplata infirma": null
+                },
+                "Adia": {
+                    "Adia cinerella": null
+                },
+                "Anthomyia": null
+            },
+            "Heleomyzidae": {
+                "Heleomyza": {
+                    "Heleomyza modesta": null
+                },
+                "Suillia": null
+            },
+            "Lauxaniidae": {
+                "Calliopum": null
+            },
+            "Sarcophagidae": {
+                "Craticulina": {
+                    "Craticulina diffusa": null
+                },
+                "sarcJanzen01": null,
+                "Peckia": null,
+                "Helicobia": {
+                    "Helicobia rapax": null
+                },
+                "Senotainia": null,
+                "Sarcophaga": null,
+                "sarcJanzen1": null
+            },
+            "Ulidiidae": {
+                "Physiphora": {
+                    "Physiphora alceae": null
+                }
+            },
+            "Tephritidae": null,
+            "Stratiomyidae": {
+                "Hermetia": {
+                    "Hermetia illucens": null
+                },
+                "Allognosta": {
+                    "Allognosta fuscitarsis": null
+                }
+            },
+            "Clusiidae": {
+                "Sobarocephala": null
+            },
+            "Pipunculidae": {
+                "Tomosvaryella": null,
+                "Eudorylas": null,
+                "Dasydorylas": {
+                    "Dasydorylas sp. TX16": null
+                },
+                "Basileunculus": {
+                    "Basileunculus sp. CR3": null
+                },
+                "Elmohardyia": null,
+                "Pipunculus": null,
+                "Microcephalops": null
+            },
+            "Sepsidae": {
+                "Themira": {
+                    "Themira annulipes": null,
+                    "Themira lucida": null,
+                    "Themira putris": null
+                },
+                "Microsepsis": {
+                    "Microsepsis mitis": null
+                },
+                "Archisepsis": {
+                    "Archisepsis pusio": null,
+                    "Archisepsis armata": null
+                },
+                "Sepsis": {
+                    "Sepsis thoracica": null
+                },
+                "Australosepsis": {
+                    "Australosepsis niveipennis": null
+                }
+            },
+            "Syrphidae": {
+                "Toxomerus": {
+                    "Toxomerus bistrigus": null
+                },
+                "Paragus": null
+            },
+            "Bombyliidae": null,
+            "Fanniidae": {
+                "Fannia": {
+                    "Fannia spathiophora": null
+                }
+            },
+            "Keroplatidae": {
+                "Orfelia": {
+                    "Orfelia nemoralis": null
+                }
+            },
+            "Ditomyiidae": null,
+            "Bibionidae": {
+                "Dilophus": {
+                    "Dilophus femoratus": null
+                },
+                "Plecia": null
+            },
+            "Richardiidae": {
+                "Macrostenomyia": {
+                    "Macrostenomyia guerinii": null
+                },
+                "Epiplatea": null,
+                "Schnusimyia": null
+            },
+            "Simuliidae": {
+                "Simulium": {
+                    "Simulium arcticum complex": null
+                },
+                "Metacnephia": {
+                    "Metacnephia borealis": null
+                }
+            },
+            "Culicidae": {
+                "Culex": null
+            },
+            "Psilidae": {
+                "Chamaepsila": {
+                    "Chamaepsila nigra": null,
+                    "Chamaepsila atra": null
+                }
+            },
+            "Micropezidae": {
+                "Micropeza": null,
+                "Calobata": {
+                    "Calobata petronella": null
+                }
+            },
+            "Calliphoridae": {
+                "Bezzimyia": {
+                    "Bezzimyia bisecta": null
+                }
+            },
+            "Anisopodidae": {
+                "Sylvicola": {
+                    "Sylvicola cinctus": null
+                }
+            },
+            "Lonchaeidae": {
+                "Lonchaea": null
+            },
+            "Periscelididae": null,
+            "Carnidae": {
+                "Meoneura": {
+                    "Meoneura palaestinensis": null
+                },
+                "Hemeromyia": null
+            },
+            "Corethrellidae": {
+                "Corethrella": null
+            },
+            "Trichoceridae": {
+                "Trichocera": {
+                    "Trichocera hiemalis": null
+                }
+            },
+            "Tabanidae": {
+                "Tabanus": null
+            },
+            "Chyromyidae": null,
+            "Brachystomatidae": null,
+            "Lonchopteridae": {
+                "Lonchoptera": null
+            },
+            "Asteiidae": {
+                "Asteia": {
+                    "Asteia amoena": null
+                }
+            },
+            "Scathophagidae": null,
+            "Anthomyzidae": null,
+            "Chamaemyiidae": null,
+            "Asilidae": null,
+            "Therevidae": null,
+            "Inbiomyiidae": {
+                "Inbiomyia": null
+            },
+            "Tipulidae": null,
+            "Sciomyzidae": {
+                "Pherbellia": null
+            },
+            "Scenopinidae": {
+                "Scenopinus": null
+            },
+            "Opomyzidae": {
+                "Geomyza": null
+            },
+            "Odiniidae": null,
+            "Pallopteridae": null,
+            "Diadocidiidae": null,
+            "Piophilidae": null,
+            "Chaoboridae": {
+                "Chaoborus": null
+            },
+            "Conopidae": {
+                "Stylogaster": null
+            },
+            "Neriidae": null,
+            "Platystomatidae": null
+        },
+        "Hymenoptera": {
+            "Scelionidae": {
+                "Telenomus": {
+                    "Telenomus laeviceps": null,
+                    "Telenomus podisi": null
+                },
+                "Trissolcus": {
+                    "Trissolcus hyalinipennis": null
+                },
+                "Baeus": null,
+                "Trimorus": null,
+                "Gryon": null,
+                "Oethecoctonus": null,
+                "Idris": null,
+                "Calliscelio": null,
+                "Duta": null
+            },
+            "Braconidae": {
+                "Dinotrema": {
+                    "Dinotrema longworthi": null,
+                    "Dinotrema Malaise4203": null,
+                    "Dinotrema Malaise2655": null,
+                    "Dinotrema Malaise3029": null,
+                    "Dinotrema Malaise6906": null,
+                    "Dinotrema Malaise4111": null,
+                    "Dinotrema Malaise3805": null,
+                    "Dinotrema Malaise7839": null,
+                    "Dinotrema malaise0623": null,
+                    "Dinotrema Malaise6952": null,
+                    "Dinotrema Malaise3622": null,
+                    "Dinotrema Malaise2949": null,
+                    "Dinotrema Malaise7037": null,
+                    "Dinotrema Malaise4002": null,
+                    "Dinotrema Malaise4777": null
+                },
+                "Heterospilus": {
+                    "Heterospilus Malaise5480": null,
+                    "Heterospilus Malaise4724": null,
+                    "Heterospilus Malaise8512": null
+                },
+                "Glyptapanteles": {
+                    "Glyptapanteles sondrawardae": null,
+                    "Glyptapanteles Malaise795": null,
+                    "Glyptapanteles Malaise6317": null,
+                    "Glyptapanteles Malaise9875": null,
+                    "Glyptapanteles meganmiltonae": null
+                },
+                "alyMalaise01": {
+                    "alyMalaise01 Malaise3306": null,
+                    "alyMalaise01 Malaise7873": null,
+                    "alyMalaise01 Malaise3308": null
+                },
+                "Cotesia": {
+                    "Cotesia scotti": null,
+                    "Cotesia ruficrus": null,
+                    "Cotesia Whitfield05": null
+                },
+                "Apanteles": {
+                    "Apanteles eduardoramirezi": null,
+                    "Apanteles oscarchavezi": null
+                },
+                "Leiophron": {
+                    "Leiophron Malaise4536": null
+                },
+                "Hormius": {
+                    "Hormius Malaise6908": null,
+                    "Hormius joncoddingtoni": null,
+                    "Hormius modonnellyae": null,
+                    "Hormius Malaise5869": null
+                },
+                "Aphidius": null,
+                "Blacus": null,
+                "Pseudapanteles": {
+                    "Pseudapanteles raulsolorzanoi": null,
+                    "Pseudapanteles alvaroumanai": null
+                },
+                "Pambolus": {
+                    "Pambolus Malaise1900": null,
+                    "Pambolus Malaise8158": null
+                },
+                "Chelonus": {
+                    "Chelonus Malaise2690": null,
+                    "Chelonus planiventris": null,
+                    "Chelonus jorgehernandezi": null
+                },
+                "Bracon": null,
+                "Meteorus": {
+                    "Meteorus Malaise3344": null,
+                    "Meteorus Malaise2812": null,
+                    "Meteorus Malaise4087": null
+                },
+                "Ecphylus": {
+                    "Ecphylus Malaise2514": null
+                },
+                "opiMalaise01": null,
+                "Dolichogenidea": null,
+                "Diolcogaster": {
+                    "Diolcogaster Choi107": null,
+                    "Diolcogaster Malaise9826": null
+                },
+                "Diospilus": {
+                    "Diospilus Malaise6890": null,
+                    "Diospilus Malaise4781": null,
+                    "Diospilus Malaise3636": null
+                },
+                "Dacnusa": {
+                    "Dacnusa areolaris": null
+                },
+                "Eubazus": null,
+                "Chorebus": {
+                    "Chorebus posticus": null
+                },
+                "mgMalaise160": {
+                    "mgMalaise160 Malaise5779": null
+                },
+                "Notiospathius": null,
+                "Phanerotoma": {
+                    "Phanerotoma Janzen5955": null
+                },
+                "Opius": null,
+                "Mirax": null,
+                "Microplitis": null,
+                "Nealiolus": null,
+                "Syntretus": {
+                    "Syntretus Malaise2676": null
+                },
+                "Microctonus": null,
+                "Orgilus": null,
+                "doryMalaise01": null,
+                "Stiropius": null,
+                "Pseudorhysipolis": {
+                    "Pseudorhysipolis Malaise4159": null
+                },
+                "brMalaise01": null,
+                "Hypomicrogaster": null,
+                "Aleiodes": null,
+                "Ephedrus": null,
+                "Leptodrepana": null,
+                "Lipolexis": {
+                    "Lipolexis oregmae": null
+                },
+                "Alysia": null,
+                "Alphomelon": null,
+                "Vadumasonium": {
+                    "Vadumasonium Malaise2811": null
+                },
+                "Phaenocarpa": null,
+                "Choreborogas": null,
+                "Lysiphlebus": null,
+                "Exotela": null,
+                "Ascogaster": null,
+                "Pseudophanerotoma": null,
+                "Triraphis": null,
+                "Binodoxys": {
+                    "Binodoxys angelicae": null
+                },
+                "Shawiana": null,
+                "Parapanteles": null,
+                "Asobara": null,
+                "Rhygoplitis": null
+            },
+            "Bethylidae": {
+                "Goniozus": null
+            },
+            "Diapriidae": {
+                "Trichopria": null,
+                "Basalys": null,
+                "Pantoclis": null
+            },
+            "Platygastridae": {
+                "Iphitrachelus": {
+                    "Iphitrachelus sp. M326": null
+                },
+                "Synopeas": null,
+                "Platygaster": null
+            },
+            "Ichneumonidae": {
+                "Orthocentrus": {
+                    "Orthocentrus Malaise5162": null,
+                    "Orthocentrus Malaise9380": null,
+                    "Orthocentrus Malaise9461": null,
+                    "Orthocentrus Malaise5689": null,
+                    "Orthocentrus malaise9380": null,
+                    "Orthocentrus Malaise2720": null
+                },
+                "Chilocyrtus": {
+                    "Chilocyrtus Malaise7054": null,
+                    "Chilocyrtus malaise5063": null,
+                    "Chilocyrtus Malaise3264": null,
+                    "Chilocyrtus Malaise1483": null,
+                    "Chilocyrtus Malaise8193": null,
+                    "Chilocyrtus Malaise5063": null
+                },
+                "Stenomacrus": {
+                    "Stenomacrus affinitor": null,
+                    "Stenomacrus Malaise6520": null
+                },
+                "Plectiscus": {
+                    "Plectiscus Malaise1594": null,
+                    "Plectiscus Malaise5795": null
+                },
+                "tersiMalaise01": {
+                    "tersiMalaise01 Malaise9021": null,
+                    "tersiMalaise01 malaise9021": null
+                },
+                "Tersilochus": {
+                    "Tersilochus striola": null
+                },
+                "ichneuMalaise01": {
+                    "ichneuMalaise01 Malaise8071": null,
+                    "ichneuMalaise01 malaise9082": null
+                },
+                "Hyposoter": null,
+                "Mesochorus": null,
+                "Hypsicera": {
+                    "Hypsicera malaise0328": null
+                },
+                "tersiMalaise1": {
+                    "tersiMalaise1 Malaise3951": null
+                },
+                "Campoplex": null,
+                "crypMalaise01": null,
+                "Proclitus": {
+                    "Proclitus praetor": null
+                },
+                "Phygadeuon": null,
+                "Aclastus": null,
+                "ichMalaise01": null,
+                "Diadegma": null,
+                "Neurateles": null,
+                "Polysphincta": {
+                    "Polysphincta purcelli": null
+                },
+                "Pimpla": {
+                    "Pimpla punicipes": null
+                },
+                "ichMalaise1": null,
+                "Casinaria": {
+                    "Casinaria Malaise6162": null
+                },
+                "orthoMalaise01": {
+                    "orthoMalaise01 malaise0520": null
+                },
+                "Atractodes": null,
+                "cryptJanzen01": null,
+                "Gelis": null,
+                "Plectiscidea": null,
+                "Allophrys": {
+                    "Allophrys divaricata": null
+                },
+                "Megastylus": null,
+                "ichneuMalaise1": null
+            },
+            "Formicidae": {
+                "Pseudomyrmex": {
+                    "Pseudomyrmex phyllophilus": null
+                },
+                "Crematogaster": {
+                    "Crematogaster sumichrasti": null
+                },
+                "Pheidole": null,
+                "Procryptocerus": {
+                    "Procryptocerus scabriusculus": null
+                },
+                "Camponotus": {
+                    "Camponotus sexguttatus": null
+                },
+                "Leptothorax": null,
+                "Monomorium": {
+                    "Monomorium indet": null
+                },
+                "Azteca": null,
+                "Formica": null,
+                "Wasmannia": null,
+                "Anochetus": {
+                    "Anochetus altisquamis": null
+                },
+                "Lasius": null,
+                "Strumigenys": {
+                    "Strumigenys elongata": null
+                },
+                "Cephalotes": null,
+                "Solenopsis": null,
+                "Myrmica": null,
+                "Gnamptogenys": {
+                    "Gnamptogenys interrupta": null
+                },
+                "Brachymyrmex": {
+                    "Brachymyrmex depilis": null
+                },
+                "Myrmecina": {
+                    "Myrmecina graminicola": null
+                },
+                "Nylanderia": null,
+                "Cyphomyrmex": null,
+                "Nesomyrmex": {
+                    "Nesomyrmex pittieri": null
+                },
+                "Technomyrmex": null,
+                "Myrmelachista": null,
+                "Odontomachus": null,
+                "Temnothorax": null,
+                "Tapinoma": null,
+                "Hypoponera": null,
+                "Cardiocondyla": null,
+                "Rogeria": null
+            },
+            "Mymaridae": {
+                "Lymaenon": null,
+                "Anagrus": {
+                    "Anagrus daanei": null
+                },
+                "Polynema": null,
+                "Alaptus": null,
+                "Gonatocerus": {
+                    "Gonatocerus morrilli": null
+                },
+                "Omyomymar": null,
+                "Erythmelus": null,
+                "Anaphes": null,
+                "Cosmocomoidea": null,
+                "Acmopolynema": null,
+                "Platypatasson": null,
+                "Ooctonus": null,
+                "Mymar": null,
+                "Stethynium": null,
+                "Neomymar": null,
+                "Camptoptera": null
+            },
+            "Figitidae": {
+                "Alloxysta": null,
+                "Kleidotoma": null,
+                "Ganaspis": null,
+                "Leptopilina": null
+            },
+            "Eulophidae": {
+                "Aprostocetus": {
+                    "Aprostocetus aproMalaise0531": null
+                },
+                "Palmistichus": {
+                    "Palmistichus ixtlilxochitliDHJ01": null,
+                    "Palmistichus ixtlilxochitliDHJ02DHJ06": null
+                },
+                "euloMalaise01": {
+                    "euloMalaise01 euloMalaise7987": null
+                },
+                "Omphale": null,
+                "Deutereulophus": {
+                    "Deutereulophus Malaise9526": null
+                },
+                "Elasmus": {
+                    "Elasmus Malaise8332": null
+                },
+                "Grotiusomyia": {
+                    "Grotiusomyia Hansson7663": null
+                },
+                "eulophMalaise01": null,
+                "Perditorulus": null,
+                "tetraMalaise01": null,
+                "Euplectrus": null,
+                "Horismenus": null,
+                "Neochrysocharis": null,
+                "Tamarixia": {
+                    "Tamarixia pronomus": null
+                },
+                "Chrysocharis": null,
+                "Diglyphus": null
+            },
+            "Trichogrammatidae": {
+                "Trichogramma": {
+                    "Trichogramma chilonis": null
+                }
+            },
+            "Aphelinidae": {
+                "Encarsia": {
+                    "Encarsia lounsburyi": null
+                },
+                "Aphelinus": null,
+                "Aphytis": null
+            },
+            "Pteromalidae": {
+                "Trichomalus": null,
+                "Catolaccus": null,
+                "Philotrypesis": null,
+                "Homoporus": {
+                    "Homoporus luniger": null
+                }
+            },
+            "Encyrtidae": {
+                "encyrMalaise01": {
+                    "encyrMalaise01 Malaise7295": null,
+                    "encyrMalaise01 Malaise3972": null
+                },
+                "Ooencyrtus": null
+            },
+            "Dryinidae": {
+                "Gonatopus": null,
+                "Anteon": null
+            },
+            "Proctotrupidae": {
+                "Exallonyx": null
+            },
+            "Ceraphronidae": {
+                "Aphanogmus": null
+            },
+            "Eupelmidae": {
+                "Anastatus": null,
+                "Brasema": null,
+                "Arachnophaga": null,
+                "Eupelmus": null
+            },
+            "Torymidae": null,
+            "Chalcididae": null,
+            "Signiphoridae": null,
+            "Halictidae": {
+                "Lasioglossum": {
+                    "Lasioglossum umbripenne": null
+                }
+            },
+            "Pompilidae": null,
+            "Megaspilidae": {
+                "Conostigmus": null
+            },
+            "Eurytomidae": null,
+            "Crabronidae": {
+                "Oxybelus": null
+            },
+            "Pemphredonidae": {
+                "Diodontus": null
+            },
+            "Chrysididae": null,
+            "Evaniidae": null,
+            "Agaonidae": null,
+            "Sclerogibbidae": null,
+            "Pergidae": {
+                "Acordulecera": {
+                    "Acordulecera liami": null
+                },
+                "pergMalaise01": null
+            },
+            "Apidae": null,
+            "Mutillidae": null,
+            "Bembicidae": null,
+            "Azotidae": null,
+            "Vespidae": {
+                "Polybia": null
+            },
+            "Rhopalosomatidae": {
+                "Olixon": {
+                    "Olixon cf. testaceum": null
+                }
+            },
+            "Cynipidae": null,
+            "Tiphiidae": null,
+            "Perilampidae": {
+                "Perilampus": null
+            },
+            "Tenthredinidae": null
+        },
+        "Coleoptera": {
+            "Staphylinidae": {
+                "Heterothops": null,
+                "Atheta": {
+                    "Atheta brunswickensis": null
+                },
+                "Carpelimus": {
+                    "Carpelimus pusillus": null
+                },
+                "Pseudofalagonia": null,
+                "Phloeostiba": {
+                    "Phloeostiba lapponica": null
+                },
+                "Sepedophilus": null,
+                "Coproporus": null,
+                "Oxypoda": null,
+                "Paederomimus": null,
+                "Bledius": null,
+                "Palaminus": null,
+                "Stenus": null
+            },
+            "Chrysomelidae": {
+                "Phyllotreta": {
+                    "Phyllotreta striolata": null
+                },
+                "Chaetocnema": null,
+                "Monolepta": {
+                    "Monolepta jacksoni": null
+                }
+            },
+            "Curculionidae": {
+                "Xylosandrus": {
+                    "Xylosandrus crassiusculus": null,
+                    "Xylosandrus morigerus": null,
+                    "Xylosandrus germanus": null
+                },
+                "Euplatypus": {
+                    "Euplatypus hintzi": null
+                },
+                "Tesserocerus": {
+                    "Tesserocerus sp. PlNeo1": null,
+                    "Tesserocerus sp. PlNeo01": null
+                },
+                "Xyleborus": {
+                    "Xyleborus perforans": null,
+                    "Xyleborus ferrugineus": null
+                },
+                "Hypothenemus": null,
+                "Corthylus": null,
+                "Xyleborinus": null,
+                "Sampsonius": null
+            },
+            "Coccinellidae": {
+                "Scymnus": null,
+                "Diomus": null,
+                "Nephaspis": {
+                    "Nephaspis indus": null
+                },
+                "Coleomegilla": {
+                    "Coleomegilla maculata": null
+                },
+                "Azya": null
+            },
+            "Ptilodactylidae": null,
+            "Mordellidae": {
+                "Mordellistena": null
+            },
+            "Scirtidae": {
+                "Contacyphon": null
+            },
+            "Throscidae": {
+                "Trixagus": null
+            },
+            "Elateridae": {
+                "Aeolus": {
+                    "Aeolus pulchellus": null
+                },
+                "Glyphonyx": null
+            },
+            "Nitidulidae": {
+                "Carpophilus": {
+                    "Carpophilus hemipterus": null
+                },
+                "Epuraea": {
+                    "Epuraea ocularis": null
+                },
+                "Stelidota": {
+                    "Stelidota geminata": null
+                }
+            },
+            "Ptinidae": null,
+            "Aderidae": null,
+            "Lycidae": null,
+            "Scraptiidae": null,
+            "Carabidae": {
+                "Pentagonica": {
+                    "Pentagonica sp.": null
+                },
+                "Platynus": null,
+                "Bembidion": null
+            },
+            "Latridiidae": {
+                "Cortinicara": {
+                    "Cortinicara gibbosa": null
+                },
+                "Migneauxia": null,
+                "Corticarina": null
+            },
+            "Corylophidae": {
+                "Sericoderus": null
+            },
+            "Erotylidae": {
+                "Toramus": {
+                    "Toramus pulchellus": null
+                }
+            },
+            "Lampyridae": {
+                "Pyropyga": {
+                    "Pyropyga incognita": null
+                }
+            },
+            "Dytiscidae": {
+                "Hydroporus": null
+            },
+            "Hydrophilidae": null,
+            "Brentidae": null,
+            "Eucnemidae": null,
+            "Phalacridae": null,
+            "Cantharidae": null,
+            "Anthicidae": null,
+            "Phengodidae": null,
+            "Endomychidae": null,
+            "Cleridae": null,
+            "Scarabaeidae": {
+                "Uroxys": {
+                    "Uroxys deavilai": null
+                }
+            },
+            "Melyridae": null,
+            "Silvanidae": null,
+            "Ptiliidae": {
+                "Acrotrichis": null
+            },
+            "Mycetophagidae": null,
+            "Anthribidae": null,
+            "Dermestidae": null,
+            "Leiodidae": null,
+            "Tenebrionidae": null,
+            "Cerambycidae": null,
+            "Laemophloeidae": null,
+            "Biphyllidae": null,
+            "Mycteridae": null,
+            "Bostrichidae": null,
+            "Melandryidae": null,
+            "Anamorphidae": null,
+            "Cybocephalidae": null,
+            "Zopheridae": null,
+            "Limnichidae": null,
+            "Attelabidae": null,
+            "Heteroceridae": null,
+            "Oedemeridae": null,
+            "Elmidae": {
+                "Elmis": {
+                    "Elmis bosnica": null
+                }
+            },
+            "Monotomidae": null,
+            "Buprestidae": null,
+            "Cryptophagidae": null,
+            "Sphindidae": null,
+            "Histeridae": null,
+            "Omethidae": null,
+            "Noteridae": null,
+            "Ciidae": null
+        },
+        "Hemiptera": {
+            "Cicadellidae": {
+                "Xestocephalus": null,
+                "Balclutha": null,
+                "Empoasca": {
+                    "Empoasca fabae": null
+                },
+                "Agallia": null,
+                "Maiestas": {
+                    "Maiestas hopponis": null
+                },
+                "Polana": null,
+                "Osbornellus": null,
+                "Tylozygus": {
+                    "Tylozygus geometricus": null
+                },
+                "Graphocephala": null,
+                "Spangbergiella": null,
+                "Anzygina": null,
+                "Chlorotettix": {
+                    "Chlorotettix galbanatus": null
+                },
+                "Stephanolla": {
+                    "Stephanolla rufoapicata": null
+                },
+                "Psammotettix": null,
+                "Parallaxis": null,
+                "Protalebrella": null,
+                "Ribautiana": {
+                    "Ribautiana debilis": null
+                },
+                "Aconurella": {
+                    "Aconurella prolixa": null
+                },
+                "Sibovia": {
+                    "Sibovia nielsoni": null
+                },
+                "Gypona": null,
+                "Macrosteles": null,
+                "Ladoffa": null
+            },
+            "Aleyrodidae": {
+                "Trialeurodes": {
+                    "Trialeurodes vaporariorum": null
+                },
+                "Bemisia": {
+                    "Bemisia tabaci": null
+                },
+                "Aleurotrachelus": {
+                    "Aleurotrachelus socialis": null
+                }
+            },
+            "Rhyparochromidae": {
+                "Neopamera": {
+                    "Neopamera bilobata": null
+                }
+            },
+            "Aphididae": {
+                "Aphis": {
+                    "Aphis nerii": null
+                },
+                "Euceraphis": {
+                    "Euceraphis borealis": null,
+                    "Euceraphis papyrifericola": null
+                },
+                "Rhopalosiphum": {
+                    "Rhopalosiphum rufiabdominale": null,
+                    "Rhopalosiphum padi": null
+                },
+                "Macrosiphum": null,
+                "Cinara": null,
+                "Melanaphis": null,
+                "Eulachnus": null,
+                "Pentalonia": null,
+                "Aploneura": {
+                    "Aploneura lentisci": null
+                },
+                "Sitobion": {
+                    "Sitobion avenae": null
+                },
+                "Therioaphis": {
+                    "Therioaphis trifolii": null
+                },
+                "Tetraneura": {
+                    "Tetraneura nigriabdominalis": null
+                },
+                "Myzus": null,
+                "Chaitophorus": null,
+                "Acyrthosiphon": null,
+                "Schizaphis": null,
+                "Takecallis": null
+            },
+            "Issidae": null,
+            "Miridae": {
+                "Lygus": {
+                    "Lygus lineolaris": null
+                },
+                "Rhinacloa": {
+                    "Rhinacloa clavicornis": null
+                },
+                "Campylomma": null,
+                "Tytthus": null,
+                "Plagiognathus": null
+            },
+            "Cixiidae": null,
+            "Tropiduchidae": null,
+            "Ceratocombidae": null,
+            "Delphacidae": {
+                "Laodelphax": {
+                    "Laodelphax striatella": null
+                },
+                "Sogatella": null,
+                "Copicerus": null,
+                "Nilaparvata": null
+            },
+            "Flatidae": null,
+            "Derbidae": {
+                "Omolicna": null
+            },
+            "Schizopteridae": null,
+            "Anthocoridae": null,
+            "Lygaeidae": {
+                "Nysius": null
+            },
+            "Psyllidae": {
+                "Acizzia": {
+                    "Acizzia acaciaebaileyanae": null
+                }
+            },
+            "Acanaloniidae": null,
+            "Enicocephalidae": null,
+            "Fulgoridae": {
+                "Calyptoproctus": {
+                    "Calyptoproctus elegans": null
+                },
+                "Acraephia": {
+                    "Acraephia perspicillata": null
+                }
+            },
+            "Triozidae": {
+                "Heterotrioza": {
+                    "Heterotrioza chenopodii": null
+                }
+            },
+            "Nabidae": null,
+            "Membracidae": null,
+            "Tingidae": {
+                "Corythucha": null
+            },
+            "Cydnidae": null,
+            "Reduviidae": null,
+            "Achilidae": null,
+            "Kinnaridae": null,
+            "Pentatomidae": {
+                "Edessa": null
+            },
+            "Veliidae": null,
+            "Coreidae": null,
+            "Diaspididae": null,
+            "Psylloidea_incertae_sedis": null,
+            "Pseudococcidae": null,
+            "Coccoidea_incertae_sedis": null,
+            "Nogodinidae": {
+                "Biolleyana": null
+            },
+            "Oxycarenidae": {
+                "Oxycarenus": null
+            },
+            "Clastopteridae": null,
+            "Monophlebidae": null,
+            "Alydidae": null
+        },
+        "Lepidoptera": {
+            "Tineidae": {
+                "tinBioLep01": {
+                    "tinBioLep01 BioLep5822": null,
+                    "tinBioLep01 BioLep1595": null,
+                    "tinBioLep01 BioLep9704": null,
+                    "tinBioLep01 BioLep4618": null
+                },
+                "Acrolophus": {
+                    "Acrolophus BioLep451": null,
+                    "Acrolophus BioLep454": null
+                },
+                "tinBioLep1": {
+                    "tinBioLep1 BioLep0743": null,
+                    "tinBioLep1 BioLep8630": null
+                }
+            },
+            "Gelechiidae": {
+                "gelMalaise01": {
+                    "gelMalaise01 Malaise9194": null,
+                    "gelMalaise01 Malaise9195": null,
+                    "gelMalaise01 Malaise7126": null,
+                    "gelMalaise01 Malaise3950": null
+                },
+                "Aristotelia": {
+                    "Aristotelia Janzen1129": null,
+                    "Aristotelia BioLep1181": null,
+                    "Aristotelia BioLep531": null
+                },
+                "gelBioLep01": {
+                    "gelBioLep01 BioLep1838": null,
+                    "gelBioLep01 BioLep743": null
+                },
+                "Battaristis": {
+                    "Battaristis MalaiseMetz3348": null
+                },
+                "geleBioLep01": {
+                    "geleBioLep01 BioLep1000": null,
+                    "geleBioLep01 BioLep440": null,
+                    "geleBioLep01 BioLep1249": null
+                },
+                "Tuta": {
+                    "Tuta absoluta": null
+                },
+                "Dichomeris": {
+                    "Dichomeris santarosensis": null,
+                    "Dichomeris MalaiseMetz1419": null
+                },
+                "gelJanzen01": {
+                    "gelJanzen01 Janzen774": null,
+                    "gelJanzen01 Janzen210": null
+                },
+                "Sinoe": {
+                    "Sinoe BioLep2857": null
+                },
+                "gelBioLep1": {
+                    "gelBioLep1 BioLep743": null,
+                    "gelBioLep1 BioLep883": null
+                },
+                "Telphusa": {
+                    "Telphusa BioLep476": null
+                },
+                "geMalaise01": {
+                    "gelMalaise01 Malaise6859": null
+                },
+                "gelMalaise1": null,
+                "Keiferia": {
+                    "Keiferia Malaise8909": null
+                },
+                "Aproaerema": {
+                    "Aproaerema anthyllidella": null
+                },
+                "Friseria": {
+                    "Friseria Malaise4403": null
+                },
+                "Anacampsis": {
+                    "Anacampsis Malaise3063": null
+                },
+                "gelJanzen1": null,
+                "Chionodes": null,
+                "Bryotropha": {
+                    "Bryotropha similis": null
+                },
+                "Monochroa": null,
+                "Symmetrischema": null
+            },
+            "Cosmopterigidae": {
+                "Cosmopterix": {
+                    "Cosmopterix Malaise1744": null
+                },
+                "cosmoMalaise01": {
+                    "cosmoMalaise01 MalaiseMetz1051": null,
+                    "cosmoMalaise01 Malaise4459": null,
+                    "cosmoMalaise01 Malaise2859": null,
+                    "cosmoMalaise01 Malaise9410": null
+                },
+                "cosmoBioLep01": {
+                    "cosmoBioLep01 BioLep15": null
+                },
+                "Anatrachyntis": {
+                    "Anatrachyntis vanharteni": null
+                }
+            },
+            "Gracillariidae": {
+                "malaiseGraci01 Malaise4560": {
+                    "malaiseGraci01 Malaise6860": null,
+                    "malaiseGraci01 Malaise4525": null,
+                    "malaiseGraci01 Malaise2256": null
+                },
+                "malaiseGraci01": {
+                    "malaiseGraci01 Malaise379": null,
+                    "malaiseGraci01 Malaise5556": null
+                },
+                "Phyllocnistis": {
+                    "Phyllocnistis citrella": null
+                },
+                "Stomphastis": {
+                    "Stomphastis DodonaeaOman": null
+                },
+                "Phyllonorycter": null
+            },
+            "Crambidae": {
+                "Argyria": {
+                    "Argyria centrifugensDHJ02": null
+                },
+                "cramMalaise75": {
+                    "cramMalaise75 Malaise2864": null,
+                    "cramMalaise75 Malaise6435": null
+                },
+                "cramMalaise01": {
+                    "cramMalaise01 Malaise9409": null
+                },
+                "spiloMalaise2296": {
+                    "spiloMalaise2296 Malaise2296": null
+                },
+                "cramMalaise4941": {
+                    "cramMalaise4941 Malaise4941": null
+                },
+                "cramMalaise6138": {
+                    "cramMalaise6138 Malaise6138": null
+                },
+                "spiloBioLep01": null,
+                "Mimophobetron": {
+                    "Mimophobetron pyropsalis": null
+                },
+                "spiloBioLep57": {
+                    "spiloBioLepl57 BioLep4106": null
+                },
+                "Undulambia": {
+                    "Undulambia Janzen18": null
+                },
+                "spiloBioMalaise0275": {
+                    "spiloBioMalaise0275 Malaise0275": null
+                }
+            },
+            "Nepticulidae": {
+                "Stigmella": {
+                    "Stigmella pruinosa": null
+                }
+            },
+            "Psychidae": {
+                "psychJanzen11": {
+                    "psychJanzen11 Malaise7732": null
+                },
+                "psychJanzen20": {
+                    "psychJanzen20 Malaise4142": null
+                },
+                "psychJanzen02": {
+                    "psychJanzen02 Malaise3844": null
+                },
+                "psychJanzen10": {
+                    "psychJanzen10 Malaise9264": null
+                }
+            },
+            "Autostichidae": {
+                "Taygete": {
+                    "Taygete MalaiseMetz8205": null
+                },
+                "Glyphidocera": {
+                    "Glyphidocera BioLep192": null,
+                    "Glyphidocera fidem": null,
+                    "Glyphidocera advenae": null
+                }
+            },
+            "Pyralidae": {
+                "phyMalaise01": {
+                    "phyMalaise01 Malaise2939": null,
+                    "phyMalaise01 Malaise2168DHJ02": null
+                },
+                "chryBioLep01": {
+                    "chryBioLep01 BioLep1705": null
+                }
+            },
+            "Blastobasidae": {
+                "blastoBioLep01": {
+                    "blastoBioLep01 BioLep6553": null,
+                    "blastoBioLep01 BioLep1040": null
+                },
+                "Blastobasis": {
+                    "Blastobasis Metz9506": null
+                },
+                "Pigritia": null,
+                "Hypatopa": null,
+                "blastoMalaise01": {
+                    "blastoMalaise01 Malaise1400": null
+                }
+            },
+            "Depressariidae": {
+                "Antaeotricha": {
+                    "Antaeotricha Janzen31": null,
+                    "Antaeotricha Janzen223": null,
+                    "Antaeotricha Malaise8614": null
+                },
+                "elachBioLep01": {
+                    "elachBioLep01 BioLep490": null
+                },
+                "Stenoma": {
+                    "Stenoma BioLep30DHJ02": null
+                },
+                "elachJanzen01": null,
+                "elachMalaise7530": {
+                    "elachMalaise7530 Malaise7530": null
+                },
+                "Filinota": {
+                    "Filinota brunniceps": null
+                }
+            },
+            "Oecophoridae": {
+                "Idioglossa": {
+                    "Idioglossa Malaise5743": null
+                },
+                "oecoMalaise01": {
+                    "oecoMalaise01 Malaise4787": null
+                },
+                "Inga": null
+            },
+            "Tortricidae": {
+                "Bactra": {
+                    "Bactra verutanaDHJ02": null,
+                    "Bactra venosana": null
+                },
+                "tortBioLep01": null,
+                "Clepsis": null,
+                "Epinotia": null,
+                "Coelostathma": null
+            },
+            "Elachistidae": {
+                "Elachista": {
+                    "Elachista exactella": null,
+                    "Elachista apicipunctella": null
+                }
+            },
+            "Geometridae": {
+                "Eois": {
+                    "Eois Malaise6693": null
+                },
+                "geoMalaise01": {
+                    "geoMalaise01 Malaise9385": null
+                },
+                "Lobocleta": {
+                    "Lobocleta Malaise1665": null
+                },
+                "Idaea": null,
+                "Macaria": null,
+                "Obila": null,
+                "Psaliodes": null
+            },
+            "Erebidae": {
+                "Renodes": {
+                    "Renodes BioLep858": null
+                },
+                "Melipotis": {
+                    "Melipotis januaris": null
+                },
+                "Rivula": {
+                    "Rivula pusilla": null
+                },
+                "Salia": {
+                    "Salia BioLep752": null
+                }
+            },
+            "Plutellidae": {
+                "Plutella": {
+                    "Plutella xylostella": null
+                }
+            },
+            "Noctuidae": {
+                "Euscirrhopterus": {
+                    "Euscirrhopterus argentata": null
+                },
+                "Spodoptera": {
+                    "Spodoptera frugiperdaDHJ01": null
+                },
+                "Orthosia": {
+                    "Orthosia gothica": null
+                }
+            },
+            "Glyphipterigidae": {
+                "Glyphipterix": {
+                    "Glyphipterix simpliciella": null
+                }
+            },
+            "Bucculatricidae": {
+                "Bucculatrix": null
+            },
+            "Momphidae": null,
+            "Heliozelidae": null,
+            "Dryadaulidae": {
+                "Dryadaula": null
+            },
+            "Argyresthiidae": {
+                "Argyresthia": null
+            },
+            "Coleophoridae": {
+                "Coleophora": null,
+                "coleBioLep01": {
+                    "coleBioLep01 BioLep14": null
+                }
+            },
+            "Opostegidae": null,
+            "Yponomeutidae": null,
+            "Pterolonchidae": null,
+            "Batrachedridae": null,
+            "Pieridae": {
+                "Phoebis": {
+                    "Phoebis Malaise2599": null
+                }
+            },
+            "Immidae": {
+                "immidJanzen01": {
+                    "immidJanzen01 Janzen15": null
+                }
+            },
+            "Pterophoridae": null,
+            "Copromorphidae": null,
+            "Tischeriidae": null,
+            "Lecithoceridae": null,
+            "Heliodinidae": null,
+            "Lyonetiidae": null,
+            "Limacodidae": {
+                "Vipsophobetron": null
+            },
+            "Uraniidae": null,
+            "Schreckensteiniidae": null,
+            "Stathmopodidae": null
+        },
+        "Psocodea": {
+            "Lepidopsocidae": {
+                "Lepidopsocus": {
+                    "Lepidopsocus unicolor": null
+                }
+            },
+            "Caeciliusidae": {
+                "Caecilius": null,
+                "Valenzuela": null
+            },
+            "Ectopsocidae": {
+                "Ectopsocus": {
+                    "Ectopsocus fullawayi": null,
+                    "Ectopsocus meridionalis": null
+                }
+            },
+            "Lachesillidae": {
+                "Lachesilla": {
+                    "Lachesilla pedicularia": null
+                }
+            },
+            "Liposcelididae": {
+                "Liposcelis": null
+            },
+            "Amphipsocidae": null,
+            "Pseudocaeciliidae": {
+                "Pseudocaecilius": {
+                    "Pseudocaecilius citricola": null
+                }
+            },
+            "Archipsocidae": null,
+            "Peripsocidae": {
+                "Peripsocus": null
+            },
+            "Psoquillidae": null,
+            "Philotarsidae": null,
+            "Psocidae": null,
+            "Amphientomidae": null,
+            "Stenopsocidae": null,
+            "Epipsocidae": null,
+            "Cladiopsocidae": null
+        },
+        "Thysanoptera": {
+            "Phlaeothripidae": {
+                "Stephanothrips": null,
+                "Plicothrips": {
+                    "Plicothrips apicalis": null
+                },
+                "Haplothrips": null,
+                "Pseudophilothrips": null,
+                "Liothrips": {
+                    "Liothrips perseae": null
+                }
+            },
+            "Thripidae": {
+                "Frankliniella": {
+                    "Frankliniella occidentalis": null
+                },
+                "Thrips": {
+                    "Thrips vulgatissimus": null,
+                    "Thrips flavidulus": null
+                },
+                "Scirtothrips": null,
+                "Caliothrips": null,
+                "Taeniothrips": {
+                    "Taeniothrips orionis": null
+                }
+            },
+            "Aeolothripidae": {
+                "Franklinothrips": null,
+                "Aeolothrips": null
+            }
+        },
+        "Trichoptera": {
+            "Hydroptilidae": {
+                "Oxyethira": null
+            },
+            "Xiphocentronidae": {
+                "Xiphocentron": null,
+                "Cnodocentron": null
+            },
+            "Philopotamidae": null,
+            "Hydropsychidae": {
+                "Smicridea": null
+            },
+            "Helicopsychidae": {
+                "Helicopsyche": {
+                    "Helicopsyche vergelana": null
+                }
+            },
+            "Leptoceridae": null,
+            "Lepidostomatidae": {
+                "Lepidostoma": null
+            },
+            "Glossosomatidae": null
+        },
+        "Orthoptera": {
+            "Trigonidiidae": {
+                "Anaxipha": null
+            },
+            "Gryllidae": null,
+            "Mogoplistidae": null,
+            "Tettigoniidae": null
+        }
+    },
+    "levels": [
+        "order",
+        "family",
+        "genus",
+        "species"
+    ]
+}
