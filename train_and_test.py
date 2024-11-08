@@ -629,7 +629,7 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
                 global_ce=global_ce,
                 parallel_mode=parallel_mode,
             )
-            print(is_train, probabalistic_correct_count, probabilistic_total_count, total_probabilistic_total_count)
+            # print(is_train, probabalistic_correct_count, probabilistic_total_count, total_probabilistic_total_count)
 
             if global_ce:
                 cross_entropy = global_cross_entropy

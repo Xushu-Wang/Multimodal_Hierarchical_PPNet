@@ -9,19 +9,14 @@ import json
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--source", type=str, help="Source file for the class tree. Should be a tsv file. ", default="../datasets/source_files/metadata_cleaned_permissive.tsv")
 argparser.add_argument("--min-samples", type=int, help="Minimum number of samples to include in the tree", default=3)
-argparser.add_argument("--min-leaves", type=int, help="Minimum number of leaves for a classification task", default=2)
+argparser.add_argument("--min-leaves", type=int, help="Minimum number of leaves for a classification task", default=1)
 argparser.add_argument("--default-count", type=int, help="Default count to avoid answering a bunch of questions manually. -1 indicates manual selection. 0 indicates choose all options. ", default=0)
-argparser.add_argument("--take-max", action="store_true", help="Take the maximum number of samples for each level")
+argparser.add_argument("--only-species-leaves", action="store_true", help="Only allow species nodes to be leaves")
 
 args = argparser.parse_args()
 
 if(args.min_samples < 3):
-    print("Minimum number of samples must be at least 3")
-    exit()
-
-if(args.min_leaves < 2):
-    print("Minimum number of leaves must be at least 2")
-    exit()
+    print("Minimum number of samples should be at least 3")
 
 print("Opening source file... This may take a minute. ")
 
@@ -31,7 +26,7 @@ print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0, take_max=False) -> Optional[Dict]: 
+def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0, only_species_leaves=False) -> Optional[Dict]: 
     """Recursively generate a tree json file from the dataframe. 
     Args: 
         levels: The list of levels in the tree, e.g. order, family, genus, species. 
@@ -69,7 +64,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
     
     while True:
         if default_count == -1: 
-            count = option_count if take_max else input(f"How many of the largest {general_level} {par_string} would you like to include? (max {option_count}) ")
+            count = input(f"How many of the largest {general_level} {par_string} would you like to include? (max {option_count}) ")
             try:
                 count = int(count)
             except ValueError:
@@ -89,13 +84,16 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
     for o in options:
         if o == "not_classified":
-            tree[o] = None
+            if not only_species_leaves or general_level == "species":
+                tree[o] = None
             continue
-        tree[o] = question_level(levels[1:], data[data[general_level] == o], o, min_samples, take_max=take_max)
+        children = question_level(levels[1:], data[data[general_level] == o], o, min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
+        if children or not only_species_leaves or general_level == "species":
+            tree[o] = children
 
     return tree
 
-tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count, take_max=args.take_max)
+tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count, only_species_leaves=args.only_species_leaves)
 
 while True:
     outpath = input("Output path: ")
