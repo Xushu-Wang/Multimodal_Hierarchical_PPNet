@@ -163,5 +163,7 @@ def construct_tree_ppnet(cfg, log=print):
         if cfg.MODEL.MULTI.MULTI_PPNET_PATH != "NA":
             if cfg.DATASET.GENETIC.PPNET_PATH != "NA" or cfg.DATASET.IMAGE.PPNET_PATH != "NA":
                 log("Warning: Loading MultiModalNetwork, other pretrained networks are ignored...")
-            multi.load_state_dict(torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH))
+            # multi.load_state_dict(torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH))
+            # Load from file, not from state_dict
+            multi = torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH)
         return multi

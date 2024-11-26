@@ -1,0 +1,59 @@
+RUN_NAME: "genetic_species"
+
+MODEL:
+    # GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
+    GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
+    PRUNE: false
+    PRUNING_TYPE: "weights"
+    PRUNING_K: 8
+    PRUNING_TAU: 8
+
+DATASET:
+    # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/example.json"
+    # TREE_SPECIFICATION_FILE: "class_trees/larger.json"
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
+
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
+    MODE: 1
+    TRAIN_VAL_TEST_SPLIT: [60, 30, 30] # Number of unaugmented samples per leaf in train, val, and test splits.
+    OVERSAMPLING_RATE: 8 # How much augmenation we do. Must be 1 or a multiple of 4.
+
+    TRAIN_BATCH_SIZE: 40
+
+    # Uncomment these once datasets have already been generated and you want to reuse them
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
+    
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
+    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
+    AUGMENTED_IMAGE_PATH: "../datasets/augmented_images/" # Path to which augmented images will be saved
+
+    GENETIC:
+        PROTOTYPE_SHAPE: (64, 1, 1)
+        NUM_PROTOTYPES_PER_CLASS: 40
+        MAX_NUM_PROTOTYPES_PER_CLASS: 8
+OPTIM:
+    NUM_TRAIN_EPOCHS: 31
+    PUSH_START: 5
+    PUSH_EPOCHS: [5,10,15,20]
+    PRUNE_START: 5
+    NUM_WARM_EPOCHS: 0
+    GLOBAL_CROSSENTROPY: False
+    # JOINT_OPTIMIZER_LAYERS:
+    #     ADD_ON_LAYERS: 1e-3
+    #     PROTOTYPE_VECTORS: 1e-3
+    # WARM_OPTIMIZER_LAYERS:
+    #     ADD_ON_LAYERS: 1e-3
+    #     PROTOTYPE_VECTORS: 1e-3
+    COEFS:
+        SEP: -0.1
+    JOINT: False
+
+OUTPUT:
+    WEIGHT_MATRIX_FILENAME: "outputL_weights"
+    PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
+    PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
+    PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"

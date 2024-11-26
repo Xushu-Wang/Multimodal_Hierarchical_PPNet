@@ -20,12 +20,11 @@ def CE(logits,target):
      return torch.sum(torch.sum(- target * torch.log(probs))) 
 
 def get_cluster_and_sep_cost(min_distances, target, num_classes):
-    target_one_hot = torch.zeros(target.size(0), num_classes).cuda()
+    target_one_hot = torch.zeros(target.size(0), num_classes).to("cuda")
     make_one_hot(target - 1, target_one_hot)
     num_prototypes_per_class = min_distances.size(1) // num_classes
     one_hot_repeat = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
                         view(target_one_hot.size(0),-1)
-    
     cluster_cost = torch.mean(torch.min(min_distances * one_hot_repeat, dim=1)[0])
 
     flipped_one_hot_repeat = 1 - one_hot_repeat
@@ -37,7 +36,7 @@ def get_cluster_and_sep_cost(min_distances, target, num_classes):
 
 def get_l1_cost(node):
     l1_mask = (
-        1 - torch.t(node.prototype_class_identity).cuda()
+        1 - torch.t(node.prototype_class_identity).to("cuda")
     )
     l1 = torch.linalg.vector_norm(
         node.last_layer.weight * l1_mask, ord=1
@@ -47,7 +46,7 @@ def get_l1_cost(node):
 
 def get_multi_last_layer_l1_cost(node):
     l1_mask = (
-        1- torch.t(node.logit_class_identity).cuda()
+        1- torch.t(node.logit_class_identity).to("cuda")
     )
     l1 = torch.linalg.vector_norm(
         node.multi_last_layer.weight * l1_mask, ord=1
@@ -94,6 +93,7 @@ def get_conditional_prob_accuracies(
 
     If global_ce is true, the cross entropy is calculated using the conditional probabilities of each class.
     """
+    
     recursive_put_accuracy_probs(
         conv_features,
         model.root,
@@ -102,6 +102,7 @@ def get_conditional_prob_accuracies(
         parallel_mode,
         scale = (1,1) if parallel_mode else 1
     )
+    
 
     cpu_target = target.cpu()
 
@@ -285,6 +286,8 @@ def recursive_put_accuracy_probs(
         node.accu_probs = torch.nn.functional.softmax(node(conv_features)[0], dim=1) * scale
         scale = node.accu_probs[:, -1].unsqueeze(1)
 
+
+
     for c_node in node.child_nodes:
         i = c_node.int_location[-1] - 1
         recursive_put_accuracy_probs(
@@ -460,8 +463,10 @@ def recursive_get_loss(
         cross_entropy = 0
     else:
         cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
+
     cluster_cost, separation_cost = get_cluster_and_sep_cost(
-        min_distances[mask], target[mask][:, level], logits.size(1))
+        min_distances[mask], target[mask][:, level], logits.size(1)
+    )
 
     l1_cost = get_l1_cost(node)
 
@@ -476,11 +481,10 @@ def recursive_get_loss(
         class_correct = correct[class_mask]
         accuracy_tree["children"][i]["correct"] += class_correct.sum()
         accuracy_tree["children"][i]["total"] += class_mask.sum()
-        
+    
     for c_node in node.child_nodes:
         i = c_node.int_location[-1] - 1
 
-        c_logits, c_min_distances = c_node(conv_features)
         applicable_mask = target[:,level] - 1 == i
         
         if applicable_mask.sum() == 0:
@@ -529,12 +533,25 @@ def construct_accuracy_tree(root):
             construct_accuract_tree_rec(child) for child in root.all_child_nodes
         ]}
 
-def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, coefs = None, class_specific=False, log=print, warm_up = False, CEDA = False, batch_mult = 1, class_acc = False):
+def _train_or_test(
+        model,
+        dataloader,
+        global_ce,
+        parallel_mode,
+        optimizer=None,
+        coefs = None,
+        class_specific=False,
+        log=print,
+        warm_up = False,
+        CEDA = False,
+        batch_mult = 1,
+        class_acc = False):
     '''
     model: the multi-gpu model
     dataloader:
     optimizer: if None, will be test evaluation
     '''
+    
     is_train = optimizer is not None
     
     if not is_train: 
@@ -554,6 +571,8 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
     else:
         accuracy_tree = construct_accuracy_tree(model.module.root)
 
+    
+
     total_cross_entropy = 0
     total_cluster_cost = 0
     total_separation_cost = 0
@@ -563,15 +582,15 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
     
     for i, ((genetics, image), label) in enumerate(dataloader):
         if model.module.mode == 1:
-            input = genetics.cuda()
+            input = genetics.to("cuda")
         elif model.module.mode == 2:
-            input = image.cuda()
+            input = image.to("cuda")
         else:
-            input = (genetics.cuda(), image.cuda())
+            input = (genetics.to("cuda"), image.to("cuda"))
             # raise NotImplementedError("Multimodal not implemented")
-        
+
         target = label.type(torch.LongTensor)
-        target = target.cuda()
+        target = target.to("cuda")
 
         batch_size = len(target)
         batch_start = time.time()   
@@ -594,13 +613,14 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
 
         with grad_req:
             conv_features = model.module.conv_features(input)
+            
             if model.module.mode == 3:
                 # Freeze last layer multi
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count = recursive_get_loss_multi( 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
-                    prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
+                    prev_mask=torch.ones(batch_size, dtype=bool).to("cuda"),
                     level=0,
                     global_ce=global_ce,
                     correct_arr=correct_arr,
@@ -614,7 +634,7 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
-                    prev_mask=torch.ones(batch_size, dtype=bool).cuda(),
+                    prev_mask=torch.ones(batch_size, dtype=bool).to("cuda"),
                     level=0,
                     global_ce=global_ce,
                     correct_arr=correct_arr,
@@ -686,7 +706,7 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
             loss.backward()
             
             # if CEDA:
-            #     noise = torch.stack([normalize(torch.rand((3,32,32)), mean, std) for n in range(batch_size)]).cuda()
+            #     noise = torch.stack([normalize(torch.rand((3,32,32)), mean, std) for n in range(batch_size)]).to("cuda")
             #     _ = model(noise) 
             #     for node in model.module.root.nodes_with_children():
             #         noise_cross_ent += 1 * CE(node.logits,node.unif) # 1/10
@@ -750,15 +770,24 @@ def _train_or_test(model, dataloader, global_ce, parallel_mode, optimizer=None, 
 def train(model, dataloader, optimizer, coefs, parallel_mode, global_ce=True, class_specific=False, log=print, warm_up = False):
     assert(optimizer is not None)
     log('train')
-    return _train_or_test(model=model, dataloader=dataloader, parallel_mode=parallel_mode, global_ce=global_ce, optimizer=optimizer, coefs=coefs,
-                          class_specific=class_specific, log=log, warm_up = warm_up, CEDA=coefs['CEDA'])
+    return _train_or_test(
+        model=model,
+        dataloader=dataloader,
+        parallel_mode=parallel_mode,
+        global_ce=global_ce,
+        optimizer=optimizer,
+        coefs=coefs,
+        class_specific=class_specific,
+        log=log,
+        warm_up = warm_up,
+        CEDA=coefs['CEDA'])
 
-def valid(model, dataloader, coefs = None, parallel_mode=True, class_specific=False, log=print):
+def valid(model, dataloader, coefs = None, parallel_mode=False, class_specific=False, log=print):
     log('valid')
     return _train_or_test(model=model, dataloader=dataloader, parallel_mode=parallel_mode, optimizer=None, coefs=coefs,
                           class_specific=class_specific, log=log)
 
-def test(model, dataloader, coefs = None, parallel_mode=True, global_ce=True, class_specific=False, log=print, class_acc = False):
+def test(model, dataloader, coefs = None, parallel_mode=False, global_ce=True, class_specific=False, log=print, class_acc = False):
     #log('test')
     return _train_or_test(model=model, dataloader=dataloader, parallel_mode=parallel_mode, global_ce=global_ce, optimizer=None, coefs = coefs,
                       class_specific=class_specific, log=log, class_acc=class_acc)
@@ -766,7 +795,7 @@ def test(model, dataloader, coefs = None, parallel_mode=True, global_ce=True, cl
 def make_one_hot(target, target_one_hot):
     target_copy = torch.LongTensor(len(target))
     target_copy.copy_(target)
-    target_copy = target_copy.view(-1,1).cuda()
+    target_copy = target_copy.view(-1,1).to("cuda")
     target_one_hot.zero_()
     target_one_hot.scatter_(dim=1, index=target_copy, value=1.)
 
@@ -777,9 +806,9 @@ def auxiliary_costs(label,num_prototypes_per_class,num_classes,prototype_shape,m
     
     max_dist = prototype_shape[1] * prototype_shape[2] * prototype_shape[3]
 
-    target = label.cuda()
+    target = label.to("cuda")
     target_one_hot = torch.zeros(target.size(0), num_classes)
-    target_one_hot = target_one_hot.cuda()                
+    target_one_hot = target_one_hot.to("cuda")                
     make_one_hot(target, target_one_hot)
     one_hot_repeat = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
                         view(target_one_hot.size(0),-1)

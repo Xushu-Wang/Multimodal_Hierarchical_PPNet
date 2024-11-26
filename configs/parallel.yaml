@@ -1,11 +1,12 @@
-RUN_NAME: "parallel_10.0"
+RUN_NAME: "parallel_new_backbone_10epoch_init"
 
 MODEL:
     PRUNE: false
+    GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
     MODE: 3
     PARALLEL_MODE: True
@@ -21,7 +22,7 @@ DATASET:
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_.01_no_oversample"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_1.0_10_oversample"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/parallel"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
 
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -34,15 +35,15 @@ DATASET:
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
         # PPNET_PATH: "../output/image_only/150_5_ImageFullTest/0_push0.8015.pth"
-        PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
-        # PPNET_PATH: "../output/image_only/larger_run/2_push0.9328.pth"
+        # PPNET_PATH: "../output/image_only/image_species_120_80train_003/images/15_push_weights.pth"
+        PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth"
 
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
-        NUM_PROTOTYPES_PER_CLASS: 8
+        NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_None/1_push0.9701.pth"
         # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_Quality/1_push0.9705.pth"
-        PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_None_001/15_push0.9752.pth"
+        # PPNET_PATH: "../output/genetic_only/genetic_species_006/images/20_push_weights.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality/2_push0.9762.pth"
 
@@ -56,7 +57,8 @@ DATASET:
         # Weights
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
 
-        # PPNET_PATH: "../output/genetic_only/larger_run/9_push0.9583.pth"
+        PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
+
 OPTIM:
     NUM_TRAIN_EPOCHS: 50
     PUSH_START: 5

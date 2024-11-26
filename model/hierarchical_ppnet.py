@@ -226,6 +226,11 @@ class TreeNode(nn.Module):
             child.cuda()
         return super().cuda()
 
+    def to(self, device):
+        for child in self.child_nodes:
+            child.to(device)
+        return super().to(device)
+
     def push_forward(self, conv_features):
         """
         This one is not recursive, because I realized doing it recursive was a bad idea.
@@ -292,6 +297,11 @@ class Hierarchical_PPNet(nn.Module):
     def cuda(self):
         self.root.cuda()
         return super().cuda()
+
+    def to(self, device):
+        self.root.to(device)
+        self.features = self.features.to(device)
+        return super().to(device)
 
 
     def get_nodes_with_children(self):

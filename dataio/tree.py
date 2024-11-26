@@ -15,6 +15,7 @@ from torchvision.transforms import v2, ToTensor, transforms
 import tqdm
 import json
 from torchvision.transforms.functional import center_crop
+from torchvision.utils import save_image
 
 from prototype.push import get_train_dir_size
 
@@ -119,7 +120,7 @@ class TreeDataset(Dataset):
     mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
-    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3):
+    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3, flat_class=False):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -130,6 +131,12 @@ class TreeDataset(Dataset):
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
         self.image_transforms = image_transforms
         self.genetic_transforms = genetic_transforms
+
+        # If flat_class is true, the label will be an integer, with each species having a unique integer.
+        self.flat_class = flat_class
+
+        if flat_class:
+            self.leaf_indicies, self.class_count = self.generate_leaf_indicies(self.tree, {"val": 0}) 
 
     def generate_tree_indicies(self, tree:dict, idx=0):
         """
@@ -152,6 +159,17 @@ class TreeDataset(Dataset):
             idx += 1
 
         return tree
+    
+    def generate_leaf_indicies(self, tree, idx):
+        tree = {k: v for k,v in tree.items()}
+        for k, v in tree.items():
+            if v == None:
+                tree[k] = {"idx": idx["val"]}
+                idx["val"] += 1
+            else:
+                tree[k] = self.generate_leaf_indicies(v, idx)[0]
+        
+        return tree, idx["val"]
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
@@ -181,21 +199,33 @@ class TreeDataset(Dataset):
 
         0 represents not_classified (or ignored, like in cases with only one class)
         """
-        tensor = torch.zeros(len(self.levels))
-        tree = self.indexed_tree
+        if self.flat_class:
+            tree = self.leaf_indicies
 
-        for i, level in enumerate(self.levels):
-            if row[level] == "not_classified" or row[level] not in tree:
-                tensor[i:] = 0
-                break
-            else:
-                tensor[i] = tree[row[level]]["idx"] + 1
+            for i, level in enumerate(self.levels):
+                if row[level] == "not_classified" or row[level] not in tree:
+                    raise ValueError("Somehow you got not classified's up in here. That's not supported in this mode.")
+                
+                if i == len(self.levels)-1:
+                    return torch.tensor(tree[row[level]]["idx"]).long()
+                
                 tree = tree[row[level]]
-        
-        # Convert float tensor to int tensor
-        tensor = tensor.long()
+        else:
+            tensor = torch.zeros(len(self.levels))
+            tree = self.indexed_tree
 
-        return tensor
+            for i, level in enumerate(self.levels):
+                if row[level] == "not_classified" or row[level] not in tree:
+                    tensor[i:] = 0
+                    break
+                else:
+                    tensor[i] = tree[row[level]]["idx"] + 1
+                    tree = tree[row[level]]
+            
+            # Convert float tensor to int tensor
+            tensor = tensor.long()
+
+            return tensor
 
     def __len__(self):
         return len(self.df)
@@ -644,6 +674,7 @@ def create_tree_dataloaders(
         transform_std:tuple,
         mode:int,
         seed=2024,
+        flat_class=False,
         log=print
 ):
     """
@@ -755,7 +786,8 @@ def create_tree_dataloaders(
         class_specification=class_specification,
         image_transforms=augmented_img_transforms,
         genetic_transforms=augmented_genetic_transforms,
-        mode=mode
+        mode=mode,
+        flat_class=flat_class
     )
     train_push_dataset = TreeDataset(
         source_df=train_push_df,
@@ -763,7 +795,8 @@ def create_tree_dataloaders(
         class_specification=class_specification,
         image_transforms=push_img_transforms,
         genetic_transforms=None,
-        mode=mode
+        mode=mode,
+        flat_class=flat_class
     )
 
     val_dataset = TreeDataset(
@@ -772,7 +805,8 @@ def create_tree_dataloaders(
         class_specification,
         img_transforms,
         None,
-        mode
+        mode,
+        flat_class=flat_class
     )
     test_dataset = TreeDataset(
         test_df,
@@ -780,30 +814,29 @@ def create_tree_dataloaders(
         class_specification,
         img_transforms,
         None,
-        mode
+        mode,
+        flat_class=flat_class
     )
 
     train_loader = DataLoader(
             train_dataset, batch_size=train_batch_size, shuffle=True,
-            num_workers=2, pin_memory=False, collate_fn=collate_fn,
-            
+            num_workers=1, pin_memory=False, collate_fn=collate_fn,       
     )
-    
     train_push_loader = DataLoader(
             train_push_dataset, batch_size=train_push_batch_size, shuffle=True,
-            num_workers=2, pin_memory=False, collate_fn=collate_fn)
+            num_workers=1, pin_memory=False, collate_fn=collate_fn)
     
     val_loader = DataLoader(
             val_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=2, pin_memory=False, collate_fn=collate_fn)
+            num_workers=1, pin_memory=False, collate_fn=collate_fn)
     
     test_loader = DataLoader(
             test_dataset, batch_size=test_batch_size, shuffle=False,
-            num_workers=2, pin_memory=False, collate_fn=collate_fn)  
+            num_workers=1, pin_memory=False, collate_fn=collate_fn)  
 
     return train_loader, train_push_loader, val_loader, test_loader, normalize
 
-def get_dataloaders(cfg, log):
+def get_dataloaders(cfg, log, flat_class=False):
     log("Getting Dataloaders")
 
     return create_tree_dataloaders(
@@ -825,7 +858,8 @@ def get_dataloaders(cfg, log):
         transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
         mode=cfg.DATASET.MODE,
         seed=cfg.SEED,
-        log=log
+        log=log,
+        flat_class=flat_class
     )
 
 def remove_images_for_which_there_exists_no_file_in_the_directory(dfs, image_root_dir, log=print):

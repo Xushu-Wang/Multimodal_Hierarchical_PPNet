@@ -38,7 +38,7 @@ def main():
     try:
         train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log)
         
-        tree_ppnet = construct_tree_ppnet(cfg).cuda()
+        tree_ppnet = construct_tree_ppnet(cfg).to("cuda")
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
         # TODO - Handle multi models
@@ -66,8 +66,6 @@ def main():
             log('epoch: \t{0}'.format(epoch))
             
             # Warm up and Training Epochs
-            print("WALAA")
-
             if not args.validate:
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
                     tnt.warm_only(model=tree_ppnet_multi, log=log)
@@ -111,7 +109,7 @@ def main():
                 parallel_mode=cfg.DATASET.PARALLEL_MODE,
             )
             save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=prob_accu,
-                                        target_accu=0.70, log=log)
+                                        target_accu=0, log=log)
 
             if args.validate:
                 break
@@ -131,9 +129,10 @@ def main():
                     no_save=cfg.OUTPUT.NO_SAVE
                 )
                 prob_accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                class_specific=class_specific, log=log, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,)
+                                class_specific=class_specific, log=log,
+                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
-                                            target_accu=0.70, log=log, accu=prob_accu)
+                                            target_accu=0, log=log, accu=prob_accu)
 
                 # Optimize last layer
                 if cfg.MODEL.PRUNE and epoch >= cfg.OPTIM.PRUNE_START:
@@ -171,8 +170,7 @@ def main():
                     )
 
                 # Optimize last layer again
-                # for i in range(20):
-                for i in range(5):
+                for i in range(20):
                     log('iteration: \t{0}'.format(i))
                     _ = tnt.train(
                         model=tree_ppnet_multi,
@@ -192,7 +190,7 @@ def main():
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         log=log
                     )
-                    save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0.70, log=log)
+                    save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
                     if tree_ppnet.mode == 3 and not cfg.DATASET.PARALLEL_MODE:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
                         _ = tnt.train(
@@ -213,7 +211,7 @@ def main():
                             parallel_mode=cfg.DATASET.PARALLEL_MODE,
                             log=log
                         )
-                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0.70, log=log)
+                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer
