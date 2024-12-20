@@ -1,13 +1,14 @@
-from configs.cfg import get_cfg_defaults
-from utils.util import handle_run_name_weirdness
+from enum import Enum
 
-from dataio.tree import get_dataloaders
-from model.model import construct_tree_ppnet
-from utils.util import create_logger
-import os, json
-import pandas as pd
+class Mode(Enum): 
+    GENETIC = 1
+    IMAGE = 2 
+    MULTIMODAL = 3 
 
-cfg = get_cfg_defaults()
-cfg.merge_from_file("configs/image.yaml") 
-train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, print)
+x = Mode.GENETIC 
+print(x) 
+print(type(x))
+y = Mode(1) 
+
+print(y)
 

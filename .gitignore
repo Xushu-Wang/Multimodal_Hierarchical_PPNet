@@ -19,3 +19,5 @@ pre_existing_datasets/*
 # !pre_existing_datasets/larger_run
 temp/
 backbones/
+*/._* 
+._*

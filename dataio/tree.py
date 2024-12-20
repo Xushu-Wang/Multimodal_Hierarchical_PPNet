@@ -1,7 +1,6 @@
-import os, shutil, time, json, tqdm
-from typing import Any, Union, Optional, Dict, Text, Tuple, List
+import os, time, json
+from typing import Optional, Dict, Text, Tuple, List
 import Augmentor
-from pprint import pprint
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
@@ -9,10 +8,6 @@ import torch.nn.functional as F
 import numpy as np
 from skimage import io
 from torchvision.transforms import v2, ToTensor, transforms
-import tqdm
-import json
-from torchvision.transforms.functional import center_crop
-from torchvision.utils import save_image
 
 class GeneticOneHot:
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
@@ -69,7 +64,7 @@ class TreeDataset(Dataset):
     mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
-    def __init__(self, source_df:str, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3, flat_class=False):
+    def __init__(self, source_df:pd.DataFrame, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3, flat_class=False):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -216,132 +211,6 @@ def proportional_assign(total_count, count_per_leaf):
 
     return temp_count_per_leaf.astype(int)
 
-def extract_id(path: str):
-    return ""
-
-def augment_oversample(
-    source_df: pd.DataFrame, 
-    image_path: Text, 
-    augmented_image_path:Text, 
-    oversampling_rate: int, 
-    pre_existing: bool = False, 
-    seed:int = 2024, 
-    log=print
-):
-    if not pre_existing:
-        if oversampling_rate % 4 != 0:
-            raise ValueError("Oversampling rate must be a multiple of 4.")
-        
-        # Create a temporary folder
-        temp_image_path = os.path.join(augmented_image_path, "temp")
-        if not os.path.exists(temp_image_path):
-            os.makedirs(temp_image_path)
-
-        if not os.path.exists(augmented_image_path):
-            os.makedirs()
-
-        # Copy each image in source_df["image_path"] to temp_image_path
-        for idx, row in source_df.iterrows():
-            image_path = os.path.join(image_path, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
-            temp_image_path = os.path.join(temp_image_path, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
-            shutil.copy(image_path, temp_image_path)
-
-        # Get the indicies of all duplicated IDs in source_df
-        duplicated_ids = source_df[source_df.duplicated(subset="image_file")]
-        accessed_duplicated_ids = set()
-
-        # Loop over duplicated ids, change their ids to be unique and duplicate the images
-        for idx, row in duplicated_ids.iterrows():
-            old_id = row["sample_id"]
-            if old_id in accessed_duplicated_ids:
-                accessed_duplicated_ids.add(old_id)
-                continue
-
-            new_id = f"{old_id}_{idx}"
-            # Update the source_df with the new id
-            source_df.loc[source_df["sample_id"] == old_id, "sample_id"] = new_id
-
-            new_image_file = f"{new_id}.jpg"
-
-            # Copy the image to the new id
-            image_path = os.path.join(image_path, row["image_file"])
-            new_image_path = os.path.join(temp_image_path, new_image_file)
-            shutil.copy(image_path, new_image_path)
-            log(f"[Duplicate] Copied {image_path} to {new_image_path}")
-
-            # Update the source_df with the new image file
-            source_df.loc[source_df["sample_id"] == new_id, "image_file"] = new_image_file
-
-        log("Duplicated IDs handled")
-
-        # rotation
-        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-        p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
-        p.flip_left_right(probability=0.5)
-        for i in tqdm(range(oversampling_rate // 4)):
-            p.process()
-        del p
-
-        log("Rotation done")
-
-        # skew
-        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-        p.skew(probability=1, magnitude=0.2)  # max 45 degrees
-        p.flip_left_right(probability=0.5)
-        for i in tqdm(range(oversampling_rate // 4)):
-            p.process()
-        del p
-
-        log("Skew done")
-
-        # shear
-        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-        p.shear(probability=1, max_shear_left=10, max_shear_right=10)
-        p.flip_left_right(probability=0.5)
-        for i in tqdm(range(oversampling_rate // 4)):
-            p.process()
-        del p
-
-        log("Shear done")
-        
-        #random_distortion
-        p = Augmentor.Pipeline(source_directory=temp_image_path, output_directory=augmented_image_path)
-        p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
-        p.flip_left_right(probability=0.5)
-        for i in tqdm(range(oversampling_rate // 4)):
-            p.process()
-        del p
-
-        log("Random Distortion done")
-
-        # Clean up
-        os.rmdir(temp_image_path)
-    
-    # Get all the images in the augmented_image_path
-    augmented_images = os.listdir(augmented_image_path)
-    augmented_image_ids = [extract_id(image) for image in augmented_images]
-
-    augmented_image_id_map = {image_id: [] for image_id in augmented_image_ids}
-    for image, image_id in zip(augmented_images, augmented_image_ids):
-        augmented_image_id_map[image_id].append(image)
-
-    # Oversample the source_df
-
-    output = []
-
-    oversampled_df = pd.concat([source_df] * oversampling_rate)
-
-    for idx, row in oversampled_df.iterrows():
-        image_id = extract_id(row["image_file"])
-        if len(augmented_image_id_map[image_id]) == 0:
-            raise ValueError(f"Image {row['image_file']} has no augmented images. This should not happen.")
-        
-        augmented_image = augmented_image_id_map[image_id][idx // len(source_df)]
-        row["image_file"] = augmented_image
-        output.append(row)
-
-    return pd.DataFrame(output).sample(frac=1, random_state=seed)
-
 def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print):
     log("Oh no, we oversampled. This will break data augmentation... Must improve data augmentation.")
     # Fairly oversample the source_df to count
@@ -349,7 +218,15 @@ def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print):
     output = pd.concat([source_df] + [source_df] * (shortage // len(source_df)) + [source_df.sample(shortage % len(source_df), replace=False, random_state=seed)])
     return output.sample(frac=1, random_state=seed)
 
-def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFrame, count_per_leaf:tuple, train_not_classified_proportion, seed:int=2024, parent_name:str=None, log=print):
+def recursive_balanced_sample(
+    tree:dict, 
+    levels, 
+    source_df:pd.DataFrame, 
+    count_per_leaf:tuple, 
+    train_not_classified_proportion, 
+    seed:int = 2024, 
+    parent_name: Optional[str] = None, 
+    log=print):
     train_output = []
     val_output = []
     test_output = []
@@ -465,13 +342,12 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
     return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
 
 def objectify_train_not_classified_proportion(
-        train_not_classified_proportion: List[float], 
-        levels: List[Text]
-) -> Dict[Text, float]: 
+    train_not_classified_proportion: List[float], 
+    levels: List[Text]
+    ) -> Dict[Text, float]: 
     """
     Takes train_not_classified_proportion in [0,0,0,0] form and converts it to {'order': 0, ...}
     """
-
     return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
 
 def balanced_sample(source_df:pd.DataFrame, class_specification:dict, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024, log=print):
@@ -494,7 +370,11 @@ def balanced_sample(source_df:pd.DataFrame, class_specification:dict, count_per_
 
     return train_df, val_df, test_df, count_tree
 
-def mutate_sample(insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
+def mutate_sample(
+    insertion_amount=5, 
+    deletion_amount=5, 
+    substitution_rate=0.01
+    ):
     insertion_count = np.random.randint(0, insertion_amount+1)
     deletion_count = np.random.randint(0, deletion_amount+1)
 
@@ -519,7 +399,7 @@ def check_cached_images(source, image_cache_dir, log=print):
     if not os.path.exists(image_cache_dir):
         os.makedirs(image_cache_dir)
     
-    for idx, row in source.iterrows():
+    for _, row in source.iterrows():
         image_path = os.path.join(image_cache_dir, row["image_file"])
         if not os.path.exists(image_path):
             log(f"{image_path} not found. Augmenting Images.")
@@ -541,7 +421,7 @@ class GrossImageTransform(object):
             return p.torch_transform()(image)
         elif r == 1:
             p = Augmentor.Pipeline()
-            p.skew(probability=1, magnitude=0.2)
+            p.skew(probability=1, magnitude=0.2) # type: ignore
             p.flip_left_right(probability=0.5)
             return p.torch_transform()(image)
         elif r == 2:
@@ -555,7 +435,7 @@ class GrossImageTransform(object):
             p.flip_left_right(probability=0.5)
             return p.torch_transform()(image)
 
-def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
+def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_rate=0.01): 
     def __call__(self, image):
         insertion_count = np.random.randint(0, insertion_amount+1)
         deletion_count = np.random.randint(0, deletion_amount+1)
@@ -615,40 +495,40 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_param
     return source
 
 def create_tree_dataloaders(
-        source: str,                        # path to dataset tsv file
-        image_root_dir: str,
-        gen_aug_params:object,
-        train_val_test_split:Tuple[int, int, int],
-        oversampling_rate:int,
-        train_not_classified_proportions: List[float],
-        tree_specification_file:str,
-        cached_dataset_folder:str,
-        cached_dataset_root:str,
-        run_name:str,
-        train_batch_size:int,
-        train_push_batch_size:int,
-        test_batch_size:int,
-        transform_mean:tuple,
-        transform_std:tuple,
-        mode:int,
-        seed=2024,
-        flat_class=False,
-        log=print
-):
+    source: str,                        # path to dataset tsv file
+    image_root_dir: str,
+    gen_aug_params:object,
+    train_val_test_split:Tuple[int, int, int],
+    oversampling_rate:int,
+    train_not_classified_proportions: List[float],
+    tree_specification_file:str,
+    cached_dataset_folder:str,
+    cached_dataset_root:str,
+    run_name:str,
+    train_batch_size:int,
+    train_push_batch_size:int,
+    test_batch_size:int,
+    transform_mean:tuple,
+    transform_std:tuple,
+    mode:int,
+    seed=2024,
+    flat_class=False,
+    log=print
+    ):
     """
-        Creates train, train_push, validation, and test dataloaders for the tree dataset.
-        
-        source_file - tsv that contains all needed data (ex. metadata_cleaned_permissive.tsv). Note: all entires in source_file must have images in image_root
-        image_root_dir - root directory for the images.
-        gen_aug_params - object genetic augmentation parameters to apply to the genetic data. (found in cfg.py)
-        image_augmentations - list of image augmentations to apply to the image data.
-        train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
-        train_end_count - The number of train_end_countsamples to end with in the training set.
-        train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
-        tree_specification_file - path to json file tree of valid classes.
-        mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
-        seed - random seed for splitting, shuffling, transformations, etc.
-        oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
+    Creates train, train_push, validation, and test dataloaders for the tree dataset.
+    
+    source_file - tsv that contains all needed data (ex. metadata_cleaned_permissive.tsv). Note: all entires in source_file must have images in image_root
+    image_root_dir - root directory for the images.
+    gen_aug_params - object genetic augmentation parameters to apply to the genetic data. (found in cfg.py)
+    image_augmentations - list of image augmentations to apply to the image data.
+    train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
+    train_end_count - The number of train_end_countsamples to end with in the training set.
+    train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
+    tree_specification_file - path to json file tree of valid classes.
+    mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
+    seed - random seed for splitting, shuffling, transformations, etc.
+    oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
     """
     # Set pandas random seed
     np.random.seed(seed) 
@@ -670,17 +550,22 @@ def create_tree_dataloaders(
         
         df = pd.read_csv(source, sep="\t") if isinstance(source, str) else source 
 
-        train_not_classified_proportions = objectify_train_not_classified_proportion(train_not_classified_proportions, class_specification["levels"])
-
-        train_df, val_df, test_df, count_tree = balanced_sample(df, class_specification, train_val_test_split, train_not_classified_proportions, seed)
+        train_df, val_df, test_df, _ = balanced_sample(
+            df, 
+            class_specification, 
+            train_val_test_split, 
+            objectify_train_not_classified_proportion(
+                train_not_classified_proportions, 
+                class_specification["levels"]
+            ),
+            seed
+        )
 
         train_push_df = train_df.copy()
 
         old_train_size = len(train_df)
         start_t = time.time()
         if oversampling_rate != 1:
-            # raise NotImplementedError("Sorry, not done yet. Will be done by EOD.")
-            # train_df = augment_oversample(train_df, image_root_dir, os.path.join(image_root_dir, "..", "temp"), oversampling_rate, seed)
             train_df = oversample(train_df, len(train_df) * oversampling_rate, seed)
         new_train_size = len(train_df)
 
@@ -695,8 +580,6 @@ def create_tree_dataloaders(
         train_push_path = os.path.join(output_dir, "train_push.tsv")
         val_path = os.path.join(output_dir, "val.tsv")
         test_path = os.path.join(output_dir, "test.tsv")
-
-        train_df, train_push_df, val_df, test_df = remove_images_for_which_there_exists_no_file_in_the_directory([train_df, train_push_df, val_df, test_df], image_root_dir, log)
 
         train_df.to_csv(train_path, sep="\t", index=False)
         log(f"Saved train dataset to {train_path}")
@@ -818,33 +701,3 @@ def get_dataloaders(cfg, log, flat_class=False):
         log=log,
         flat_class=flat_class
     )
-
-def remove_images_for_which_there_exists_no_file_in_the_directory(dfs, image_root_dir, log=print):
-    """
-    The astute amoung you may notice that this could lead to situations where we have 0 samples of a certain class!
-
-    You forget that this entire dataset balancing process isn't guaranteed to work! It often yells.
-
-    This is in the spirit of that.
-    """
-
-    return dfs
-    
-    file_names = set(os.listdir(image_root_dir))
-
-    new_dfs = []
-
-    for i,df in enumerate(dfs):
-        image_files = df["image_file"]
-        missing_files = [f for f in image_files if f not in file_names]
-
-        if len(missing_files) > 0:
-            log(f"Removing {len(missing_files)} rows with missing images.")
-            df = df[~df["image_file"].isin(missing_files)]
-            for f in missing_files:
-                log(f"Missing file: {f}")
-        
-        new_dfs.append(df)
-    
-    return new_dfs
-

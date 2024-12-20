@@ -2,7 +2,7 @@ import datetime
 import os
 import torch
 import numpy as np
-
+from model.hierarchical_ppnet import Mode
 
 def list_of_distances(X, Y):
     return torch.sum((torch.unsqueeze(X, dim=2) - torch.unsqueeze(Y.t(), dim=0)) ** 2, dim=1)
@@ -72,7 +72,7 @@ def save_model_w_condition(model, model_dir, model_name, accu, target_accu, log=
         # torch.save(obj=model.state_dict(), f=os.path.join(model_dir, (model_name + '{0:.4f}.pth').format(accu)))
         torch.save(obj=model, f=os.path.join(model_dir, (model_name + '{0:.4f}.pth').format(accu)))
 
-def handle_run_name_weirdness(cfg):
+def run_id_accumulator(cfg):
     """
     All of this prevents overwriting of existing runs.
     """
@@ -80,7 +80,7 @@ def handle_run_name_weirdness(cfg):
         # Generate a run name from the current time
         cfg.RUN_NAME = str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
 
-    mode_name = "genetic_only" if cfg.DATASET.MODE == 1 else ("image_only" if cfg.DATASET.MODE == 2 else "joint")
+    mode_name = "genetic_only" if cfg.DATASET.MODE == Mode.GENETIC else ("image_only" if cfg.DATASET.MODE == Mode.IMAGE else "joint")
     # Check if RUN_NAME already exists in output, change it if it doesn't
     i = 0
     print(os.path.join("../output", cfg.RUN_NAME))

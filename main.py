@@ -9,25 +9,24 @@ from dataio.tree import get_dataloaders
 
 from model.model import construct_tree_ppnet
 from model.utils import get_optimizers
+from model.hierarchical_ppnet import Mode
 
 import train_and_test as tnt
 
 import prototype.push as push       
-from utils.util import handle_run_name_weirdness
+from utils.util import run_id_accumulator 
 
 def main():
     cfg = get_cfg_defaults()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/image.yaml')
+    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
 
-
     cfg.merge_from_file(args.configs)
-
-    handle_run_name_weirdness(cfg)
+    run_id_accumulator(cfg)
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     log(str(cfg))
     
@@ -37,18 +36,16 @@ def main():
         mkdir(cfg.OUTPUT.IMG_DIR)
 
     try:
-        train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log)
+        train_loader, train_push_loader, val_loader, _, image_normalizer = get_dataloaders(cfg, log)
         
         tree_ppnet = construct_tree_ppnet(cfg).to("cuda")
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
-        # TODO - Handle multi models
 
         tree_ppnet_multi = tree_ppnet_multi
 
-        class_specific = True
 
-        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(cfg, tree_ppnet)
+        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
 
         # Construct and parallel the model
         log('start training')
@@ -70,31 +67,35 @@ def main():
             if not args.validate:
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
                     tnt.warm_only(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train(model=tree_ppnet_multi, dataloader=train_loader, optimizer=warm_optimizer,
-                                class_specific=class_specific,
-                                parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                                coefs=coefs,
-                                log=log
+                    _ = tnt.train(
+                        model=tree_ppnet_multi, 
+                        dataloader=train_loader, 
+                        optimizer=warm_optimizer,
+                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
+                        coefs=coefs,
+                        log=log
                         )
                 else:
-                    if tree_ppnet.mode == 3 and not cfg.DATASET.PARALLEL_MODE:
+                    if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
                         _ = tnt.train(
-                                model=tree_ppnet_multi,
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                                parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                                dataloader=train_loader, optimizer=last_layer_optimizer,
-                                class_specific=class_specific, coefs=coefs, log=log)
+                          model=tree_ppnet_multi,
+                          global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
+                          parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                          dataloader=train_loader, 
+                          optimizer=last_layer_optimizer,
+                          coefs=coefs,
+                          log=log
+                        )
                     
                     tnt.joint(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train(
+                    _ = tnt.train( 
                         model=tree_ppnet_multi,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
                         dataloader=train_loader,
                         optimizer=joint_optimizer,
-                        class_specific=class_specific,
                         coefs=coefs,
                         log=log
                     )
@@ -104,10 +105,9 @@ def main():
             prob_accu = tnt.test(
                 model=tree_ppnet_multi,
                 dataloader=val_loader,
-                class_specific=class_specific,
                 log=log,
                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                parallel_mode=cfg.DATASET.PARALLEL_MODE
             )
             save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=prob_accu,
                                         target_accu=0, log=log)
@@ -130,7 +130,7 @@ def main():
                     no_save=cfg.OUTPUT.NO_SAVE
                 )
                 prob_accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
-                                class_specific=class_specific, log=log,
+                                     log=log,
                                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
                                             target_accu=0, log=log, accu=prob_accu)
@@ -147,18 +147,36 @@ def main():
                                 parallel_mode=cfg.DATASET.PARALLEL_MODE,
                                 dataloader=train_loader,
                                 optimizer=last_layer_optimizer,
-                                class_specific=class_specific,
                                 coefs=coefs,
                                 log=log
                             )
-                            prob_accu = tnt.test(model=tree_ppnet_multi, parallel_mode=cfg.DATASET.PARALLEL_MODE, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=val_loader,
-                                            class_specific=class_specific, log=log)
-                            if tree_ppnet.mode == 3 and not cfg.DATASET.PARALLEL_MODE:
+                            prob_accu = tnt.test(
+                                model=tree_ppnet_multi, 
+                                parallel_mode=cfg.DATASET.PARALLEL_MODE, 
+                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
+                                dataloader=val_loader,
+                                log=log
+                            )
+
+                            if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
                                 tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                                _ = tnt.train(model=tree_ppnet_multi, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=train_loader, optimizer=last_layer_optimizer,
-                                        class_specific=class_specific, coefs=coefs, log=log)
-                                prob_accu = tnt.test(model=tree_ppnet_multi, parallel_mode=cfg.DATASET.PARALLEL_MODE, global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, dataloader=val_loader,
-                                                class_specific=class_specific, log=log)
+
+                                tnt.train(
+                                    model=tree_ppnet_multi, 
+                                    dataloader=train_loader, 
+                                    optimizer=last_layer_optimizer,
+                                    coefs=coefs, 
+                                    parallel_mode=cfg.DATASET.PARALLEL_MODE, 
+                                    global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
+                                    log=log
+                                )
+
+                                prob_accu = tnt.test(
+                                    model=tree_ppnet_multi, 
+                                    parallel_mode=cfg.DATASET.PARALLEL_MODE, 
+                                    global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
+                                    dataloader=val_loader,
+                                    log=log)
 
                     prune_prototypes(
                         tree_ppnet_multi,
@@ -178,7 +196,6 @@ def main():
                         dataloader=train_loader,
                         optimizer=last_layer_optimizer,
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                        class_specific=class_specific,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         coefs=coefs,
                         log=log
@@ -186,13 +203,12 @@ def main():
                     prob_accu = tnt.test(
                         model=tree_ppnet_multi,
                         dataloader=val_loader,
-                        class_specific=class_specific,
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         log=log
                     )
                     save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
-                    if tree_ppnet.mode == 3 and not cfg.DATASET.PARALLEL_MODE:
+                    if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
                         _ = tnt.train(
                             model=tree_ppnet_multi,
@@ -200,7 +216,6 @@ def main():
                             parallel_mode=cfg.DATASET.PARALLEL_MODE,
                             dataloader=train_loader,
                             optimizer=last_layer_optimizer,
-                            class_specific=class_specific,
                             coefs=coefs,
                             log=log
                         )
@@ -208,7 +223,6 @@ def main():
                             model=tree_ppnet_multi,
                             global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                             dataloader=val_loader,
-                            class_specific=class_specific,
                             parallel_mode=cfg.DATASET.PARALLEL_MODE,
                             log=log
                         )

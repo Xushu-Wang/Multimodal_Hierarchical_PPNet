@@ -1,11 +1,8 @@
-import gc
 import time
 import torch
 import numpy as np
-
-from torchvision.transforms.functional import normalize
-
 from pympler.tracker import SummaryTracker
+from model.hierarchical_ppnet import Mode
 
 tracker = SummaryTracker()
 
@@ -176,9 +173,9 @@ def get_conditional_prob_accuracies(
             del genetic_probs, genetic_best_indicies, genetic_best_labels, genetic_diff, genetic_agreement
 
             if global_ce:
-                raise NotImplementedError("Parallel mode not implemented for global_ce")
                 # Calculate cross entropy, but don't use torch cross entropy because we have already softmaxed the logits
                 # Handle the case where the best_probs are 0
+                raise NotImplementedError("Parallel mode not implemented for global_ce")
                 best_probs[best_probs == 0] = 1e-10
                 cross_entropy = -torch.log(best_probs)
                 cross_entropies.append(cross_entropy)
@@ -532,18 +529,14 @@ def construct_accuracy_tree(root):
         ]}
 
 def _train_or_test(
-        model,
-        dataloader,
-        global_ce,
-        parallel_mode,
-        optimizer=None,
-        coefs = None,
-        class_specific=False,
-        log=print,
-        warm_up = False,
-        CEDA = False,
-        batch_mult = 1,
-        class_acc = False):
+    model,
+    dataloader,
+    global_ce,
+    parallel_mode,
+    optimizer=None,
+    coefs = None,
+    log=print,
+    batch_mult = 1):
     '''
     model: the multi-gpu model
     dataloader:
@@ -557,13 +550,12 @@ def _train_or_test(
         
     start = time.time()
     
-    n_examples = 0
     n_batches = 0
 
     correct_arr = np.zeros(len(model.module.levels)) # This is the number of correct predictions at each level
     total_arr = np.zeros(len(model.module.levels)) # This is the total number of predictions at each level
     
-    if model.module.mode == 3:
+    if model.module.mode == Mode.MULTIMODAL:
         # I can't be bothered to implement all_child_nodes for the multimodal model. This will work, though it's gross. 
         accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root)
     else:
@@ -579,9 +571,9 @@ def _train_or_test(
     # torch.autograd.set_detect_anomaly(True)
     
     for i, ((genetics, image), label) in enumerate(dataloader):
-        if model.module.mode == 1:
+        if model.module.mode == Mode.GENETIC:
             input = genetics.to("cuda")
-        elif model.module.mode == 2:
+        elif model.module.mode == Mode.IMAGE:
             input = image.to("cuda")
         else:
             input = (genetics.to("cuda"), image.to("cuda"))
@@ -591,7 +583,6 @@ def _train_or_test(
         target = target.to("cuda")
 
         batch_size = len(target)
-        batch_start = time.time()   
 
         cross_entropy = 0
         cluster_cost = 0
@@ -612,7 +603,7 @@ def _train_or_test(
         with grad_req:
             conv_features = model.module.conv_features(input)
             
-            if model.module.mode == 3:
+            if model.module.mode == Mode.MULTIMODAL:
                 # Freeze last layer multi
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count = recursive_get_loss_multi( 
                     conv_features=conv_features,
@@ -657,61 +648,17 @@ def _train_or_test(
 
             # TODO - Maybe warm up
 
-                # if warm_up:
-                #     if node.name == "root":
-                #         cross_entropy += torch.nn.functional.cross_entropy(node_logits,node_y) 
-                #         cluster_cost_, separation_cost_ = auxiliary_costs(node_y,node.num_prototypes_per_class,node.num_children(),node.prototype_shape,node.min_distances[children_idx,:])                                    
-                #         cluster_cost += cluster_cost_
-                #         separation_cost += separation_cost_  
-                #         l1 += elastic_net_reg(model,node)            
-                # else:
-                #     cross_entropy += torch.nn.functional.cross_entropy(node_logits,node_y) * len(node_y) / dataloader.batch_size if len(node_y) > 0 else 0                    
-                                
-                #     cluster_cost_, separation_cost_ = auxiliary_costs(node_y,node.num_prototypes_per_class,node.num_children(),node.prototype_shape,node.min_distances[children_idx,:])                                    
-                #     cluster_cost += cluster_cost_
-                #     separation_cost += separation_cost_               
-                #     l1 += elastic_net_reg(model, node)
-
-            # preds_root, preds_joint = model.module.get_joint_distribution()
-            
-            # # evaluation statistics
-            # _, coarse_predicted = torch.max(preds_root.data, 1)
-            # _, fine_predicted = torch.max(preds_joint.data, 1)
-            
-            # n_examples += target.size(0)
-            # coarse_correct = coarse_predicted == root_y
-            # fine_correct = fine_predicted == target
-            # n_coarse_correct += coarse_correct.sum().item()
-            # n_fine_correct += fine_correct.sum().item()    
-
-            
-            # if class_acc:
-            #     for j in range(len(target)):
-            #         coarse_class_correct[root_y[j]] += (1 if coarse_correct[j] else 0)
-            #         coarse_class_total[root_y[j]] += 1
-            #         fine_class_correct[target[j]] += (1 if fine_correct[j] else 0)
-            #         fine_class_total[target[j]] += 1
-
         if is_train:          
             loss = (coefs['crs_ent'] * cross_entropy
                           + coefs['clst'] * cluster_cost
                           + coefs['sep'] * separation_cost
                           + coefs['l1'] * l1)
             
-            if model.module.mode == 3:
+            if model.module.mode == Mode.MULTIMODAL:
                 loss += coefs['correspondence'] * correspondence_cost
                           
             loss.backward()
             
-            # if CEDA:
-            #     noise = torch.stack([normalize(torch.rand((3,32,32)), mean, std) for n in range(batch_size)]).to("cuda")
-            #     _ = model(noise) 
-            #     for node in model.module.root.nodes_with_children():
-            #         noise_cross_ent += 1 * CE(node.logits,node.unif) # 1/10
-            #     noise_cross_ent.backward()
-
-            
-            # optimizer.step()
             if (i+1) % batch_mult == 0:
                 optimizer.step()
                 optimizer.zero_grad()
@@ -723,18 +670,15 @@ def _train_or_test(
         total_separation_cost += separation_cost / num_parents_in_batch
         total_l1 += l1
 
-        if model.module.mode == 3:
+        if model.module.mode == Mode.MULTIMODAL:
             total_correspondence_cost += correspondence_cost
             del correspondence_cost
         # total_noise_cross_ent += noise_cross_ent.item() if CEDA else 0
             
         del input, target, conv_features
 
-        batch_end = time.time()
-
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
-            # tracker.print_diff()
             
     end = time.time()
 
@@ -750,7 +694,7 @@ def _train_or_test(
     log('\t[{0}]\tcluster: \t{1:.2f}'.format(train_or_test_string, total_cluster_cost / n_batches))
     log('\t[{0}]\tseparation: \t{1:.2f}'.format(train_or_test_string, total_separation_cost / n_batches))
     log('\t[{0}]\tl1: \t{1:.2f}'.format(train_or_test_string, total_l1 / n_batches))
-    if model.module.mode == 3:
+    if model.module.mode == Mode.MULTIMODAL:
         log('\t[{0}]\tcorrespondence: \t{1:.2f}'.format(train_or_test_string, total_correspondence_cost / n_batches))
     
     if parallel_mode:
@@ -765,30 +709,66 @@ def _train_or_test(
     overall_accuracy = torch.min(total_probabalistic_correct_count / total_probabilistic_total_count) if parallel_mode else total_probabalistic_correct_count / total_probabilistic_total_count
     return overall_accuracy
 
-def train(model, dataloader, optimizer, coefs, parallel_mode, global_ce=True, class_specific=False, log=print, warm_up = False):
+def train(
+    model, 
+    dataloader, 
+    optimizer, 
+    coefs, 
+    parallel_mode, 
+    global_ce=True, 
+    log=print
+    ): 
+
     assert(optimizer is not None)
     log('train')
     return _train_or_test(
         model=model,
         dataloader=dataloader,
-        parallel_mode=parallel_mode,
         global_ce=global_ce,
+        parallel_mode=parallel_mode,
         optimizer=optimizer,
         coefs=coefs,
-        class_specific=class_specific,
-        log=log,
-        warm_up = warm_up,
-        CEDA=coefs['CEDA'])
+        log=log
+    )
 
-def valid(model, dataloader, coefs = None, parallel_mode=False, class_specific=False, log=print):
+def valid(
+    model, 
+    dataloader, 
+    coefs = None, 
+    parallel_mode=False, 
+    global_ce=True, 
+    log=print
+    ):
+
     log('valid')
-    return _train_or_test(model=model, dataloader=dataloader, parallel_mode=parallel_mode, optimizer=None, coefs=coefs,
-                          class_specific=class_specific, log=log)
+    return _train_or_test(
+        model=model, 
+        dataloader=dataloader, 
+        parallel_mode=parallel_mode, 
+        global_ce = global_ce,
+        optimizer=None, 
+        coefs=coefs,
+        log=log
+    )
 
-def test(model, dataloader, coefs = None, parallel_mode=False, global_ce=True, class_specific=False, log=print, class_acc = False):
-    #log('test')
-    return _train_or_test(model=model, dataloader=dataloader, parallel_mode=parallel_mode, global_ce=global_ce, optimizer=None, coefs = coefs,
-                      class_specific=class_specific, log=log, class_acc=class_acc)
+def test(
+    model, 
+    dataloader, 
+    coefs = None, 
+    parallel_mode=False, 
+    global_ce=True, 
+    log=print 
+    ):
+
+    return _train_or_test(
+        model=model, 
+        dataloader=dataloader, 
+        parallel_mode=parallel_mode, 
+        global_ce=global_ce, 
+        optimizer=None, 
+        coefs = coefs,
+        log=log, 
+    )
 
 def make_one_hot(target, target_one_hot):
     target_copy = torch.LongTensor(len(target))
@@ -867,7 +847,7 @@ def joint(model, log=print):
     for l in layers:
         l.requires_grad = True
 
-    if model.module.mode == 3:
+    if model.module.mode == Mode.MULTIMODAL:
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = False
     
@@ -887,28 +867,9 @@ def multi_last_layer(model, log=print):
     for l in layers:
         l.requires_grad = False
 
-    if model.module.mode == 3:
+    if model.module.mode == Mode.MULTIMODAL:
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = True
 
     log('multi last layer')
-
-
-# last layer opts
-
-def last_layers(model, log=print):
-    raise NotImplementedError("Last layers not implemented")
-    pass
-    # for p in model.module.features.parameters():
-    #     p.requires_grad = False
-    # for p in model.module.add_on_layers.parameters():
-    #     p.requires_grad = False
-    # for node in model.module.root.nodes_with_children():
-    #     vecs = getattr(model.module,node.name + "_prototype_vectors")
-    #     vecs.requires_grad = False
-    #     layer = getattr(model.module,node.name + "_layer")
-    #     for p in layer.parameters():
-    #         p.requires_grad = True                  
-    # log('last layers')
-
 
