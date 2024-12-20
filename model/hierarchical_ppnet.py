@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from typing import Optional, Tuple, Dict
 
 class LeafNode(nn.Module):
     def __init__(self,
@@ -17,11 +18,11 @@ class LeafNode(nn.Module):
 
 class TreeNode(nn.Module):
     def __init__(self,
-                 int_location,
+                 int_location: Tuple[int],
                  named_location,
                  num_prototypes_per_class,
                  prototype_shape,
-                 tree_specification,
+                 tree_specification: Dict,
                  fix_prototypes,
                  max_num_prototypes_per_class
     ):
@@ -31,8 +32,8 @@ class TreeNode(nn.Module):
         num_prototypes_per_class: the number of prototypes per class
         prototype_shape: the shape of the prototype (minus the number of prototypes) length 3
         tree_specification: the tree specification
-        fix_prototypes: whether to fix the prototypes or not
-        max_num_prototypes_per_class: 
+        fix_prototypes: whether to fix the prototypes or not. True when doing genetic and false if image. 
+        max_num_prototypes_per_class: for pruning the prototypes, since tends to overfit for genetics. 
         """
         super().__init__()
 
@@ -48,15 +49,17 @@ class TreeNode(nn.Module):
         self.prototype_shape = prototype_shape
         self.full_prototype_shape = (self.num_prototypes, prototype_shape[0], prototype_shape[1], prototype_shape[2]) 
         self.fix_prototypes = fix_prototypes
-        self.parent = True
+        self.parent = True # True for all tree nodes since it's a parent, not a leaf node. 
         self.level = len(int_location)
         self.max_num_prototypes_per_class = max_num_prototypes_per_class
-        
+       
+        # a 0/1 block of maps between prototype and its corresponding class label
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
         for j in range(self.num_prototypes):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
-        self.child_nodes = []
+        # may have combination of leaf and non-leaf nodes if some groups are filtered.
+        self.child_nodes = [] # a list of TreeNode objects that are direct children. 
         self.all_child_nodes = [] # All child nodes includes leafs, child nodes does not
 
         self.prototype_vectors = nn.Parameter(
@@ -64,14 +67,17 @@ class TreeNode(nn.Module):
             requires_grad=True
         )
         # This is used for pruning. We mask the prototypes that are not used.
+        # originall all 1s, but iteratively prunes by setting to 0. 
         self.prototype_mask = nn.Parameter(
             torch.ones(self.num_prototypes, 1, 1),
             requires_grad=False
         )
+
         self.last_layer = nn.Linear(self.num_prototypes, self.num_classes,
                                     bias=False)
         
         self.set_last_layer_incorrect_connection(-0.5)
+        # basically sets self.last_layer to be self.prototype_class_identity but 0s replaced with -0.5s
         self.create_children()
 
     def get_prototype_parameters(self):
@@ -197,9 +203,12 @@ class TreeNode(nn.Module):
         max_similarities = self.prototype_mask * max_similarities
         min_distances = -1 * max_similarities
 
+        # for each prototype, finds the spatial location that's closest to the prototype.
         min_distances = min_distances.view(-1, self.num_prototypes)
         prototype_activations = self.distance_2_similarity(min_distances)
         logits = self.last_layer(prototype_activations)
+
+        # logits are class logits
 
         return logits, min_distances
     
@@ -237,7 +246,7 @@ class TreeNode(nn.Module):
         """
         return conv_features, self.push_get_dist(conv_features)
 
-    def push_forward_recusrive(self, conv_features):
+    def push_forward_recursive(self, conv_features):
         raise NotImplementedError()
 
     def __repr__(self):
@@ -245,14 +254,14 @@ class TreeNode(nn.Module):
 
 class Hierarchical_PPNet(nn.Module):
     def __init__(self, 
-                 features,
+                 features,  # resnet/CNN backbone
                  img_size, 
                  prototype_shape,
                  num_prototypes_per_class,
-                 class_specification,
-                 proto_layer_rf_info, 
-                 mode,
-                 max_num_prototypes_per_class=None,
+                 class_specification, # the directionary {tree: , levels: }
+                 proto_layer_rf_info, # tuple or smth
+                 mode, # 1, 2, 3
+                 max_num_prototypes_per_class=None, 
         ):
         """
         Rearrange logit map maps the genetic class index to the image class index, which will be considered the true class index.
@@ -275,6 +284,8 @@ class Hierarchical_PPNet(nn.Module):
         self.prototype_shape = prototype_shape
         self.genetics_mode = mode & 1
         self.mode = mode
+
+        # always linear since we use cosine similarity 
         self.prototype_activation_function = "linear" # NOTE: This implementation doesn't support l2 loss...
 
         self.max_num_prototypes_per_class = max_num_prototypes_per_class

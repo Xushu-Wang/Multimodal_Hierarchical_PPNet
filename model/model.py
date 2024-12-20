@@ -30,66 +30,6 @@ base_architecture_to_features = {'resnet18': resnet18_features,
                                  'vgg19': vgg19_features,
                                  'vgg19_bn': vgg19_bn_features}
 
-
-
-def construct_image_ppnet(base_architecture, pretrained=True, img_size=224,
-                    prototype_shape=512, num_prototypes_per_class=8, 
-                    root=None,
-                    prototype_distance_function='l2', 
-                    prototype_activation_function='log'):
-    
-    features = base_architecture_to_features[base_architecture](pretrained=pretrained)
-    layer_filter_sizes, layer_strides, layer_paddings = features.conv_info()
-    proto_layer_rf_info = compute_proto_layer_rf_info_v2(img_size=img_size,
-                                                         layer_filter_sizes=layer_filter_sizes,
-                                                         layer_strides=layer_strides,
-                                                         layer_paddings=layer_paddings,
-                                                         prototype_kernel_size=prototype_shape)
-    return Hierarchical_PPNet(features=features,
-                 img_size=img_size,
-                 prototype_shape=prototype_shape,
-                 num_prototypes_per_class=num_prototypes_per_class, 
-                 root = root, 
-                 proto_layer_rf_info=proto_layer_rf_info,
-                 init_weights=True,
-                 prototype_distance_function=prototype_distance_function,
-                 prototype_activation_function=prototype_activation_function
-                 )
-
-
-def construct_genetic_ppnet(length:int, num_classes:int, prototype_shape, model_path:str, prototype_distance_function = 'cosine', prototype_activation_function='log', fix_prototypes=True):
-    m = GeneticCNN2D(length, num_classes, include_connected_layer=False)
-
-    # Remove the fully connected layer
-    weights = torch.load(model_path)
-
-    for k in list(weights.keys()):
-        if "conv" not in k:
-            del weights[k]
-    
-    m.load_state_dict(weights)
-
-    # NOTE - Layer_paddings is different from the padding in the image models
-    layer_filter_sizes, layer_strides, layer_paddings = m.conv_info()
-
-    proto_layer_rf_info = compute_proto_layer_rf_info_v2(img_size=length,
-                                                         layer_filter_sizes=layer_filter_sizes,
-                                                         layer_strides=layer_strides,
-                                                         layer_paddings=layer_paddings,
-                                                         prototype_kernel_size=prototype_shape[2])
-
-    return Hierarchical_PPNet(features=m, 
-                 img_size=(4, 1, length), 
-                 prototype_shape=prototype_shape,
-                 proto_layer_rf_info=proto_layer_rf_info, 
-                 num_classes=num_classes,
-                 init_weights=True, 
-                 prototype_distance_function=prototype_distance_function,
-                 prototype_activation_function="linear", 
-                 genetics_mode=True,
-                 fix_prototypes=fix_prototypes
-    )
-    
 def construct_tree_ppnet(cfg, log=print):
     class_specification = json.load(open(cfg.DATASET.TREE_SPECIFICATION_FILE, "r"))
 

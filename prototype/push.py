@@ -7,6 +7,7 @@ import time
 import pandas as pd
 
 from model.utils import decode_onehot
+from model.hierarchical_ppnet import TreeNode
 from prototype.receptive_field import compute_rf_prototype
 from utils.util import makedir, find_high_activation_crop
 
@@ -14,12 +15,14 @@ from utils.util import makedir, find_high_activation_crop
 def get_train_dir_size(train_dir):
     return int(os.system(f"ls -1 {train_dir} | wc -l"))
 
-def init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log):
+def init_nodal_push_prototypes(node: TreeNode, root_dir_for_saving_prototypes, epoch_number, log): 
     """
     Initializes all these variables that are normally global on each node
     """
-    # saves the closest distance seen so far
+    # saves the closest distance seen so far 
+    # add a new attribute and initialize it to be infinity
     node.global_min_proto_dist = np.full(node.num_prototypes, np.inf)
+
     # saves the patch representation that gives the current smallest distance
     node.global_min_fmap_patches = np.zeros(
         [
@@ -76,6 +79,10 @@ def nodal_update_prototypes_on_batch(
     prototype_activation_function_in_numpy,
     no_save
 ):
+    """
+    For each prototype, find its best patch in the backbone outputs and calculate 
+    minimum distance batch. But not projecting yet. 
+    """
     model.eval()
     mode = model.mode
     dir_for_saving_prototypes = node.proto_epoch_dir
@@ -305,9 +312,9 @@ def nodal_update_prototypes_on_batch(
 
 # push each prototype to the nearest patch in the training set
 def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0,1])
-                    prototype_network_parallel, # pytorch network with prototype_vectors
+                    prototype_network_parallel, # pytorch network with prototype_vectors, basically our Hierarchical PPnet
                     preprocess_input_function=None, # normalize if needed
-                    prototype_layer_stride=1,
+                    prototype_layer_stride=1,       # might be the stride of the prototype (?) Find out what this is
                     root_dir_for_saving_prototypes=None, # if not None, prototypes will be saved here
                     epoch_number=None, # if not provided, prototypes saved previously will be overwritten
                     prototype_img_filename_prefix=None,

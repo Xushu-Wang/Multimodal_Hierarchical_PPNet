@@ -22,3 +22,9 @@ From the project directory run
 ```
 ln -s /usr/project/xtmp/xw214/output ../output
 ```
+
+Two files you'll rather run 
+build class tree asks you questions about your tree structure and will generate a tree fitting your parameters. 
+All trees are stored in class_trees directory. 
+
+main runs the script, which grabs stuff from config files.  

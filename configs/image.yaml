@@ -17,7 +17,7 @@ DATASET:
     # Uncomment these once datasets have already been generated and you want to reuse them
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/test_run"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -32,7 +32,7 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 10
         # PPNET_PATH: "../output/joint/Correspondance-1/9nopush0.9932.pth"
         # PPNET_PATH: "../output/joint/Memfix-Correspondance-1/9nopush0.9935.pth"
-        PPNET_PATH: "../output/joint/0_no_global_001/5push0.9197.pth"
+        # PPNET_PATH: "../output/joint/rec_corr_fix_3_0.0_10_oversample/0nopush0.9898.pth"
         # PPNET_PATH: "../output/joint/Correspondance-0/0nopush0.9932.pth"
         # PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
 

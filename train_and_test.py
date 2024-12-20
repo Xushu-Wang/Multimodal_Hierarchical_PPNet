@@ -5,8 +5,6 @@ import numpy as np
 
 from torchvision.transforms.functional import normalize
 
-from model.node import Node
-
 from pympler.tracker import SummaryTracker
 
 tracker = SummaryTracker()
@@ -734,7 +732,7 @@ def _train_or_test(
 
         batch_end = time.time()
 
-        if i%32 == 0:
+        if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
             # tracker.print_diff()
             

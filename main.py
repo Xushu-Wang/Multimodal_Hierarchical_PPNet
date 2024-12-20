@@ -11,7 +11,6 @@ from model.model import construct_tree_ppnet
 from model.utils import get_optimizers
 
 import train_and_test as tnt
-# from train.train_multimodal import train_multimodal, test_multimodal, last_only_multimodal, joint_multimodal
 
 import prototype.push as push       
 from utils.util import handle_run_name_weirdness
@@ -24,6 +23,8 @@ def main():
     parser.add_argument('--configs', type=str, default='configs/image.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
+
+
     cfg.merge_from_file(args.configs)
 
     handle_run_name_weirdness(cfg)

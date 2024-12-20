@@ -1,7 +1,7 @@
 RUN_NAME: "no_global_ce_massive"
 
 MODEL:
-    GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
+    GENETIC_BACKBONE_PATH: "pretrained_backbones/backbones/family_new_aug_1/family_new_aug_1_best.pth"
     PRUNE: false
     PRUNING_TYPE: "weights"
     PRUNING_K: 8
@@ -9,7 +9,7 @@ MODEL:
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
+    TREE_SPECIFICATION_FILE: "class_trees/example.json"
     # TREE_SPECIFICATION_FILE: "class_trees/example.json"
     # TREE_SPECIFICATION_FILE: "class_trees/larger.json"
 
@@ -23,8 +23,9 @@ DATASET:
     # DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
+    # PRE_EXISTING_IMAGES: true
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/no_global_ce_massive"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected

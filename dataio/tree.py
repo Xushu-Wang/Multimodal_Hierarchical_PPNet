@@ -1,25 +1,20 @@
-import os
-import shutil
-import time
+import os, shutil, time, json, tqdm
+from typing import Any, Union, Optional, Dict, Text, Tuple, List
 import Augmentor
+from pprint import pprint
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-from typing import Any
 import torch.nn.functional as F
 import numpy as np
-from typing import Optional
-import copy
-from skimage import io, transform
+from skimage import io
 from torchvision.transforms import v2, ToTensor, transforms
 import tqdm
 import json
 from torchvision.transforms.functional import center_crop
 from torchvision.utils import save_image
 
-from prototype.push import get_train_dir_size
-
-class GeneticOneHot(object):
+class GeneticOneHot:
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
 
     Args:
@@ -63,52 +58,6 @@ class GeneticOneHot(object):
             onehot_tensor = onehot_tensor.unsqueeze(1)
 
         return onehot_tensor.float()
-
-# class MutateGenetic(object):
-#     def __init__(self, substitution_rate: float=0.01, insertion_count: int=5, deletion_count: int=5):
-#         self.substitution_rate = substitution_rate
-#         self.insertion_count = insertion_count
-#         self.deletion_count = deletion_count
-
-#     def get_real_length(self, genetic_tensor: torch.Tensor):
-#         # Find the index of the first all zero channel efficiently
-#         summed = genetic_tensor.sum(dim=0)
-#         real_length = torch.argmin(summed)
-
-#         return real_length
-        
-
-#     def __call__(self, genetic_tensor: torch.Tensor):
-#         # Genetic tensor is a one-hot encoded tensor of the genetic data.
-#         insertion_amount = np.random.randint(0, self.insertion_count)
-#         deletion_amount = np.random.randint(0, self.deletion_count)
-
-#         real_length = self.get_real_length(genetic_tensor)
-
-#         print(genetic_tensor)
-
-#         # Substitution
-#         substitution_mask = torch.rand((1, 1, genetic_tensor.shape[2])) < self.substitution_rate
-#         # Copy the mask to the correct shape
-#         substitution_mask = substitution_mask.expand(genetic_tensor.shape[0], genetic_tensor.shape[1], genetic_tensor.shape[2])
-#         substitution_values = torch.randint(0, 4, (1, genetic_tensor.shape[2]))
-#         # One-hot encode substitution values
-#         substitution_values = F.one_hot(substitution_values, num_classes=4).permute(2,0,1).float()
-#         genetic_tensor[substitution_mask] = substitution_values[substitution_mask]
-
-#         # Insertion
-#         insertion_indices = torch.randint(0, real_length, (insertion_amount,))
-#         insertion_values = torch.randint(1, 5, (insertion_amount, genetic_tensor.shape[1]))
-#         genetic_tensor = torch.cat([genetic_tensor[:i], insertion_values, genetic_tensor[i:]], dim=0)
-
-#         # Deletion
-#         deletion_indices = torch.randint(0, real_length, (deletion_amount,))
-#         genetic_tensor = torch.cat([genetic_tensor[:i], genetic_tensor[i+1:]], dim=0)
-
-#         # Make sure the tensor is the same length
-#         genetic_tensor = F.pad(genetic_tensor, (0, self.length - len(genetic_tensor)), value=0)
-
-#         return genetic_tensor
 
 class TreeDataset(Dataset):
     """
@@ -270,7 +219,15 @@ def proportional_assign(total_count, count_per_leaf):
 def extract_id(path: str):
     return ""
 
-def augment_oversample(source_df: pd.DataFrame, image_path: str, augmented_image_path:str, oversampling_rate: int, pre_existing=False, seed:int=2024, log=print):
+def augment_oversample(
+    source_df: pd.DataFrame, 
+    image_path: Text, 
+    augmented_image_path:Text, 
+    oversampling_rate: int, 
+    pre_existing: bool = False, 
+    seed:int = 2024, 
+    log=print
+):
     if not pre_existing:
         if oversampling_rate % 4 != 0:
             raise ValueError("Oversampling rate must be a multiple of 4.")
@@ -507,14 +464,17 @@ def recursive_balanced_sample(tree:Optional[dict], levels, source_df:pd.DataFram
 
     return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
 
-def objectify_train_not_classified_proportion(train_not_classified_proportion:list, levels:list):
+def objectify_train_not_classified_proportion(
+        train_not_classified_proportion: List[float], 
+        levels: List[Text]
+) -> Dict[Text, float]: 
     """
     Takes train_not_classified_proportion in [0,0,0,0] form and converts it to {'order': 0, ...}
     """
 
     return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
 
-def balanced_sample(source_df:pd.DataFrame, class_specification:tuple, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024, log=print):
+def balanced_sample(source_df:pd.DataFrame, class_specification:dict, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024, log=print):
     """
     Returns a balanced sample of the source_df based on the class_specification and count_per_leaf.
     """
@@ -652,17 +612,15 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_param
         v2.RandomHorizontalFlip(),
     ])
 
-
     return source
 
 def create_tree_dataloaders(
-        source,
+        source: str,                        # path to dataset tsv file
         image_root_dir: str,
-        image_cache_dir: str,
         gen_aug_params:object,
-        train_val_test_split:tuple,
+        train_val_test_split:Tuple[int, int, int],
         oversampling_rate:int,
-        train_not_classified_proportions:tuple,
+        train_not_classified_proportions: List[float],
         tree_specification_file:str,
         cached_dataset_folder:str,
         cached_dataset_root:str,
@@ -682,7 +640,7 @@ def create_tree_dataloaders(
         
         source_file - tsv that contains all needed data (ex. metadata_cleaned_permissive.tsv). Note: all entires in source_file must have images in image_root
         image_root_dir - root directory for the images.
-        gen_aug_params - object genetic augmentation parameters to apply to the genetic data.
+        gen_aug_params - object genetic augmentation parameters to apply to the genetic data. (found in cfg.py)
         image_augmentations - list of image augmentations to apply to the image data.
         train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
         train_end_count - The number of train_end_countsamples to end with in the training set.
@@ -690,12 +648,15 @@ def create_tree_dataloaders(
         tree_specification_file - path to json file tree of valid classes.
         mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
         seed - random seed for splitting, shuffling, transformations, etc.
+        oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
     """
     # Set pandas random seed
-    np.random.seed(seed)
+    np.random.seed(seed) 
+
+    # load the tree 
     class_specification = json.load(open(tree_specification_file, "r"))
 
-    if cached_dataset_folder and len(cached_dataset_folder):
+    if cached_dataset_folder.strip():
         train_df = pd.read_csv(os.path.join(cached_dataset_folder, "train.tsv"), sep="\t")
         train_push_df = pd.read_csv(os.path.join(cached_dataset_folder, "train_push.tsv"), sep="\t")
         val_df = pd.read_csv(os.path.join(cached_dataset_folder, "val.tsv"), sep="\t")
@@ -707,12 +668,10 @@ def create_tree_dataloaders(
         if len(train_val_test_split) != 3 or not all([isinstance(i, int) and i >= 0 for i in train_val_test_split]):
             raise ValueError("train_val_test_split must be a 3-tuple of positive integers (train, val, test)")
         
-        if type(source) == str:
-            df = pd.read_csv(source, sep="\t")
-        else:
-            df = source
+        df = pd.read_csv(source, sep="\t") if isinstance(source, str) else source 
 
         train_not_classified_proportions = objectify_train_not_classified_proportion(train_not_classified_proportions, class_specification["levels"])
+
         train_df, val_df, test_df, count_tree = balanced_sample(df, class_specification, train_val_test_split, train_not_classified_proportions, seed)
 
         train_push_df = train_df.copy()
@@ -756,7 +715,6 @@ def create_tree_dataloaders(
         std=transform_std
     )
 
-    # Sorry for this nastiness
     push_img_transforms = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize(size=(256, 256)),
@@ -842,7 +800,6 @@ def get_dataloaders(cfg, log, flat_class=False):
     return create_tree_dataloaders(
         source=cfg.DATASET.DATA_FILE,
         image_root_dir=cfg.DATASET.IMAGE_PATH,
-        image_cache_dir=cfg.DATASET.AUGMENTED_IMAGE_PATH,
         gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
         train_val_test_split=cfg.DATASET.TRAIN_VAL_TEST_SPLIT,
         oversampling_rate=cfg.DATASET.OVERSAMPLING_RATE,
@@ -891,95 +848,3 @@ def remove_images_for_which_there_exists_no_file_in_the_directory(dfs, image_roo
     
     return new_dfs
 
-class GeneticDataset(Dataset):
-    
-    """
-        A dataset class for the BIOSCAN genetic data. Samples are unpadded strings of nucleotides, including base pairs A, C, G, T and an unknown character N.
-
-        Args:
-            source (str): The path to the dataset file (csv or tsv).
-            transform (callable, optional): Optional transforms to be applied to the genetic data. Default is None.
-            drop_level (str): If supplied, the dataset will drop all rows where the given taxonomy level is not present. Default is None.
-            allowed_classes ([(level, [class])]): If supplied, the dataset will only include rows where the given taxonomy level is within the given list of classes. Default is None. Use for validation and test sets.
-            one_label (str): If supplied, the label will be the value of one_class
-            classes: list[str]
-            restraint: ex: ("family", ["Cecidomyiidae"])
-            
-        Returns:
-            (genetics, label): A tuple containing the genetic data and the label (phylum, class, order, family, subfamily, tribe, genus, species, subspecies)
-    """
-
-    def __init__(self,
-                 datapath: str,
-                 transform='onehot',
-                 level: str = None,
-                 classes: list = None,
-                 restraint: tuple = None,
-                 max_class_count = 40,
-                 log=print
-        ):
-        
-        self.data = pd.read_csv(datapath, sep="\t")
-        self.level = level
-        
-        if transform == 'onehot':
-            self.transform = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
-        else:
-            self.transform = None
-
-        self.taxnomy_level = ["phylum", "class", "order", "family", "subfamily", "tribe", "genus", "species", "subspecies"]
-
-        if self.level:
-            if not self.level in self.taxnomy_level:
-                raise ValueError(f"drop_level must be one of {self.taxnomy_level}")
-            self.data = self.data[self.data[self.level] != "not_classified"]
-
-        if classes:
-            self.classes = {
-                c: i for i,c in enumerate(classes)
-            }
-            self.data = self.data[self.data[self.level].isin(classes)]
-
-            if restraint:
-                log("Classes supplied with restraint. Restraints ignored.")
-        
-        else:
-            if restraint:
-                self.data = self.data[self.data[restraint[0]].isin(restraint[1])]
-
-            classes, sizes = self.get_classes(level)
-
-            if len(classes) > max_class_count:
-                # Sort by size and take the top max_class_count
-                sizes = np.array(sizes)
-                classes = np.array(classes)
-                classes = classes[sizes.argsort()[-max_class_count:]]
-                self.data = self.data[self.data[self.level].isin(classes)]
-                classes, sizes = self.get_classes(level)
-
-            self.classes = {
-                c: i for i,c in enumerate(classes)
-            }
-    
-    def __getitem__(self, idx):
-        row = self.data.iloc[idx]
-        genetics = row["nucraw"]
-        label = [row[c] for c in self.taxnomy_level]
-
-        if self.transform:
-            genetics = self.transform(genetics)
-
-        label = label[self.taxnomy_level.index(self.level)]
-        label = torch.tensor(self.classes[label])
-            
-        return genetics, label
-    
-    def __len__(self):
-        return len(self.data)
-    
-    def get_classes(self, class_name: str):
-        """Get a tuple of the list of the unique classes in the dataset, and their sizes for a given class name, e.x. order."""
-        classes = self.data[class_name].unique()
-        class_sizes = self.data[class_name].value_counts()
-
-        return list(classes), list(class_sizes[classes])

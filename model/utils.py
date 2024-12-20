@@ -1,8 +1,6 @@
 import numpy as np
 import torch
 
-from model.node import Node
-
 def position_encodings(self, x):
     
     """

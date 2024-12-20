@@ -95,13 +95,29 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
 tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count, only_species_leaves=args.only_species_leaves)
 
+def get_tree_stats(tree):
+    from collections import defaultdict
+
+    data = defaultdict(int)
+
+    def dfs(start, i): 
+        if start is None:
+            data[i] += 1
+            return 
+        for key, val in start.items(): 
+            dfs(val, i+1)
+
+    dfs(tree, 0) 
+
+    return data
+
 while True:
     outpath = input("Output path: ")
     
     out = {
         "tree": tree,
         "levels": levels
-    }
+    } 
 
     try:
         if not outpath.endswith(".json"):

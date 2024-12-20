@@ -8,9 +8,10 @@ models/
 logs/
 scripts/
 saved_models/
+configs/*.yaml
 .DS_STORE
 slurm*.out
-# pretrained_backbones/
+pretrained_backbones/
 test_tree.ipynb
 output
 pre_existing_datasets/*
