@@ -7,7 +7,7 @@ import time
 import pandas as pd
 
 from model.utils import decode_onehot
-from model.hierarchical_ppnet import TreeNode
+from model.hierarchical_ppnet import TreeNode, Mode
 from prototype.receptive_field import compute_rf_prototype
 from utils.util import makedir, find_high_activation_crop
 
@@ -84,7 +84,7 @@ def nodal_update_prototypes_on_batch(
     minimum distance batch. But not projecting yet. 
     """
     model.eval()
-    mode = model.mode
+    mode = model.mode 
     dir_for_saving_prototypes = node.proto_epoch_dir
 
     mask = torch.ones(full_search_y.shape[0], dtype=torch.bool)
@@ -124,7 +124,7 @@ def nodal_update_prototypes_on_batch(
 
     patch_df_list = None
 
-    if mode == 1 or mode == 3:
+    if mode == Mode.GENETIC or mode == Mode.MULTIMODAL:
         patch_df_list = []
 
     for j in range(n_prototypes):
@@ -141,7 +141,7 @@ def nodal_update_prototypes_on_batch(
 
         batch_min_proto_dist_j = np.amin(proto_dist_j)
         if batch_min_proto_dist_j < node.global_min_proto_dist[j]:
-            if mode == 1:
+            if mode == Mode.GENETIC:
                 batch_argmin_proto_dist_j = [np.argmin(proto_dist_j[:,0,0]),0,(j % (n_prototypes // num_classes))]
             else:
                 batch_argmin_proto_dist_j = \
@@ -172,7 +172,7 @@ def nodal_update_prototypes_on_batch(
             if no_save:
                 continue
 
-            if mode == 1:
+            if mode == Mode.GENETIC:
                 assert search_batch_input.shape[2] == 1
                 protoL_rf_info = model.proto_layer_rf_info
 
@@ -293,7 +293,7 @@ def nodal_update_prototypes_on_batch(
                                 vmin=0.0,
                                 vmax=1.0)
     # If we're saving genetic patches. Save 'em here.
-    if mode == 1 and patch_df_list is not None and len(patch_df_list):
+    if mode == Mode.GENETIC and patch_df_list is not None and len(patch_df_list):
         patch_df = pd.DataFrame(patch_df_list, columns=["key", "class_index", "prototype_index", "patch"])
         if os.path.isfile(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv")):
             # Update old file
@@ -331,7 +331,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
 
     search_batch_size = dataloader.batch_size
 
-    if prototype_network_parallel.module.mode == 3:
+    if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
             init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
         for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
@@ -347,9 +347,9 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         '''
         start_index_of_search_batch = push_iter * search_batch_size
 
-        if prototype_network_parallel.module.mode == 1:
+        if prototype_network_parallel.module.mode == Mode.GENETIC:
             search_batch_input = genetics
-        elif prototype_network_parallel.module.mode == 2:
+        elif prototype_network_parallel.module.mode == Mode.IMAGE:
             search_batch_input = image
         else:
             search_batch_input = (genetics, image)
@@ -358,24 +358,24 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         search_batch_input is the raw input image, this is used for generating output images.
         search_batch is the input to the network, this is used for generating the feature maps. This may be normalzied
         """
-        if preprocess_input_function is not None and prototype_network_parallel.module.mode == 2:
+        if preprocess_input_function is not None and prototype_network_parallel.module.mode == Mode.IMAGE:
             # print('preprocessing input for pushing ...')
             # search_batch = copy.deepcopy(search_batch_input)
             search_batch = preprocess_input_function(search_batch_input)
-        elif preprocess_input_function is not None and prototype_network_parallel.module.mode == 3:
+        elif preprocess_input_function is not None and prototype_network_parallel.module.mode == Mode.MULTIMODAL:
             search_batch = (search_batch_input[0], preprocess_input_function(search_batch_input[1]))
         else:
             search_batch = search_batch_input
 
         with torch.no_grad():
-            if prototype_network_parallel.module.mode == 3:
+            if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
                 search_batch = (search_batch[0].cuda(), search_batch[1].cuda())
             else:
                 search_batch = search_batch.cuda()
 
             conv_features = prototype_network_parallel.module.conv_features(search_batch)
 
-        if prototype_network_parallel.module.mode == 3:
+        if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
             for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
                 nodal_update_prototypes_on_batch(
                     node=node,
@@ -424,21 +424,15 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                 )
 
     # TODO - Implement bounding box saving
-    # if proto_epoch_dir != None and proto_bound_boxes_filename_prefix != None:
-    #     np.save(os.path.join(proto_epoch_dir, proto_bound_boxes_filename_prefix + '-receptive_field' + str(epoch_number) + '.npy'),
-    #             proto_rf_boxes)
-    #     np.save(os.path.join(proto_epoch_dir, proto_bound_boxes_filename_prefix + str(epoch_number) + '.npy'),
-    #             proto_bound_boxes)
 
     log('\tExecuting push ...')
-    if prototype_network_parallel.module.mode == 3:
+    if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
-            prototype_update = np.reshape(node.global_min_fmap_patches,
-                                        tuple(node.full_prototype_shape))
+            prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
             node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+
         for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
-            prototype_update = np.reshape(node.global_min_fmap_patches,
-                                        tuple(node.full_prototype_shape))
+            prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
             node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
     else:
         for node in prototype_network_parallel.module.nodes_with_children:

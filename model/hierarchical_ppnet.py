@@ -2,13 +2,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from typing import Optional, Tuple, Dict
+from typing import List, Dict
+from enum import Enum
+
+class Mode(Enum):  
+    '''
+    Enumeration object for labeling ppnet mode.  
+    '''
+    GENETIC = 1
+    IMAGE = 2 
+    MULTIMODAL = 3 
 
 class LeafNode(nn.Module):
-    def __init__(self,
-                 int_location,
-                 named_location,
-    ):
+    def __init__(self, int_location, named_location):
         super().__init__()
         self.int_location = int_location
         self.named_location = named_location
@@ -18,7 +24,7 @@ class LeafNode(nn.Module):
 
 class TreeNode(nn.Module):
     def __init__(self,
-                 int_location: Tuple[int],
+                 int_location: List[int],
                  named_location,
                  num_prototypes_per_class,
                  prototype_shape,
@@ -230,24 +236,21 @@ class TreeNode(nn.Module):
             child(conv_features) for child in self.child_nodes
         ])
 
-    def cuda(self):
+    def cuda(self, device = None):
         for child in self.child_nodes:
-            child.cuda()
-        return super().cuda()
+            child.cuda(device)
+        return super().cuda(device)
 
-    def to(self, device):
+    def to(self, *args, **kwargs):
         for child in self.child_nodes:
-            child.to(device)
-        return super().to(device)
+            child.to(*args, **kwargs)
+        return super().to(*args, **kwargs)
 
     def push_forward(self, conv_features):
         """
         This one is not recursive, because I realized doing it recursive was a bad idea.
         """
         return conv_features, self.push_get_dist(conv_features)
-
-    def push_forward_recursive(self, conv_features):
-        raise NotImplementedError()
 
     def __repr__(self):
         return f"TreeNode: [{'>'.join(self.named_location)}]"
@@ -260,7 +263,7 @@ class Hierarchical_PPNet(nn.Module):
                  num_prototypes_per_class,
                  class_specification, # the directionary {tree: , levels: }
                  proto_layer_rf_info, # tuple or smth
-                 mode, # 1, 2, 3
+                 mode: Mode, 
                  max_num_prototypes_per_class=None, 
         ):
         """
@@ -271,10 +274,7 @@ class Hierarchical_PPNet(nn.Module):
         
         super().__init__()
 
-        if mode == 0:
-            raise ValueError("Illegal Mode")
-        
-        if mode == 3:
+        if mode == Mode.MULTIMODAL:
             raise ValueError("Use MultiHierarchical_PPNet for joint mode")
         
         self.tree_specification = class_specification["tree"]
@@ -282,7 +282,7 @@ class Hierarchical_PPNet(nn.Module):
                 
         self.img_size = img_size
         self.prototype_shape = prototype_shape
-        self.genetics_mode = mode & 1
+        self.genetics_mode = True if mode == Mode.GENETIC else False 
         self.mode = mode
 
         # always linear since we use cosine similarity 
@@ -305,14 +305,14 @@ class Hierarchical_PPNet(nn.Module):
 
         self.nodes_with_children = self.get_nodes_with_children()
 
-    def cuda(self):
-        self.root.cuda()
-        return super().cuda()
+    def cuda(self, device = None): 
+        self.root.cuda(device)
+        return super().cuda(device)
 
-    def to(self, device):
-        self.root.to(device)
-        self.features = self.features.to(device)
-        return super().to(device)
+    def to(self, *args, **kwargs): 
+        self.root.to(*args, **kwargs)
+        self.features = self.features.to(*args, **kwargs)
+        return super().to(*args, **kwargs)
 
 
     def get_nodes_with_children(self):
@@ -402,7 +402,7 @@ class CombinerTreeNode(nn.Module):
         self.image_tree_node = image_tree_node
         self.int_location = genetic_tree_node.int_location
         self.named_location = genetic_tree_node.named_location
-        self.mode = 3
+        self.mode = Mode.MULTIMODAL
 
         self.child_nodes = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
 
@@ -456,10 +456,10 @@ class Multi_Hierarchical_PPNet(nn.Module):
         self.genetic_hierarchical_ppnet = genetic_hierarchical_ppnet
         self.image_hierarchical_ppnet = image_hierarchical_ppnet
 
-        if self.genetic_hierarchical_ppnet.mode != 1:
+        if self.genetic_hierarchical_ppnet.mode != Mode.GENETIC:
             raise ValueError("Genetic Hierarchical PPNet must be in genetics mode")
         
-        if self.image_hierarchical_ppnet.mode != 2:
+        if self.image_hierarchical_ppnet.mode != Mode.IMAGE:
             raise ValueError("Image Hierarchical PPNet must be in image mode")
 
         if self.genetic_hierarchical_ppnet.tree_specification != self.image_hierarchical_ppnet.tree_specification:
@@ -468,7 +468,7 @@ class Multi_Hierarchical_PPNet(nn.Module):
         self.tree_specification = self.genetic_hierarchical_ppnet.tree_specification
         self.levels = self.genetic_hierarchical_ppnet.levels
 
-        self.mode = 3
+        self.mode = Mode.MULTIMODAL
 
         self.root = self.construct_multi_node_tree()
 
@@ -507,9 +507,9 @@ class Multi_Hierarchical_PPNet(nn.Module):
 
         return construct_multi_node_tree_recursive(self.genetic_hierarchical_ppnet.root, self.image_hierarchical_ppnet.root)
 
-    def cuda(self):
-        self.genetic_hierarchical_ppnet.cuda()
-        self.image_hierarchical_ppnet.cuda()
+    def cuda(self, device = None):
+        self.genetic_hierarchical_ppnet.cuda(device)
+        self.image_hierarchical_ppnet.cuda(device)
         return super().cuda()
 
     def forward(self, x, get_middle_logits=False):

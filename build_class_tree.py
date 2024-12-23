@@ -26,7 +26,15 @@ print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0, only_species_leaves=False) -> Optional[Dict]: 
+def question_level(
+    levels: List[str], 
+    data: pd.DataFrame, 
+    parent="", 
+    min_samples: int = 3, 
+    default_count: int = 0, 
+    only_species_leaves=False
+    ) -> Optional[Dict]: 
+
     """Recursively generate a tree json file from the dataframe. 
     Args: 
         levels: The list of levels in the tree, e.g. order, family, genus, species. 
@@ -42,7 +50,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
     # focus on only the class labels of the parent level  
     level_series = data[general_level]
-    level_series = level_series[level_series != "not_classified"]
+    level_series = pd.DataFrame(level_series[level_series != "not_classified"])
 
     # make sure that there are viable classes for most general level
     if len(level_series) == 0: 
@@ -51,7 +59,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
     # get number of viable top level branches and filter them if below min_sample
     top_level_counts = level_series.value_counts() 
-    top_level_counts= top_level_counts[top_level_counts > min_samples].sort_values(ascending=False)
+    top_level_counts= pd.Series(top_level_counts[top_level_counts > min_samples]).sort_values(ascending=False)
     
     option_count = len(top_level_counts)
 
@@ -77,7 +85,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
         if 0 < count <= option_count: 
             break
     
-    options = list(top_level_counts.index[:count])
+    options = list(top_level_counts.index)[:count]
     print(f"Selected: {options}\n")
 
     tree = {}
@@ -104,7 +112,7 @@ def get_tree_stats(tree):
         if start is None:
             data[i] += 1
             return 
-        for key, val in start.items(): 
+        for _, val in start.items(): 
             dfs(val, i+1)
 
     dfs(tree, 0) 

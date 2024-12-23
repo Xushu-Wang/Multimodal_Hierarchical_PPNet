@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-def position_encodings(self, x):
+def position_encodings(x):
     
     """
         Position Encoding Idea:
@@ -24,7 +24,7 @@ def position_encodings(self, x):
     return torch.cat([x, pos_vec], dim=1)
 
 
-def get_optimizers(cfg, ppnet): 
+def get_optimizers(ppnet): 
     # through_protos_optimizer
     
     through_protos_optimizer_specs = [
@@ -34,19 +34,17 @@ def get_optimizers(cfg, ppnet):
     ]
     through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
     
-    # warm optimizer
-    
     warm_optimizer_specs = [
         {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
         {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
     ]
     warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
     
-    # last layer optimizer
-    last_layers_specs = [
-        {'params': ppnet.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
-    ]
-    last_layer_optimizer = torch.optim.SGD(last_layers_specs,momentum=.9)
+    last_layer_optimizer = torch.optim.SGD(
+        params = ppnet.get_last_layer_parameters(), 
+        lr = 3e-3,
+        momentum = .9
+    )
     
     # joint optimizer
     joint_optimizer_specs = [
@@ -60,9 +58,6 @@ def get_optimizers(cfg, ppnet):
 
     return through_protos_optimizer, warm_optimizer, last_layer_optimizer, joint_optimizer
 
-
-
-
 def adjust_learning_rate(optimizers):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     #lr_ = lr * (0.1 ** (epoch // decay))    
@@ -70,9 +65,6 @@ def adjust_learning_rate(optimizers):
         for param_group in optimizer.param_groups:
             new_lr = param_group['lr'] * .1
             param_group['lr'] = new_lr
-
-
-
 
 nucleotides = {"N": 0, "A": 1, "C": 2, "G": 3, "T": 4}
 def decode_onehot(onehot, three_dim=True):
@@ -83,8 +75,6 @@ def decode_onehot(onehot, three_dim=True):
     # Make the unknown nucleotide 1 if all other nucleotides are 0
     onehot[0] = 1 - onehot[1:].sum(0)
     return "".join([list(nucleotides.keys())[list(nucleotides.values()).index(i)] for i in onehot.argmax(0)])
-
-
 
 def construct_tree(json_data, parent):
     

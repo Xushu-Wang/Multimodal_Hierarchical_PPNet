@@ -15,13 +15,7 @@ DATASET:
     DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_.01_no_oversample"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_1.0_10_oversample"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/1.0_no_global"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/1.0_no_global"
 
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory

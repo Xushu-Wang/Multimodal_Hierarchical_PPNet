@@ -1,13 +1,11 @@
 import torch
 import bisect
+from model.hierarchical_ppnet import Mode
 
-"""
-This updates the prototype mask of a node to only include the best prototypes for each class as defined by output weights.
-"""
-def nodal_prune_prototypes_weights(
-    node,
-    log=print
-):
+def nodal_prune_prototypes_weights(node):
+    """This updates the prototype mask of a node to only include the best 
+    prototypes for each class as defined by output weights.
+    """
     # Get the n best prototypes per class
     corresponding_weights = node.last_layer.weight.data[node.prototype_class_identity.T.bool()]
     corresponding_weights = corresponding_weights.view(node.num_prototypes_per_class, -1)
@@ -30,31 +28,25 @@ def nodal_prune_prototypes_weights(
     del corresponding_weights
     del best_prototypes
 
-"""
-This function unmasks all prototypes.
-"""
-def unprune_prototypes(
-    node,
-    log=print
-):
+def unprune_prototypes(node):
+    """
+    This function unmasks all prototypes.
+    """
     node.prototype_mask.data[:] = 1
 
-"""
-This function prunes prototypes according to the approach described in the supplement to This Looks Like That.
-
-k: Number of nearest neighbors to consider
-tau: Pruning threshold
-"""
 def prune_prototypes_quality(
     prototype_network_parallel,
     dataloader,
     preprocess_input_function,
     k,
     tau,
-    do_pruning_log=True,
-    log=print
-):
-    if prototype_network_parallel.module.mode == 3:
+    do_pruning_log=True):
+    """
+    This function prunes prototypes according to the approach described in the supplement to This Looks Like That.
+    k: Number of nearest neighbors to consider
+    tau: Pruning threshold
+    """
+    if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
             nodal_init_pruning_datastructures(node, k)
         for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
@@ -64,28 +56,25 @@ def prune_prototypes_quality(
             nodal_init_pruning_datastructures(node, k)
 
     with torch.no_grad():
-        for i, ((genetics, image), labels) in enumerate(dataloader):
-            if prototype_network_parallel.module.mode == 1:
+        # search_batch_input is the raw input image, this is used for generating output images.
+        # search_batch is the input to the network, this is used for generating the feature maps. 
+        # This may be normalzied
+        for (genetics, image), labels in dataloader:
+            if prototype_network_parallel.module.mode == Mode.GENETIC:
                 search_batch_input = genetics
-            elif prototype_network_parallel.module.mode == 2:
+            elif prototype_network_parallel.module.mode == Mode.IMAGE:
                 search_batch_input = image
             else:
                 search_batch_input = (genetics, image)
 
-            """
-            search_batch_input is the raw input image, this is used for generating output images.
-            search_batch is the input to the network, this is used for generating the feature maps. This may be normalzied
-            """
-            if preprocess_input_function is not None and prototype_network_parallel.module.mode == 2:
-                # print('preprocessing input for pushing ...')
-                # search_batch = copy.deepcopy(search_batch_input)
+            if preprocess_input_function is not None and prototype_network_parallel.module.mode == Mode.IMAGE:
                 search_batch = preprocess_input_function(search_batch_input)
-            elif preprocess_input_function is not None and prototype_network_parallel.module.mode == 3:
+            elif preprocess_input_function is not None and prototype_network_parallel.module.mode == Mode.MULTIMODAL:
                 search_batch = (search_batch_input[0], preprocess_input_function(search_batch_input[1]))
             else:
                 search_batch = search_batch_input
 
-            if prototype_network_parallel.module.mode == 3:
+            if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
                 search_batch = (search_batch[0].cuda(), search_batch[1].cuda())
             else:
                 search_batch = search_batch.cuda()
@@ -93,14 +82,13 @@ def prune_prototypes_quality(
             conv_features = prototype_network_parallel.module.conv_features(search_batch)
             labels = labels.cuda()
 
-            if prototype_network_parallel.module.mode == 3:
+            if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
                 for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
                     nodal_update_pruning_datastructures(
                         node,
                         conv_features,
                         labels,
                         k,
-                        log=log
                     )
                 for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
                     nodal_update_pruning_datastructures(
@@ -108,7 +96,6 @@ def prune_prototypes_quality(
                         conv_features,
                         labels,
                         k,
-                        log=log
                     )
             else:
                 for node in prototype_network_parallel.module.nodes_with_children:
@@ -117,34 +104,31 @@ def prune_prototypes_quality(
                         conv_features,
                         labels,
                         k,
-                        log=log
                     )
     
-    if prototype_network_parallel.module.mode == 3:
+    if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
-            nodal_update_pruning_mask(node, k, tau)
+            nodal_update_pruning_mask(node, tau)
             if do_pruning_log:
-                print_quality_pruning_information(node, log)
+                print_quality_pruning_information(node)
             nodal_clear_pruning_datastructures(node)
         for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
-            nodal_update_pruning_mask(node, k, tau)
+            nodal_update_pruning_mask(node, tau)
             nodal_clear_pruning_datastructures(node)
     else:
         for node in prototype_network_parallel.module.nodes_with_children:
-            nodal_update_pruning_mask(node, k, tau)
+            nodal_update_pruning_mask(node, tau)
             nodal_clear_pruning_datastructures(node)
 
-"""
-Painfully slow function that updates the k-best samples for each prototype in a node.
-"""
 def nodal_update_pruning_datastructures(
     node,
     conv_features,
     labels,
     k,
-    ignore_not_classified=True,
-    log=print
-):
+    ignore_not_classified=True):
+    """
+    Painfully slow function that updates the k-best samples for each prototype in a node.
+    """
     cpu_labels = labels.cpu()
 
     # This has shape of (batch_size, num_prototypes)
@@ -193,10 +177,10 @@ def nodal_init_pruning_datastructures(node, k):
     # node.best_prototype_classes stores the indices of the k nearest samples thus far for each prototype
     node.best_prototype_classes = [[-1 for _ in range(k)] for _ in range(len(node.prototype_vectors))]
 
-"""
-This looks at the closest prototypes and sees if we match the quality condition
-"""
-def nodal_update_pruning_mask(node, k, tau):
+def nodal_update_pruning_mask(node, tau):
+    """
+    This looks at the closest prototypes and sees if we match the quality condition
+    """
     node.prototype_mask.data.zero_()
     for i, proto_classes in enumerate(node.best_prototype_classes):
         best_prototype_class_index = i // node.num_prototypes_per_class
@@ -210,7 +194,7 @@ def nodal_clear_pruning_datastructures(node):
     del node.kth_prototype_distances
     del node.best_prototype_classes
 
-def print_quality_pruning_information(node, log=print):
+def print_quality_pruning_information(node):
     print(f"{node.int_location}\t{node.prototype_mask.view(node.num_prototypes_per_class, -1).sum(dim=0)}")
 
 """
@@ -227,22 +211,19 @@ def prune_prototypes(
     log=print,
 ):
     if pruning_type == 'weights':
-        if prototype_network_parallel.module.mode == 3:
+        if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
             for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
                 nodal_prune_prototypes_weights(
                     node,
-                    log=log
                 )
             for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
                 nodal_prune_prototypes_weights(
                     node,
-                    log=log
                 )
         else:
             for node in prototype_network_parallel.module.nodes_with_children:
                 nodal_prune_prototypes_weights(
                     node,
-                    log=log
                 )
     elif pruning_type == 'quality':
         prune_prototypes_quality(
@@ -251,7 +232,6 @@ def prune_prototypes(
             preprocess_input_function,
             k,
             tau,
-            log=log
         )
     else:
         raise ValueError('Invalid pruning type')

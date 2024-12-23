@@ -2,9 +2,8 @@ import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.model_zoo as model_zoo
 from collections import OrderedDict
-
+from torch.hub import load_state_dict_from_url
 
 model_urls = {
     'densenet121': 'https://download.pytorch.org/models/densenet121-a639ec97.pth',
@@ -21,23 +20,23 @@ class _DenseLayer(nn.Sequential):
 
     def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):
         super(_DenseLayer, self).__init__()
-        self.add_module('norm1', nn.BatchNorm2d(num_input_features)),
-        self.add_module('relu1', nn.ReLU(inplace=True)),
+        self.add_module('norm1', nn.BatchNorm2d(num_input_features))
+        self.add_module('relu1', nn.ReLU(inplace=True))
         self.add_module('conv1', nn.Conv2d(num_input_features, bn_size *
-                        growth_rate, kernel_size=1, stride=1, bias=False)),
-        self.add_module('norm2', nn.BatchNorm2d(bn_size * growth_rate)),
-        self.add_module('relu2', nn.ReLU(inplace=True)),
+                        growth_rate, kernel_size=1, stride=1, bias=False))
+        self.add_module('norm2', nn.BatchNorm2d(bn_size * growth_rate))
+        self.add_module('relu2', nn.ReLU(inplace=True))
         self.add_module('conv2', nn.Conv2d(bn_size * growth_rate, growth_rate,
-                        kernel_size=3, stride=1, padding=1, bias=False)),
+                        kernel_size=3, stride=1, padding=1, bias=False))
         self.drop_rate = drop_rate
 
-    def forward(self, x):
-        new_features = super(_DenseLayer, self).forward(x)
+    def forward(self, input):
+        new_features = super(_DenseLayer, self).forward(input)
         if self.drop_rate > 0:
             new_features = F.dropout(new_features, p=self.drop_rate, training=self.training)
 
         # channelwise concatenation
-        return torch.cat([x, new_features], 1)
+        return torch.cat([input, new_features], 1)
 
     def layer_conv_info(self):
         layer_kernel_sizes = [1, 3]
@@ -99,8 +98,12 @@ class DenseNet_features(nn.Module):
         num_classes (int) - number of classification classes
     """
 
-    def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
-                 num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
+    def __init__(self, 
+                 growth_rate=32, 
+                 block_config=(6, 12, 24, 16),
+                 num_init_features=64, 
+                 bn_size=4, 
+                 drop_rate=0): 
 
         super(DenseNet_features, self).__init__()
         self.kernel_sizes = []
@@ -192,7 +195,7 @@ def densenet121_features(pretrained=False, **kwargs):
         # to find such keys.
         pattern = re.compile(
             r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
-        state_dict = model_zoo.load_url(model_urls['densenet121'], model_dir=model_dir)
+        state_dict = load_state_dict_from_url(model_urls['densenet121'], model_dir=model_dir)
         for key in list(state_dict.keys()):
             '''
             example
@@ -229,7 +232,9 @@ def densenet169_features(pretrained=False, **kwargs):
         # to find such keys.
         pattern = re.compile(
             r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
-        state_dict = model_zoo.load_url(model_urls['densenet169'], model_dir=model_dir)
+
+        state_dict = load_state_dict_from_url(model_urls['densenet169'], model_dir=model_dir)
+
         for key in list(state_dict.keys()):
             '''
             example
@@ -266,7 +271,7 @@ def densenet201_features(pretrained=False, **kwargs):
         # to find such keys.
         pattern = re.compile(
             r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
-        state_dict = model_zoo.load_url(model_urls['densenet201'], model_dir=model_dir)
+        state_dict = load_state_dict_from_url(model_urls['densenet201'], model_dir=model_dir)
         for key in list(state_dict.keys()):
             '''
             example
@@ -306,7 +311,7 @@ def densenet161_features(pretrained=False, **kwargs):
             r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
 
 
-        state_dict = model_zoo.load_url(model_urls['densenet161'], model_dir=model_dir)
+        state_dict = load_state_dict_from_url(model_urls['densenet161'], model_dir=model_dir)
         for key in list(state_dict.keys()):
             '''
             example

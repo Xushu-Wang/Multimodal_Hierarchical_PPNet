@@ -1,13 +1,9 @@
 import torch
 import numpy as np
-
 import heapq
-
 import matplotlib.pyplot as plt
 import os
-import copy
 import time
-
 import cv2
 
 from prototype.receptive_field import compute_rf_prototype
@@ -20,8 +16,6 @@ def imsave_with_bbox(fname, img_rgb, bbox_height_start, bbox_height_end,
                   color, thickness=2)
     img_rgb_uint8 = img_bgr_uint8[...,::-1]
     img_rgb_float = np.float32(img_rgb_uint8) / 255
-    #plt.imshow(img_rgb_float)
-    #plt.axis('off')
     plt.imsave(fname, img_rgb_float)
 
 class ImagePatch:
@@ -58,7 +52,6 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                                          full_save=False, # save all the images
                                          root_dir_for_saving_images='./nearest',
                                          log=print,
-                                         prototype_activation_function_in_numpy=None,
 ):
     prototype_network_parallel.eval()
     '''
@@ -91,8 +84,7 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
 
         with torch.no_grad():
             search_batch = search_batch.cuda()
-            protoL_input_torch, proto_dist_torch = \
-                prototype_network_parallel.module.push_forward(search_batch)
+            _, proto_dist_torch = prototype_network_parallel.module.push_forward(search_batch)
 
         #protoL_input_ = np.copy(protoL_input_torch.detach().cpu().numpy())
         proto_dist_ = np.copy(proto_dist_torch.detach().cpu().numpy())
@@ -127,7 +119,7 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                     elif prototype_network_parallel.module.prototype_activation_function == 'linear':
                         act_pattern = max_dist - distance_map[j]
                     else:
-                        act_pattern = prototype_activation_function_in_numpy(distance_map[j])
+                        raise NotImplementedError("Prototype Activation Function is None")
 
                     # 4 numbers: height_start, height_end, width_start, width_end
                     patch_indices = closest_patch_indices_in_img[1:5]
