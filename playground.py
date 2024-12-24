@@ -1,14 +1,14 @@
 from enum import Enum
+from yacs.config import CfgNode as CN
 
 class Mode(Enum): 
     GENETIC = 1
     IMAGE = 2 
     MULTIMODAL = 3 
 
-x = Mode.GENETIC 
-print(x) 
-print(type(x))
-y = Mode(1) 
+C = CN()
 
-print(y)
+C.RUN_NAME = "" 
+C.SEED = 202
 
+print(dir(type(C)))

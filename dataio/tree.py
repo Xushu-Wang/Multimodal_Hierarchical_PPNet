@@ -1,13 +1,14 @@
 import os, time, json
 from typing import Optional, Dict, Text, Tuple, List
 import Augmentor
-import torch
+import torch 
+from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import torch.nn.functional as F
 import numpy as np
 from skimage import io
-from torchvision.transforms import v2, ToTensor, transforms
+from torchvision.transforms import transforms
 from model.hierarchical_ppnet import Mode
 from yacs.config import CfgNode
 from typing_extensions import deprecated
@@ -27,7 +28,6 @@ class GeneticOneHot():
         self.include_height_channel = include_height_channel
 
     def __call__(self, genetic_string: str):
-        
         """
         Args:
             genetics (str): The genetic data to be transformed.
@@ -57,6 +57,50 @@ class GeneticOneHot():
 
         return onehot_tensor.float()
 
+class ImageGeometricTransform():
+    def __init__(self):
+        pass
+
+    def __call__(self, image):
+        r: int = np.random.randint(0, 4) 
+        p = Augmentor.Pipeline()
+        match r: 
+            case 0: 
+                p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
+            case 1: 
+                p.skew(probability=1, magnitude=0.2) # type: ignore
+            case 2: 
+                p.shear(probability=1, max_shear_left=10, max_shear_right=10)
+            case 3: 
+                p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
+
+        p.flip_left_right(probability=0.5)
+        return p.torch_transform()(image)
+
+class GeneticMutationTransform(): 
+    def __init__(self, insertion_amount: int, deletion_amount: int, substitution_rate: float): 
+        self.insertion_amount = insertion_amount 
+        self.deletion_amount = deletion_amount 
+        self.substitution_rate = substitution_rate
+
+    def __call__(self, sample: str) -> str:
+        insertion_count = np.random.randint(0, self.insertion_amount+1)
+        deletion_count = np.random.randint(0, self.deletion_amount+1)
+
+        insertion_indices = np.random.randint(0, len(sample), insertion_count)
+        for idx in insertion_indices:
+            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
+        
+        deletion_indices = np.random.randint(0, len(sample), deletion_count)
+        for idx in deletion_indices:
+            sample = sample[:idx] + sample[idx+1:]
+        
+        mutation_indices = np.random.choice(len(sample), int(len(sample) * self.substitution_rate), replace=False)
+        for idx in mutation_indices:
+            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
+        
+        return sample
+
 class TreeDataset(Dataset):
     """
     This is a heirarchichal dataset for genetics and images.
@@ -68,7 +112,7 @@ class TreeDataset(Dataset):
         image_root_dir: str, 
         class_specification, 
         image_transforms: transforms.Compose, 
-        genetic_transforms, 
+        genetic_transforms: Optional[GeneticMutationTransform], 
         mode: Mode, 
         flat_class: bool = False
         ):
@@ -76,7 +120,41 @@ class TreeDataset(Dataset):
         self.image_root_dir = image_root_dir
 
         self.tree, self.levels = class_specification["tree"], class_specification["levels"]
-        self.indexed_tree = self.generate_tree_indicies(self.tree)
+
+        def generate_tree_indicies(tree:dict, idx=0):
+            """
+            This is deeply gross and I appologize for it.
+            """
+            tree = {k: v for k,v in tree.items()}
+            tree["idx"] = idx
+
+            idx = 0
+
+            for k,v in tree.items():
+                if k == "idx":
+                    continue
+                if isinstance(v, dict):
+                    tree[k] = generate_tree_indicies(v, idx)
+                else:
+                    tree[k] = {
+                        "idx": idx
+                    }
+                idx += 1
+
+            return tree
+        
+        def generate_leaf_indicies(tree, idx):
+            tree = {k: v for k,v in tree.items()}
+            for k, v in tree.items():
+                if v == None:
+                    tree[k] = {"idx": idx["val"]}
+                    idx["val"] += 1
+                else:
+                    tree[k] = generate_leaf_indicies(v, idx)[0]
+            
+            return tree, idx["val"]
+
+        self.indexed_tree = generate_tree_indicies(self.tree)
 
         self.mode = mode
         self.one_hot_encoder = GeneticOneHot(length=720, zero_encode_unknown=True, include_height_channel=True)
@@ -87,50 +165,17 @@ class TreeDataset(Dataset):
         self.flat_class = flat_class
 
         if flat_class:
-            self.leaf_indicies, self.class_count = self.generate_leaf_indicies(self.tree, {"val": 0}) 
+            self.leaf_indicies, self.class_count = generate_leaf_indicies(self.tree, {"val": 0}) 
 
-    def generate_tree_indicies(self, tree:dict, idx=0):
-        """
-        This is deeply gross and I appologize for it.
-        """
-        tree = {k: v for k,v in tree.items()}
-        tree["idx"] = idx
-
-        idx = 0
-
-        for k,v in tree.items():
-            if k == "idx":
-                continue
-            if isinstance(v, dict):
-                tree[k] = self.generate_tree_indicies(v, idx)
-            else:
-                tree[k] = {
-                    "idx": idx
-                }
-            idx += 1
-
-        return tree
-    
-    def generate_leaf_indicies(self, tree, idx):
-        tree = {k: v for k,v in tree.items()}
-        for k, v in tree.items():
-            if v == None:
-                tree[k] = {"idx": idx["val"]}
-                idx["val"] += 1
-            else:
-                tree[k] = self.generate_leaf_indicies(v, idx)[0]
-        
-        return tree, idx["val"]
-
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[Tuple[Optional[Tensor], Optional[np.ndarray]], Optional[Tensor]]:
         row = self.df.iloc[idx]
         image_path = os.path.join(self.image_root_dir, row["order"],row["family"], row["genus"], row["species"], row["image_file"]) 
         
         if self.mode.value & 1:
-            genetics = row["nucraw"]
+            genetics_string: str = row["nucraw"] 
             if self.genetic_transforms:
-                genetics = self.genetic_transforms(genetics)
-            genetics = self.one_hot_encoder(genetics)
+                genetics_string = self.genetic_transforms(genetics_string)
+            genetics = self.one_hot_encoder(genetics_string)
         else:
             genetics = None
        
@@ -178,181 +223,12 @@ class TreeDataset(Dataset):
     def __len__(self):
         return len(self.df)
 
-def collate_fn(batch):
-    """
-    This is a collate function for the TreeDataset.
-    """
-    genetics = []
-    images = []
-    labels = []
-
-    for item in batch:
-        if item[0][0] != None:
-            genetics.append(item[0][0])
-        if item[0][1] != None:
-            images.append(item[0][1])
-        labels.append(item[1])
-
-    if genetics:
-        genetics = torch.stack(genetics)
-    if images:
-        images = torch.stack(images)
-    labels = torch.stack(labels)
-
-    if len(genetics) == 0:
-        genetics = None
-    if len(images) == 0:
-        images = None
-
-    return (genetics, images), labels
-
-def proportional_assign(total_count, count_per_leaf):
-    temp_count_per_leaf = np.ceil(np.array(count_per_leaf) * ((total_count - 3) / (count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2])))
-    temp_count_per_leaf += 1
-
-    while sum(temp_count_per_leaf) > total_count:
-        temp_count_per_leaf[np.random.choice(3)] -= 1
-
-    return temp_count_per_leaf.astype(int)
-
-def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print):
+def oversample(source_df: pd.DataFrame, count: int, seed:int=2024, log=print) -> pd.DataFrame:
     log("Oh no, we oversampled. This will break data augmentation... Must improve data augmentation.")
     # Fairly oversample the source_df to count
     shortage = count - len(source_df)
     output = pd.concat([source_df] + [source_df] * (shortage // len(source_df)) + [source_df.sample(shortage % len(source_df), replace=False, random_state=seed)])
     return output.sample(frac=1, random_state=seed)
-
-def recursive_balanced_sample(
-    tree:dict, 
-    levels, 
-    source_df:pd.DataFrame, 
-    count_per_leaf:tuple, 
-    train_not_classified_proportion, 
-    seed:int = 2024, 
-    parent_name: Optional[str] = None, 
-    log=print):
-    train_output = []
-    val_output = []
-    test_output = []
-    count_tree = {}
-
-    if len(levels) == 1:
-        # [validation shortage, test shortage]
-        shortages = np.zeros(2)
-        for k,v in tree.items():
-            if k == "not_classified":
-                continue
-            class_size = len(source_df[source_df[levels[0]] == k])
-
-            if class_size < 3:
-                raise ValueError(f"Less than 3 samples for {k} of {parent_name} at level {levels[0]}. Unable to proceed.")
-            if class_size < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
-                log(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
-                
-                temp_count_per_leaf = proportional_assign(class_size, count_per_leaf)
-
-                log(f"New counts for {k}")
-                log(f"Train:\t\t{temp_count_per_leaf[0]}")
-                log(f"Validation:\t{temp_count_per_leaf[1]}")
-                log(f"Test:\t\t{temp_count_per_leaf[2]}")
-
-                shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
-            else:
-                temp_count_per_leaf = count_per_leaf
-
-            test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf[2], random_state=seed)
-            validation_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).sample(temp_count_per_leaf[1], random_state=seed)
-            train_sample = source_df[source_df[levels[0]] == k].drop(test_sample.index).drop(validation_sample.index).sample(temp_count_per_leaf[0], random_state=seed)
-
-            if len(train_sample) < count_per_leaf[0]:
-                train_sample = oversample(train_sample, count_per_leaf[0], seed)
-
-            train_output.append(train_sample)
-            val_output.append(validation_sample)
-            test_output.append(test_sample)
-
-            count_tree[k] = (len(train_sample), len(validation_sample), len(test_sample))            
-    else:
-        shortages = np.zeros(2)
-        for k,v in tree.items():
-            if v==None:
-                not_classified = source_df[source_df[levels[0]] == k]
-
-                temp_count_per_leaf = count_per_leaf
-                child_shortages = np.zeros(2)
-
-                if len(not_classified) < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
-                    log(f"Only {len(not_classified)} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
-                    
-                    temp_count_per_leaf = proportional_assign(len(not_classified), count_per_leaf)
-
-                    log(f"New counts for {k}")
-                    log(f"Train:\t\t{temp_count_per_leaf[0]}")
-                    log(f"Validation:\t{temp_count_per_leaf[1]}")
-                    log(f"Test:\t\t{temp_count_per_leaf[2]}")
-
-                    child_shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
-
-                child_test = not_classified.sample(temp_count_per_leaf[2], random_state=seed)
-                child_val = not_classified.drop(child_test.index).sample(temp_count_per_leaf[1], random_state=seed)
-                child_train = not_classified.drop(child_test.index).drop(child_val.index).sample(temp_count_per_leaf[0], random_state=seed)
-                child_count_tree = {"not_classified": (len(child_train), len(child_val), len(child_test))}
-            else:
-                child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(
-                    v,
-                    levels[1:],
-                    source_df[source_df[levels[0]] == k],
-                    count_per_leaf,
-                    train_not_classified_proportion,
-                    seed,
-                    k,
-                )
-            shortages += child_shortages
-
-            train_output.append(child_train)
-            val_output.append(child_val)
-            test_output.append(child_test)
-
-            count_tree[k] = child_count_tree
-
-    # Convert shortages to int
-    shortages = shortages.astype(int)
-
-    # Handle not_classified
-    not_classified = source_df[(source_df[levels[0]] == "not_classified") | (~source_df[levels[0]].isin([c for c in tree.keys()]))]
-    train_not_classified_count = train_not_classified_proportion[levels[0]] * (len(tree.keys()) - 1) * count_per_leaf[0]
-    train_not_classified_count = int(train_not_classified_count)
-
-    if len(not_classified) < np.sum(shortages) + train_not_classified_count:
-        log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. Sorry.")
-        # TODO - This could be handled by going up one level and adding more not classified.
-        not_classified_sample_amounts = np.array([0,0])
-        train_not_classified_count, not_classified_sample_amounts[0], not_classified_sample_amounts[1] = proportional_assign(len(not_classified), count_per_leaf)
-        # raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
-    else:
-        not_classified_sample_amounts = shortages
-
-    test_sample = not_classified.sample(not_classified_sample_amounts[1], random_state=seed)
-    validation_sample = not_classified.drop(test_sample.index).sample(not_classified_sample_amounts[0], random_state=seed)
-
-    train_sample = not_classified.drop(test_sample.index).drop(validation_sample.index).sample(train_not_classified_count, random_state=seed)
-
-    train_output.append(train_sample)
-    val_output.append(validation_sample)
-    test_output.append(test_sample)
-
-    count_tree["not_classified"] = (len(train_sample), len(validation_sample), len(test_sample))
-
-    return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
-
-def objectify_train_not_classified_proportion(
-    train_not_classified_proportion: List[float], 
-    levels: List[Text]
-    ) -> Dict[Text, float]: 
-    """
-    Takes train_not_classified_proportion in [0,0,0,0] form and converts it to {'order': 0, ...}
-    """
-    return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
 
 def balanced_sample(
     source_df:pd.DataFrame, 
@@ -369,6 +245,139 @@ def balanced_sample(
 
     tree, levels = class_specification["tree"], class_specification["levels"]
 
+    def recursive_balanced_sample(
+        tree:dict, 
+        levels, 
+        source_df:pd.DataFrame, 
+        count_per_leaf:tuple, 
+        train_not_classified_proportion, 
+        seed:int = 2024, 
+        parent_name: Optional[str] = None, 
+        log=print) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray, dict[str, Tuple[int, int, int]]]:
+        train_output = []
+        val_output = []
+        test_output = []
+        count_tree = {}
+
+        def proportional_assign(total_count, count_per_leaf):
+            temp_count_per_leaf = np.ceil(np.array(count_per_leaf) * ((total_count - 3) / (count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2])))
+            temp_count_per_leaf += 1
+
+            while sum(temp_count_per_leaf) > total_count:
+                temp_count_per_leaf[np.random.choice(3)] -= 1
+
+            return temp_count_per_leaf.astype(int)
+
+
+        if len(levels) == 1:
+            # [validation shortage, test shortage]
+            shortages = np.zeros(2)
+            for k,v in tree.items():
+                if k == "not_classified":
+                    continue
+                class_size = len(source_df[source_df[levels[0]] == k])
+
+                if class_size < 3:
+                    raise ValueError(f"Less than 3 samples for {k} of {parent_name} at level {levels[0]}. Unable to proceed.")
+                if class_size < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
+                    log(f"Only {class_size} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
+                    
+                    temp_count_per_leaf = proportional_assign(class_size, count_per_leaf)
+
+                    log(f"New counts for {k}")
+                    log(f"Train:\t\t{temp_count_per_leaf[0]}")
+                    log(f"Validation:\t{temp_count_per_leaf[1]}")
+                    log(f"Test:\t\t{temp_count_per_leaf[2]}")
+
+                    shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
+                else:
+                    temp_count_per_leaf = count_per_leaf
+
+                test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf[2], random_state=seed)
+                validation_sample = source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).sample(temp_count_per_leaf[1], random_state=seed)
+                train_sample = pd.DataFrame(source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(temp_count_per_leaf[0], random_state=seed))
+
+                if len(train_sample) < count_per_leaf[0]:
+                    train_sample = oversample(train_sample, count_per_leaf[0], seed)
+
+                train_output.append(train_sample)
+                val_output.append(validation_sample)
+                test_output.append(test_sample)
+
+                count_tree[k] = (len(train_sample), len(validation_sample), len(test_sample))            
+        else:
+            shortages = np.zeros(2)
+            for k,v in tree.items():
+                if v==None:
+                    not_classified = source_df[source_df[levels[0]] == k]
+
+                    temp_count_per_leaf = count_per_leaf
+                    child_shortages = np.zeros(2)
+
+                    if len(not_classified) < count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]:
+                        log(f"Only {len(not_classified)} (of needed {count_per_leaf[0] + count_per_leaf[1] + count_per_leaf[2]}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
+                        
+                        temp_count_per_leaf = proportional_assign(len(not_classified), count_per_leaf)
+
+                        log(f"New counts for {k}")
+                        log(f"Train:\t\t{temp_count_per_leaf[0]}")
+                        log(f"Validation:\t{temp_count_per_leaf[1]}")
+                        log(f"Test:\t\t{temp_count_per_leaf[2]}")
+
+                        child_shortages += np.array(count_per_leaf)[1:] - temp_count_per_leaf[1:]
+
+                    child_test = not_classified.sample(temp_count_per_leaf[2], random_state=seed)
+                    child_val = not_classified.drop(index=list(child_test.index)).sample(temp_count_per_leaf[1], random_state=seed)
+                    child_train = not_classified.drop(index=list(child_test.index)).drop(index=list(child_val.index)).sample(temp_count_per_leaf[0], random_state=seed)
+                    child_count_tree = {"not_classified": (len(child_train), len(child_val), len(child_test))}
+                else:
+                    child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(
+                        v,
+                        levels[1:],
+                        pd.DataFrame(source_df[source_df[levels[0]] == k]),
+                        count_per_leaf,
+                        train_not_classified_proportion,
+                        seed,
+                        k,
+                    )
+                shortages += child_shortages
+
+                train_output.append(child_train)
+                val_output.append(child_val)
+                test_output.append(child_test)
+
+                count_tree[k] = child_count_tree
+
+        # Convert shortages to int
+        shortages = shortages.astype(int)
+
+        # Handle not_classified
+        not_classified = source_df[(source_df[levels[0]] == "not_classified") | (~source_df[levels[0]].isin([c for c in tree.keys()]))]
+        train_not_classified_count = train_not_classified_proportion[levels[0]] * (len(tree.keys()) - 1) * count_per_leaf[0]
+        train_not_classified_count = int(train_not_classified_count)
+
+        if len(not_classified) < np.sum(shortages) + train_not_classified_count:
+            log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. Sorry.")
+            # TODO - This could be handled by going up one level and adding more not classified.
+            not_classified_sample_amounts = np.array([0,0])
+            train_not_classified_count, not_classified_sample_amounts[0], not_classified_sample_amounts[1] = proportional_assign(len(not_classified), count_per_leaf)
+            # raise NotImplementedError(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. We could handle one level up. This is not yet implemented.")
+        else:
+            not_classified_sample_amounts = shortages
+
+        test_sample = not_classified.sample(not_classified_sample_amounts[1], random_state=seed)
+        validation_sample = not_classified.drop(index=list(test_sample.index)).sample(not_classified_sample_amounts[0], random_state=seed)
+
+        train_sample = not_classified.drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(train_not_classified_count, random_state=seed)
+
+        train_output.append(train_sample)
+        val_output.append(validation_sample)
+        test_output.append(test_sample)
+
+        count_tree["not_classified"] = (len(train_sample), len(validation_sample), len(test_sample))
+
+        return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
+
     train_df, val_df, test_df, shortages, count_tree = recursive_balanced_sample(tree, levels, source_df, count_per_leaf, train_not_classified_proportion, seed)
 
     if np.any(shortages > 0):
@@ -380,133 +389,6 @@ def balanced_sample(
     log(f"Test:\t\t{len(test_df)}")
 
     return train_df, val_df, test_df, count_tree
-
-@deprecated("Only called in augment_train_dataset, which is deprecated. ")
-def mutate_sample(
-    insertion_amount=5, 
-    deletion_amount=5, 
-    substitution_rate=0.01
-    ):
-    insertion_count = np.random.randint(0, insertion_amount+1)
-    deletion_count = np.random.randint(0, deletion_amount+1)
-
-    insertion_indices = np.random.randint(0, len(sample), insertion_count)
-    for idx in insertion_indices:
-        sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
-    
-    deletion_indices = np.random.randint(0, len(sample), deletion_count)
-    for idx in deletion_indices:
-        sample = sample[:idx] + sample[idx+1:]
-    
-    mutation_indices = np.random.choice(len(sample), int(len(sample) * substitution_rate), replace=False)
-    for idx in mutation_indices:
-        sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
-    
-    return sample
-
-@deprecated("Not called anywhere.")
-def check_cached_images(source, image_cache_dir, log=print):
-    """
-    Check if the images are already cached. If not, cache them.
-    """
-    if not os.path.exists(image_cache_dir):
-        os.makedirs(image_cache_dir)
-    
-    for _, row in source.iterrows():
-        image_path = os.path.join(image_cache_dir, row["image_file"])
-        if not os.path.exists(image_path):
-            log(f"{image_path} not found. Augmenting Images.")
-            return False
-
-    return True
-
-class GrossImageTransform(object):
-    def __init__(self):
-        pass
-
-    def __call__(self, image):
-        r = np.random.randint(0, 4)
-
-        if r == 0:
-            p = Augmentor.Pipeline()
-            p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
-            p.flip_left_right(probability=0.5)
-            return p.torch_transform()(image)
-        elif r == 1:
-            p = Augmentor.Pipeline()
-            p.skew(probability=1, magnitude=0.2) # type: ignore
-            p.flip_left_right(probability=0.5)
-            return p.torch_transform()(image)
-        elif r == 2:
-            p = Augmentor.Pipeline()
-            p.shear(probability=1, max_shear_left=10, max_shear_right=10)
-            p.flip_left_right(probability=0.5)
-            return p.torch_transform()(image)
-        else:
-            p = Augmentor.Pipeline()
-            p.random_distortion(probability=1.0, grid_width=10, grid_height=10, magnitude=5)
-            p.flip_left_right(probability=0.5)
-            return p.torch_transform()(image)
-
-def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_rate=0.01): 
-    def __call__(self, image):
-        insertion_count = np.random.randint(0, insertion_amount+1)
-        deletion_count = np.random.randint(0, deletion_amount+1)
-
-        insertion_indices = np.random.randint(0, len(sample), insertion_count)
-        for idx in insertion_indices:
-            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx:]
-        
-        deletion_indices = np.random.randint(0, len(sample), deletion_count)
-        for idx in deletion_indices:
-            sample = sample[:idx] + sample[idx+1:]
-        
-        mutation_indices = np.random.choice(len(sample), int(len(sample) * substitution_rate), replace=False)
-        for idx in mutation_indices:
-            sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
-        
-        return sample
-
-@deprecated("Not called anywhere. ")
-def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_params):
-    """
-    This applies image and genetic augmentations to the training dataset.
-    NOTE: This does not oversample the training dataset.
-    """
-
-    substitution_rate = gen_aug_params.SUBSTITUTION_RATE
-    insertion_amount = gen_aug_params.DELETION_COUNT
-    deletion_amount = gen_aug_params.INSERTION_COUNT
-
-    # Mutate genetics
-    source = source.apply(lambda x: mutate_sample(x, insertion_amount=insertion_amount, deletion_amount=deletion_amount, substitution_rate=substitution_rate), axis=1)
-
-    # Augment images - Rotation, skew, shear, and random distortion
-    p = Augmentor.Pipeline()
-    p.rotate(probability=1, max_left_rotation=15, max_right_rotation=15)
-    p.flip_left_right(probability=0.5)
-
-    rotation_transform = v2.Compose([
-        p.torch_transform(),
-        ToTensor()]
-    )
-    
-    skew_transform = v2.Compose([
-        v2.RandomAffine(degrees=0, shear=45),
-        v2.RandomHorizontalFlip(),
-    ])
-
-    shear_transform = v2.Compose([
-        v2.RandomAffine(degrees=0, shear=10),
-        v2.RandomHorizontalFlip(),
-    ])
-
-    distortion_transform = v2.Compose([
-        v2.ElasticTransform(alpha=1, sigma=10),
-        v2.RandomHorizontalFlip(),
-    ])
-
-    return source
 
 def create_tree_dataloaders(
     source: str,                        # path to dataset tsv file
@@ -528,7 +410,7 @@ def create_tree_dataloaders(
     seed=2024,
     flat_class=False,
     log=print
-    ):
+    ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, transforms.Normalize]:
     """
     Creates train, train_push, validation, and test dataloaders for the tree dataset.
     
@@ -558,6 +440,16 @@ def create_tree_dataloaders(
     else:
         if len(train_val_test_split) != 3 or not all([isinstance(i, int) and i >= 0 for i in train_val_test_split]):
             raise ValueError("train_val_test_split must be a 3-tuple of positive integers (train, val, test)")
+
+        def objectify_train_not_classified_proportion(
+            train_not_classified_proportion: List[float], 
+            levels: List[Text]
+            ) -> Dict[Text, float]: 
+            """
+            Takes train_not_classified_proportion in [0,0,0,0] form and converts it to {'order': 0, ...}
+            """
+            return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
+
         
         df = pd.read_csv(source, sep="\t") if isinstance(source, str) else source 
 
@@ -621,12 +513,12 @@ def create_tree_dataloaders(
 
     augmented_img_transforms = transforms.Compose([
         transforms.ToPILImage(),
-        GrossImageTransform(),
+        ImageGeometricTransform(),
         transforms.Resize(size=(256, 256)),
         transforms.ToTensor(),
         normalize
     ])
-    augmented_genetic_transforms = GrossGeneticTransform(
+    augmented_genetic_transforms = GeneticMutationTransform(
         insertion_amount=gen_aug_params.INSERTION_COUNT,
         deletion_amount=gen_aug_params.DELETION_COUNT,
         substitution_rate=gen_aug_params.SUBSTITUTION_RATE
@@ -670,6 +562,32 @@ def create_tree_dataloaders(
         flat_class=flat_class
     )
 
+    def collate_fn(batch):
+        genetics = []
+        images = []
+        labels = []
+
+        for item in batch:
+            if item[0][0] != None:
+                genetics.append(item[0][0])
+            if item[0][1] != None:
+                images.append(item[0][1])
+            labels.append(item[1])
+
+        if genetics:
+            genetics = torch.stack(genetics)
+        if images:
+            images = torch.stack(images)
+        labels = torch.stack(labels)
+
+        if len(genetics) == 0:
+            genetics = None
+        if len(images) == 0:
+            images = None
+
+        return (genetics, images), labels
+
+
     train_loader = DataLoader(
             train_dataset, batch_size=train_batch_size, shuffle=True,
             num_workers=1, pin_memory=False, collate_fn=collate_fn,       
@@ -712,3 +630,8 @@ def get_dataloaders(cfg, log, flat_class=False):
         log=log,
         flat_class=flat_class
     )
+
+@deprecated("""Only called in augment_train_dataset, which is deprecated.
+    Seems like this has same functionality as GeneticMutationTransform.__call__()""")
+def mutate_sample():
+    raise NotImplementedError()

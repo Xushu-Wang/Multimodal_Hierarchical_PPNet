@@ -5,9 +5,7 @@ This trains a ResNet backbone or CNN backbone for genetic or image classificatio
 import argparse, os
 import torch
 from model.features.genetic_features import GeneticCNN2D
-from prototype.prune import prune_prototypes
-from utils.util import save_model_w_condition, create_logger
-from os import mkdir
+from utils.util import create_logger
 from torchvision.models import resnet50
 
 from  configs.cfg import get_cfg_defaults
@@ -18,12 +16,7 @@ from model.model import construct_tree_ppnet
 from model.utils import get_optimizers
 import torch.optim as optim
 
-import train_and_test as tnt
-# from train.train_multimodal import train_multimodal, test_multimodal, last_only_multimodal, joint_multimodal
-
-import prototype.push as push       
 from utils.util import run_id_accumulator 
-from torchvision.utils import save_image
 
 def main():
     cfg = get_cfg_defaults()

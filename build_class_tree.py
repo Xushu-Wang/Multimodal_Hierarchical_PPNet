@@ -95,7 +95,7 @@ def question_level(
             if not only_species_leaves or general_level == "species":
                 tree[o] = None
             continue
-        children = question_level(levels[1:], data[data[general_level] == o], o, min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
+        children = question_level(levels[1:], pd.DataFrame(data[data[general_level] == o]), str(o), min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
         if children or not only_species_leaves or general_level == "species":
             tree[o] = children
 
