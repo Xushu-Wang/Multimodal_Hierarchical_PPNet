@@ -1,14 +1,11 @@
-from enum import Enum
-from yacs.config import CfgNode as CN
+import torch.nn as nn 
 
-class Mode(Enum): 
-    GENETIC = 1
-    IMAGE = 2 
-    MULTIMODAL = 3 
 
-C = CN()
+conv_layer = nn.Conv2d(4, 5, 
+                      kernel_size=3,
+                      stride=1,
+                      padding=1) 
 
-C.RUN_NAME = "" 
-C.SEED = 202
-
-print(dir(type(C)))
+print(conv_layer.kernel_sizes)
+print(conv_layer.strides)
+print(conv_layer.paddings)

@@ -2,15 +2,12 @@ import time
 import torch
 import numpy as np
 from pympler.tracker import SummaryTracker
-from model.hierarchical_ppnet import Mode
+from model.model import Mode
 from typing import Union, Tuple
 
 tracker = SummaryTracker()
 
-mean = (0.485, 0.456, 0.406)
-std = (0.229, 0.224, 0.225)
-
-def CE(logits,target):
+def CE(logits, target):
      # manual definition of the cross entropy for a target which is a probability distribution    
      probs = torch.nn.functional.softmax(logits, 1)    
      return torch.sum(torch.sum(- target * torch.log(probs))) 

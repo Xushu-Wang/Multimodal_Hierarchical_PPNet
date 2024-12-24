@@ -1,6 +1,6 @@
 import torch
 import bisect
-from model.hierarchical_ppnet import Mode
+from model.model import Mode
 
 def nodal_prune_prototypes_weights(node):
     """This updates the prototype mask of a node to only include the best 

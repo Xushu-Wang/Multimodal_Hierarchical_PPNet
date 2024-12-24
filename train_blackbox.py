@@ -5,18 +5,16 @@ This trains a ResNet backbone or CNN backbone for genetic or image classificatio
 import argparse, os
 import torch
 from model.features.genetic_features import GeneticCNN2D
-from utils.util import create_logger
+from configs.io import create_logger, run_id_accumulator 
 from torchvision.models import resnet50
 
 from  configs.cfg import get_cfg_defaults
 from dataio.dataloader import get_dataloaders
 
-from model.hierarchical_ppnet import Mode 
+from model.model import Mode 
 from model.model import construct_tree_ppnet
-from model.utils import get_optimizers
+from train.optimizer import get_optimizers
 import torch.optim as optim
-
-from utils.util import run_id_accumulator 
 
 def main():
     cfg = get_cfg_defaults()

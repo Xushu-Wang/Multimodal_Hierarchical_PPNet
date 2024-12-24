@@ -6,16 +6,32 @@ import os
 import time
 import pandas as pd
 
-from model.utils import decode_onehot
-from model.hierarchical_ppnet import TreeNode, Mode
+from model.model import TreeNode, Mode
 from prototype.receptive_field import compute_rf_prototype
-from utils.util import makedir, find_high_activation_crop
+from utils.util import find_high_activation_crop 
+from configs.io import makedir
+from typing import Optional, Callable
 
+nucleotides = {"N": 0, "A": 1, "C": 2, "G": 3, "T": 4}
+
+def decode_onehot(onehot, three_dim=True):
+    if three_dim:
+        onehot = onehot[:, 0, :]
+    # Add another row encoding whether the nucleotide is unknown
+    onehot = np.vstack([np.zeros(onehot.shape[1]), onehot])
+    # Make the unknown nucleotide 1 if all other nucleotides are 0
+    onehot[0] = 1 - onehot[1:].sum(0)
+    return "".join([list(nucleotides.keys())[list(nucleotides.values()).index(i)] for i in onehot.argmax(0)])
 
 def get_train_dir_size(train_dir):
     return int(os.system(f"ls -1 {train_dir} | wc -l"))
 
-def init_nodal_push_prototypes(node: TreeNode, root_dir_for_saving_prototypes, epoch_number, log): 
+def init_nodal_push_prototypes(
+    node: TreeNode, 
+    root_dir_for_saving_prototypes: Optional[str], 
+    epoch_number: Optional[int], 
+    log: Optional[Callable]
+): 
     """
     Initializes all these variables that are normally global on each node
     """

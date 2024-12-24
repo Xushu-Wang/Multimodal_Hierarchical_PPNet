@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from skimage import io
 from torchvision.transforms import transforms
-from model.hierarchical_ppnet import Mode
+from model.model import Mode
 from yacs.config import CfgNode
 from .custom_transforms import GeneticOneHot, GeneticMutationTransform, create_transforms
 import math 

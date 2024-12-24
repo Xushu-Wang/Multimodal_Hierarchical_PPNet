@@ -1,32 +1,28 @@
 import argparse, os
 import torch
 from prototype.prune import prune_prototypes
-from utils.util import save_model_w_condition, create_logger
 from os import mkdir
 
-from  configs.cfg import get_cfg_defaults
+from configs.cfg import get_cfg_defaults 
+from configs.io import create_logger, run_id_accumulator, save_model_w_condition
+from model.model import Mode
 from dataio.dataloader import get_dataloaders
-
 from model.model import construct_tree_ppnet
-from model.utils import get_optimizers
-from model.hierarchical_ppnet import Mode
-
-import train_and_test as tnt
-
+from train.optimizer import get_optimizers
+import train.train_and_test as tnt
 import prototype.push as push       
-from utils.util import run_id_accumulator 
 
 def main():
-    cfg = get_cfg_defaults()
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/image.yaml')
+    parser.add_argument('--configs', type=str, default='configs/genetics.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
 
+    cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
     run_id_accumulator(cfg)
+
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     log(str(cfg))
     
@@ -41,9 +37,7 @@ def main():
         tree_ppnet = construct_tree_ppnet(cfg).to("cuda")
 
         tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
-
         tree_ppnet_multi = tree_ppnet_multi
-
 
         joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
 
@@ -67,7 +61,7 @@ def main():
             if not args.validate:
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
                     tnt.warm_only(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train(
+                    tnt.train(
                         model=tree_ppnet_multi, 
                         dataloader=train_loader, 
                         optimizer=warm_optimizer,
@@ -75,22 +69,22 @@ def main():
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         coefs=coefs,
                         log=log
-                        )
+                    )
                 else:
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
                         tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                        _ = tnt.train(
-                          model=tree_ppnet_multi,
-                          global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                          parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                          dataloader=train_loader, 
-                          optimizer=last_layer_optimizer,
-                          coefs=coefs,
-                          log=log
+                        tnt.train(
+                            model=tree_ppnet_multi,
+                            global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
+                            parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                            dataloader=train_loader, 
+                            optimizer=last_layer_optimizer,
+                            coefs=coefs,
+                            log=log
                         )
                     
                     tnt.joint(model=tree_ppnet_multi, log=log)
-                    _ = tnt.train( 
+                    tnt.train( 
                         model=tree_ppnet_multi,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
@@ -109,8 +103,14 @@ def main():
                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                 parallel_mode=cfg.DATASET.PARALLEL_MODE
             )
-            save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'nopush', accu=prob_accu,
-                                        target_accu=0, log=log)
+            save_model_w_condition(
+                model=tree_ppnet, 
+                model_dir=cfg.OUTPUT.MODEL_DIR, 
+                model_name=str(epoch) + 'nopush', 
+                accu=prob_accu,
+                target_accu=0, 
+                log=log
+            )
 
             if args.validate:
                 break
