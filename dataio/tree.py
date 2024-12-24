@@ -8,8 +8,11 @@ import torch.nn.functional as F
 import numpy as np
 from skimage import io
 from torchvision.transforms import v2, ToTensor, transforms
+from model.hierarchical_ppnet import Mode
+from yacs.config import CfgNode
+from typing_extensions import deprecated
 
-class GeneticOneHot:
+class GeneticOneHot():
     """Map a genetic string to a one-hot encoded tensor, values being in the color channel dimension.
 
     Args:
@@ -57,14 +60,18 @@ class GeneticOneHot:
 class TreeDataset(Dataset):
     """
     This is a heirarchichal dataset for genetics and images.
-
-    mode 0 - error
-    mode 1 - returns genetic_tensor, label
-    mode 2 - returns image_tensor, label
-    mode 3 - returns (genetic_tensor, image_tensor), label
     """
 
-    def __init__(self, source_df:pd.DataFrame, image_root_dir: str, class_specification, image_transforms, genetic_transforms, mode=3, flat_class=False):
+    def __init__(
+        self, 
+        source_df:pd.DataFrame, 
+        image_root_dir: str, 
+        class_specification, 
+        image_transforms: transforms.Compose, 
+        genetic_transforms, 
+        mode: Mode, 
+        flat_class: bool = False
+        ):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -117,21 +124,18 @@ class TreeDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        image_path = os.path.join(self.image_root_dir, row["order"],row["family"], row["genus"], row["species"], row["image_file"])
+        image_path = os.path.join(self.image_root_dir, row["order"],row["family"], row["genus"], row["species"], row["image_file"]) 
         
-        if self.mode & 1:
+        if self.mode.value & 1:
             genetics = row["nucraw"]
             if self.genetic_transforms:
                 genetics = self.genetic_transforms(genetics)
             genetics = self.one_hot_encoder(genetics)
         else:
             genetics = None
-        
-        if self.mode >> 1:
-            image = io.imread(image_path)
-            image = self.image_transforms(image)
-        else:
-            image = None
+       
+        image = self.image_transforms(io.imread(image_path)) \
+          if self.mode.value >> 1 else None
 
         label = self.get_label(row)
 
@@ -350,7 +354,14 @@ def objectify_train_not_classified_proportion(
     """
     return {level: proportion for level, proportion in zip(levels, train_not_classified_proportion)}
 
-def balanced_sample(source_df:pd.DataFrame, class_specification:dict, count_per_leaf:tuple, train_not_classified_proportion={}, seed:int=2024, log=print):
+def balanced_sample(
+    source_df:pd.DataFrame, 
+    class_specification:dict, 
+    count_per_leaf:tuple, 
+    train_not_classified_proportion: dict, 
+    seed:int = 2024, 
+    log = print
+    ):
     """
     Returns a balanced sample of the source_df based on the class_specification and count_per_leaf.
     """
@@ -370,6 +381,7 @@ def balanced_sample(source_df:pd.DataFrame, class_specification:dict, count_per_
 
     return train_df, val_df, test_df, count_tree
 
+@deprecated("Only called in augment_train_dataset, which is deprecated. ")
 def mutate_sample(
     insertion_amount=5, 
     deletion_amount=5, 
@@ -392,6 +404,7 @@ def mutate_sample(
     
     return sample
 
+@deprecated("Not called anywhere.")
 def check_cached_images(source, image_cache_dir, log=print):
     """
     Check if the images are already cached. If not, cache them.
@@ -454,6 +467,7 @@ def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_ra
         
         return sample
 
+@deprecated("Not called anywhere. ")
 def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_params):
     """
     This applies image and genetic augmentations to the training dataset.
@@ -497,7 +511,7 @@ def augment_train_dataset(source, image_root_dir, image_cache_dir, gen_aug_param
 def create_tree_dataloaders(
     source: str,                        # path to dataset tsv file
     image_root_dir: str,
-    gen_aug_params:object,
+    gen_aug_params:CfgNode,
     train_val_test_split:Tuple[int, int, int],
     oversampling_rate:int,
     train_not_classified_proportions: List[float],
@@ -510,7 +524,7 @@ def create_tree_dataloaders(
     test_batch_size:int,
     transform_mean:tuple,
     transform_std:tuple,
-    mode:int,
+    mode:Mode,
     seed=2024,
     flat_class=False,
     log=print
@@ -526,7 +540,7 @@ def create_tree_dataloaders(
     train_end_count - The number of train_end_countsamples to end with in the training set.
     train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
     tree_specification_file - path to json file tree of valid classes.
-    mode - 0 is illegal (straight to jail), 1 is genetic only, 2 is image only, 3 is both. (Think binary counting)
+    mode - Mode enumerate object
     seed - random seed for splitting, shuffling, transformations, etc.
     oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
     """
@@ -542,9 +556,6 @@ def create_tree_dataloaders(
         val_df = pd.read_csv(os.path.join(cached_dataset_folder, "val.tsv"), sep="\t")
         test_df = pd.read_csv(os.path.join(cached_dataset_folder, "test.tsv"), sep="\t")
     else:
-        if mode == 0:
-            raise ValueError("Mode 0 not allowed. This means it's not genetic or image :(.)")
-
         if len(train_val_test_split) != 3 or not all([isinstance(i, int) and i >= 0 for i in train_val_test_split]):
             raise ValueError("train_val_test_split must be a 3-tuple of positive integers (train, val, test)")
         
@@ -641,21 +652,21 @@ def create_tree_dataloaders(
     )
 
     val_dataset = TreeDataset(
-        val_df,
-        image_root_dir,
-        class_specification,
-        img_transforms,
-        None,
-        mode,
+        source_df=val_df,
+        image_root_dir=image_root_dir,
+        class_specification=class_specification,
+        image_transforms=img_transforms,
+        genetic_transforms=None,
+        mode=mode,
         flat_class=flat_class
     )
     test_dataset = TreeDataset(
-        test_df,
-        image_root_dir,
-        class_specification,
-        img_transforms,
-        None,
-        mode,
+        source_df=test_df,
+        image_root_dir=image_root_dir,
+        class_specification=class_specification,
+        image_transforms=img_transforms,
+        genetic_transforms=None,
+        mode=mode,
         flat_class=flat_class
     )
 
@@ -696,7 +707,7 @@ def get_dataloaders(cfg, log, flat_class=False):
         test_batch_size=cfg.DATASET.TEST_BATCH_SIZE,
         transform_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
         transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
-        mode=cfg.DATASET.MODE,
+        mode=Mode(cfg.DATASET.MODE),
         seed=cfg.SEED,
         log=log,
         flat_class=flat_class

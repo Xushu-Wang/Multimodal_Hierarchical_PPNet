@@ -11,7 +11,7 @@ from utils.util import makedir, find_high_activation_crop
 
 def imsave_with_bbox(fname, img_rgb, bbox_height_start, bbox_height_end,
                      bbox_width_start, bbox_width_end, color=(0, 255, 255)):
-    img_bgr_uint8 = cv2.cvtColor(np.uint8(255*img_rgb), cv2.COLOR_RGB2BGR)
+    img_bgr_uint8 = cv2.cvtColor((255*img_rgb).astype(np.uint8), cv2.COLOR_RGB2BGR)
     cv2.rectangle(img_bgr_uint8, (bbox_width_start, bbox_height_start), (bbox_width_end-1, bbox_height_end-1),
                   color, thickness=2)
     img_rgb_uint8 = img_bgr_uint8[...,::-1]
@@ -179,8 +179,9 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                                                    interpolation=cv2.INTER_CUBIC)
                 rescaled_act_pattern = upsampled_act_pattern - np.amin(upsampled_act_pattern)
                 rescaled_act_pattern = rescaled_act_pattern / np.amax(rescaled_act_pattern)
-                heatmap = cv2.applyColorMap(np.uint8(255*rescaled_act_pattern), cv2.COLORMAP_JET)
-                heatmap = np.float32(heatmap) / 255
+                uint8_array = np.array(np.uint8(255 * rescaled_act_pattern))
+                heatmap = cv2.applyColorMap(uint8_array, cv2.COLORMAP_JET)
+                heatmap = np.array(heatmap, dtype=np.float32) / 255
                 heatmap = heatmap[...,::-1]
                 overlayed_original_img = 0.5 * patch.original_img + 0.3 * heatmap
                 plt.imsave(fname=os.path.join(dir_for_saving_images,

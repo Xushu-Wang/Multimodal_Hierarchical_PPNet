@@ -21,7 +21,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
+    parser.add_argument('--configs', type=str, default='configs/image.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
 

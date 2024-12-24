@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from pympler.tracker import SummaryTracker
 from model.hierarchical_ppnet import Mode
+from typing import Union, Tuple
 
 tracker = SummaryTracker()
 
@@ -260,7 +261,7 @@ def recursive_put_accuracy_probs(
     target,
     level,
     parallel_mode,
-    scale=1,
+    scale: Union[int, Tuple[int, int]],
 ):
     """
     This puts the softmax probabilities for each class into the node object. It scales the probabilities by the previous node's probability.
