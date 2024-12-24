@@ -5,7 +5,7 @@ from utils.util import save_model_w_condition, create_logger
 from os import mkdir
 
 from  configs.cfg import get_cfg_defaults
-from dataio.tree import get_dataloaders
+from dataio.dataloader import get_dataloaders
 
 from model.model import construct_tree_ppnet
 from model.utils import get_optimizers
@@ -21,7 +21,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/genetics.yaml')
+    parser.add_argument('--configs', type=str, default='configs/image.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
 

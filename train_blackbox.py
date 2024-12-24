@@ -9,7 +9,7 @@ from utils.util import create_logger
 from torchvision.models import resnet50
 
 from  configs.cfg import get_cfg_defaults
-from dataio.tree import get_dataloaders
+from dataio.dataloader import get_dataloaders
 
 from model.hierarchical_ppnet import Mode 
 from model.model import construct_tree_ppnet

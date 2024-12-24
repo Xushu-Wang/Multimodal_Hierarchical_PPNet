@@ -26,7 +26,6 @@ def position_encodings(x):
 
 def get_optimizers(ppnet): 
     # through_protos_optimizer
-    
     through_protos_optimizer_specs = [
         {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
         {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
