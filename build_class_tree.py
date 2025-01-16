@@ -26,7 +26,15 @@ print("Source file opened.")
 
 levels = ["order", "family", "genus", "species"]
 
-def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples: int = 3, default_count: int = 0, only_species_leaves=False) -> Optional[Dict]: 
+def question_level(
+    levels: List[str], 
+    data: pd.DataFrame, 
+    parent="", 
+    min_samples: int = 3, 
+    default_count: int = 0, 
+    only_species_leaves=False
+    ) -> Optional[Dict]: 
+
     """Recursively generate a tree json file from the dataframe. 
     Args: 
         levels: The list of levels in the tree, e.g. order, family, genus, species. 
@@ -42,7 +50,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
     # focus on only the class labels of the parent level  
     level_series = data[general_level]
-    level_series = level_series[level_series != "not_classified"]
+    level_series = pd.DataFrame(level_series[level_series != "not_classified"])
 
     # make sure that there are viable classes for most general level
     if len(level_series) == 0: 
@@ -51,7 +59,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
     # get number of viable top level branches and filter them if below min_sample
     top_level_counts = level_series.value_counts() 
-    top_level_counts= top_level_counts[top_level_counts > min_samples].sort_values(ascending=False)
+    top_level_counts= pd.Series(top_level_counts[top_level_counts > min_samples]).sort_values(ascending=False)
     
     option_count = len(top_level_counts)
 
@@ -77,7 +85,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
         if 0 < count <= option_count: 
             break
     
-    options = list(top_level_counts.index[:count])
+    options = list(top_level_counts.index)[:count]
     print(f"Selected: {options}\n")
 
     tree = {}
@@ -87,7 +95,7 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
             if not only_species_leaves or general_level == "species":
                 tree[o] = None
             continue
-        children = question_level(levels[1:], data[data[general_level] == o], o, min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
+        children = question_level(levels[1:], pd.DataFrame(data[data[general_level] == o]), str(o), min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
         if children or not only_species_leaves or general_level == "species":
             tree[o] = children
 
@@ -95,13 +103,29 @@ def question_level(levels: List[str], data: pd.DataFrame, parent="", min_samples
 
 tree = question_level(levels,df, min_samples = args.min_samples, default_count = args.default_count, only_species_leaves=args.only_species_leaves)
 
+def get_tree_stats(tree):
+    from collections import defaultdict
+
+    data = defaultdict(int)
+
+    def dfs(start, i): 
+        if start is None:
+            data[i] += 1
+            return 
+        for _, val in start.items(): 
+            dfs(val, i+1)
+
+    dfs(tree, 0) 
+
+    return data
+
 while True:
     outpath = input("Output path: ")
     
     out = {
         "tree": tree,
         "levels": levels
-    }
+    } 
 
     try:
         if not outpath.endswith(".json"):

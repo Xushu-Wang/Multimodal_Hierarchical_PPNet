@@ -11,7 +11,7 @@ import argparse
 import torch
 
 from configs.cfg import get_cfg_defaults
-from dataio.tree import get_dataloaders
+from dataio.dataloader import get_dataloaders
 from model.model import construct_tree_ppnet
 from torchvision.models import resnet50
 

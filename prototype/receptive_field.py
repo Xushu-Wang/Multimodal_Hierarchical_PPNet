@@ -1,7 +1,12 @@
 import math
+from typing import List, Union
 
-def compute_layer_rf_info(layer_filter_size, layer_stride, layer_padding,
-                          previous_layer_rf_info):
+def compute_layer_rf_info(
+    layer_filter_size: int, 
+    layer_stride: int, 
+    layer_padding: Union[int, str],
+    previous_layer_rf_info: List[int]
+) -> List[int]:
     n_in = previous_layer_rf_info[0] # input size
     j_in = previous_layer_rf_info[1] # receptive field jump of input layer
     r_in = previous_layer_rf_info[2] # receptive field size of input layer
@@ -22,21 +27,18 @@ def compute_layer_rf_info(layer_filter_size, layer_stride, layer_padding,
         assert(pad == (n_out-1)*layer_stride - n_in + layer_filter_size) # sanity check
     else:
         # layer_padding is an int that is the amount of padding on one side
-        pad = layer_padding * 2
+        pad = int(layer_padding) * 2
         n_out = math.floor((n_in - layer_filter_size + pad)/layer_stride) + 1
 
-    pL = math.floor(pad/2)
+    pL = pad // 2
 
     j_out = j_in * layer_stride
     r_out = r_in + (layer_filter_size - 1)*j_in
     start_out = start_in + ((layer_filter_size - 1)/2 - pL)*j_in
     return [n_out, j_out, r_out, start_out]
 
-def compute_rf_protoL_at_spatial_location(img_size, height_index, width_index, protoL_rf_info):
-    n = protoL_rf_info[0]
-    j = protoL_rf_info[1]
-    r = protoL_rf_info[2]
-    start = protoL_rf_info[3]
+def compute_rf_protoL_at_spatial_location(img_size, height_index, width_index, protoL_rf_info): 
+    n, j, r, start = protoL_rf_info
     assert(height_index < n)
     assert(width_index < n)
 
@@ -65,7 +67,7 @@ def compute_rf_prototype(img_size, prototype_patch_index, protoL_rf_info):
 
 def compute_rf_prototypes(img_size, prototype_patch_indices, protoL_rf_info):
     rf_prototypes = []
-    for prototype_patch_index in prototype_patch_indices:
+    for prototype_patch_index in prototype_patch_indices: 
         img_index = prototype_patch_index[0]
         height_index = prototype_patch_index[1]
         width_index = prototype_patch_index[2]
@@ -99,10 +101,14 @@ def compute_proto_layer_rf_info(img_size, cfg, prototype_kernel_size):
 
     return proto_layer_rf_info
 
-
-def compute_proto_layer_rf_info_v2(img_size, layer_filter_sizes, layer_strides, layer_paddings, prototype_kernel_size):
-    assert(len(layer_filter_sizes) == len(layer_strides))
-    assert(len(layer_filter_sizes) == len(layer_paddings))
+def compute_proto_layer_rf_info_v2(
+    img_size: int, 
+    layer_filter_sizes: List[int], 
+    layer_strides: List[int], 
+    layer_paddings: List[int], 
+    prototype_kernel_size: int
+):
+    assert(len(layer_filter_sizes) == len(layer_strides) == len(layer_paddings))
 
     rf_info = [img_size, 1, 1, 0.5]
 
@@ -111,14 +117,18 @@ def compute_proto_layer_rf_info_v2(img_size, layer_filter_sizes, layer_strides, 
         stride_size = layer_strides[i]
         padding_size = layer_paddings[i]
 
-        rf_info = compute_layer_rf_info(layer_filter_size=filter_size,
-                                layer_stride=stride_size,
-                                layer_padding=padding_size,
-                                previous_layer_rf_info=rf_info)
+        rf_info = compute_layer_rf_info(
+            layer_filter_size=filter_size,
+            layer_stride=stride_size,
+            layer_padding=padding_size,
+            previous_layer_rf_info=rf_info
+        )
 
-    proto_layer_rf_info = compute_layer_rf_info(layer_filter_size=prototype_kernel_size,
-                                                layer_stride=1,
-                                                layer_padding='VALID',
-                                                previous_layer_rf_info=rf_info)
+    proto_layer_rf_info = compute_layer_rf_info(
+        layer_filter_size=prototype_kernel_size,
+        layer_stride=1,
+        layer_padding='VALID',
+        previous_layer_rf_info=rf_info
+    )
 
     return proto_layer_rf_info

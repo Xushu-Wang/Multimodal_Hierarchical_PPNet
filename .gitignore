@@ -1,20 +1,15 @@
-data/
+# symlinks 
+backbones
+logs
+output
+pre_existing_datasets
+
 datasets/*
 datasets
-data
-*_temp*
 __pycache__/
-models/
-logs/
-scripts/
 saved_models/
+configs/*.yaml
 .DS_STORE
 slurm*.out
-# pretrained_backbones/
-test_tree.ipynb
-output
-pre_existing_datasets/*
-# !pre_existing_datasets/massive_run_003
-# !pre_existing_datasets/larger_run
-temp/
-backbones/
+*/._* 
+._*

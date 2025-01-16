@@ -1,27 +1,22 @@
 import torch
 import numpy as np
-
 import heapq
-
 import matplotlib.pyplot as plt
 import os
-import copy
 import time
-
 import cv2
 
 from prototype.receptive_field import compute_rf_prototype
-from utils.util import makedir, find_high_activation_crop
+from utils.util import find_high_activation_crop 
+from configs.io import makedir
 
 def imsave_with_bbox(fname, img_rgb, bbox_height_start, bbox_height_end,
                      bbox_width_start, bbox_width_end, color=(0, 255, 255)):
-    img_bgr_uint8 = cv2.cvtColor(np.uint8(255*img_rgb), cv2.COLOR_RGB2BGR)
+    img_bgr_uint8 = cv2.cvtColor((255*img_rgb).astype(np.uint8), cv2.COLOR_RGB2BGR)
     cv2.rectangle(img_bgr_uint8, (bbox_width_start, bbox_height_start), (bbox_width_end-1, bbox_height_end-1),
                   color, thickness=2)
     img_rgb_uint8 = img_bgr_uint8[...,::-1]
     img_rgb_float = np.float32(img_rgb_uint8) / 255
-    #plt.imshow(img_rgb_float)
-    #plt.axis('off')
     plt.imsave(fname, img_rgb_float)
 
 class ImagePatch:
@@ -58,7 +53,6 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                                          full_save=False, # save all the images
                                          root_dir_for_saving_images='./nearest',
                                          log=print,
-                                         prototype_activation_function_in_numpy=None,
 ):
     prototype_network_parallel.eval()
     '''
@@ -91,8 +85,7 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
 
         with torch.no_grad():
             search_batch = search_batch.cuda()
-            protoL_input_torch, proto_dist_torch = \
-                prototype_network_parallel.module.push_forward(search_batch)
+            _, proto_dist_torch = prototype_network_parallel.module.push_forward(search_batch)
 
         #protoL_input_ = np.copy(protoL_input_torch.detach().cpu().numpy())
         proto_dist_ = np.copy(proto_dist_torch.detach().cpu().numpy())
@@ -127,7 +120,7 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                     elif prototype_network_parallel.module.prototype_activation_function == 'linear':
                         act_pattern = max_dist - distance_map[j]
                     else:
-                        act_pattern = prototype_activation_function_in_numpy(distance_map[j])
+                        raise NotImplementedError("Prototype Activation Function is None")
 
                     # 4 numbers: height_start, height_end, width_start, width_end
                     patch_indices = closest_patch_indices_in_img[1:5]
@@ -187,8 +180,9 @@ def find_k_nearest_patches_to_prototypes(dataloader, # pytorch dataloader (must 
                                                    interpolation=cv2.INTER_CUBIC)
                 rescaled_act_pattern = upsampled_act_pattern - np.amin(upsampled_act_pattern)
                 rescaled_act_pattern = rescaled_act_pattern / np.amax(rescaled_act_pattern)
-                heatmap = cv2.applyColorMap(np.uint8(255*rescaled_act_pattern), cv2.COLORMAP_JET)
-                heatmap = np.float32(heatmap) / 255
+                uint8_array = np.array(np.uint8(255 * rescaled_act_pattern))
+                heatmap = cv2.applyColorMap(uint8_array, cv2.COLORMAP_JET)
+                heatmap = np.array(heatmap, dtype=np.float32) / 255
                 heatmap = heatmap[...,::-1]
                 overlayed_original_img = 0.5 * patch.original_img + 0.3 * heatmap
                 plt.imsave(fname=os.path.join(dir_for_saving_images,

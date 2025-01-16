@@ -5,24 +5,16 @@ This trains a ResNet backbone or CNN backbone for genetic or image classificatio
 import argparse, os
 import torch
 from model.features.genetic_features import GeneticCNN2D
-from prototype.prune import prune_prototypes
-from utils.util import save_model_w_condition, create_logger
-from os import mkdir
+from configs.io import create_logger, run_id_accumulator 
 from torchvision.models import resnet50
 
 from  configs.cfg import get_cfg_defaults
-from dataio.tree import get_dataloaders
+from dataio.dataloader import get_dataloaders
 
+from model.model import Mode 
 from model.model import construct_tree_ppnet
-from model.utils import get_optimizers
+from train.optimizer import get_optimizers
 import torch.optim as optim
-
-import train_and_test as tnt
-# from train.train_multimodal import train_multimodal, test_multimodal, last_only_multimodal, joint_multimodal
-
-import prototype.push as push       
-from utils.util import handle_run_name_weirdness
-from torchvision.utils import save_image
 
 def main():
     cfg = get_cfg_defaults()
@@ -36,7 +28,7 @@ def main():
     args = parser.parse_args()
     cfg.merge_from_file(args.configs)
 
-    handle_run_name_weirdness(cfg)
+    run_id_accumulator(cfg)
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     log(str(cfg))
     
@@ -52,7 +44,7 @@ def main():
 
         class_specific = True
 
-        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(cfg, tree_ppnet)
+        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
 
         # Construct and parallel the model
         log('start training')
@@ -70,7 +62,7 @@ def main():
         class_count = train_loader.dataset.class_count
         print(f"Number of Classes: {class_count}")
 
-        if cfg.DATASET.MODE == 1:
+        if cfg.DATASET.MODE == Mode.GENETIC:
             model = GeneticCNN2D(720, class_count, include_connected_layer=True).cuda()
         else:
             model = resnet50(weights='DEFAULT')
@@ -81,7 +73,7 @@ def main():
         if args.load_path is not None:
             model.load_state_dict(torch.load(args.load_path))
 
-        if cfg.DATASET.MODE == 1:
+        if cfg.DATASET.MODE == Mode.GENETIC:
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         else:
             # Parameters from BIOSCAN paper
@@ -109,7 +101,7 @@ def main():
             for i, data in enumerate(train_loader):
                 inputs, labels = data
                 labels = torch.tensor(labels, dtype=torch.long)
-                inputs, labels = inputs[0 if cfg.DATASET.MODE == 1 else 1].to(device), labels.to(device)
+                inputs, labels = inputs[0 if cfg.DATASET.MODE == Mode.GENETIC else 1].to(device), labels.to(device)
 
                 optimizer.zero_grad()
                 outputs = model(inputs)
@@ -141,7 +133,7 @@ def main():
                     inputs, labels = data
 
                     labels = torch.tensor(labels, dtype=torch.long)
-                    inputs, labels = inputs[0 if cfg.DATASET.MODE == 1 else 1].to(device), labels.to(device)
+                    inputs, labels = inputs[0 if cfg.DATASET.MODE == Mode.GENETIC else 1].to(device), labels.to(device)
 
                     outputs = model(inputs)
                     y_pred = torch.argmax(outputs, dim=1)
