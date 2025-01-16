@@ -199,6 +199,20 @@ class TreeDataset(Dataset):
 
         0 represents not_classified (or ignored, like in cases with only one class)
         """
+        full_tensor = torch.zeros(len(self.levels))
+        tree = self.indexed_tree
+
+        for i, level in enumerate(self.levels):
+            if row[level] == "not_classified" or row[level] not in tree:
+                full_tensor[i:] = 0
+                break
+            else:
+                full_tensor[i] = tree[row[level]]["idx"] + 1
+                tree = tree[row[level]]
+        
+        # Convert float tensor to int tensor
+        full_tensor = full_tensor.long()
+
         if self.flat_class:
             tree = self.leaf_indicies
 
@@ -207,25 +221,11 @@ class TreeDataset(Dataset):
                     raise ValueError("Somehow you got not classified's up in here. That's not supported in this mode.")
                 
                 if i == len(self.levels)-1:
-                    return torch.tensor(tree[row[level]]["idx"]).long()
+                    return torch.cat([full_tensor, torch.tensor(tree[row[level]]["idx"]).unsqueeze(0).long()])
                 
                 tree = tree[row[level]]
-        else:
-            tensor = torch.zeros(len(self.levels))
-            tree = self.indexed_tree
 
-            for i, level in enumerate(self.levels):
-                if row[level] == "not_classified" or row[level] not in tree:
-                    tensor[i:] = 0
-                    break
-                else:
-                    tensor[i] = tree[row[level]]["idx"] + 1
-                    tree = tree[row[level]]
-            
-            # Convert float tensor to int tensor
-            tensor = tensor.long()
-
-            return tensor
+        return full_tensor
 
     def __len__(self):
         return len(self.df)
@@ -595,10 +595,15 @@ class GrossImageTransform(object):
             p.flip_left_right(probability=0.5)
             return p.torch_transform()(image)
 
-def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
-    def __call__(self, image):
-        insertion_count = np.random.randint(0, insertion_amount+1)
-        deletion_count = np.random.randint(0, deletion_amount+1)
+class GrossGeneticTransform():
+    def __init__(self, insertion_amount=5, deletion_amount=5, substitution_rate=0.01):
+        self.insertion_amount = insertion_amount
+        self.deletion_amount = deletion_amount
+        self.substitution_rate = substitution_rate
+
+    def __call__(self, sample):
+        insertion_count = np.random.randint(0, self.insertion_amount+1)
+        deletion_count = np.random.randint(0, self.deletion_amount+1)
 
         insertion_indices = np.random.randint(0, len(sample), insertion_count)
         for idx in insertion_indices:
@@ -608,7 +613,7 @@ def GrossGeneticTransform(insertion_amount=5, deletion_amount=5, substitution_ra
         for idx in deletion_indices:
             sample = sample[:idx] + sample[idx+1:]
         
-        mutation_indices = np.random.choice(len(sample), int(len(sample) * substitution_rate), replace=False)
+        mutation_indices = np.random.choice(len(sample), int(len(sample) * self.substitution_rate), replace=False)
         for idx in mutation_indices:
             sample = sample[:idx] + np.random.choice(list("ACGT")) + sample[idx+1:]
         

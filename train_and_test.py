@@ -81,6 +81,69 @@ def find_lowest_level_node(node, target):
 def clear_accu_probs(node):
     del node.accu_probs
 
+def recursive_throw_probs_on_there(tree, conv_features, above_prob=1):
+    logits, _ = tree(conv_features)
+    probs = torch.softmax(logits, dim=1) * above_prob
+    tree.probs = probs
+
+    for child in tree.all_child_nodes:
+        if child.parent:
+            recursive_throw_probs_on_there(child, conv_features, probs[:, child.int_location[-1]-1].unsqueeze(1))
+        else:
+            child.prob = probs[:, child.int_location[-1]-1]
+
+def get_conditional_prob_accuracies_fixed(
+    conv_features,
+    model,
+    label,
+    indexed_tree,
+    parallel_mode=False
+):
+    if parallel_mode:
+        correct_0, total_0, _ = get_conditional_prob_accuracies_fixed(
+            conv_features[0],
+            model.genetic_hierarchical_ppnet,
+            label,
+            indexed_tree,
+            parallel_mode=False
+        )
+        correct_1, total_1, _ = get_conditional_prob_accuracies_fixed(
+            conv_features[1],
+            model.image_hierarchical_ppnet,
+            label,
+            indexed_tree,
+            parallel_mode=False
+        )
+        return torch.tensor([correct_0, correct_1]), torch.tensor([total_0, total_1]), 0
+    
+    recursive_throw_probs_on_there(model.root, conv_features)
+
+    out = []
+    indicies = []
+
+    for node in model.nodes_with_children:
+        if len(node.child_nodes) == 0:
+            for child in node.all_child_nodes:
+                bit = indexed_tree
+                for loc in child.named_location:
+                    bit = bit[loc]
+                
+                location = bit["idx"]
+                out.append(child.prob)
+                indicies.append(location)
+
+    # Sort out by index
+    out = [x for _, x in sorted(zip(indicies, out))]
+    out_array = torch.stack(out, dim=1)
+
+    # Accuracy
+    _, predicted = torch.max(out_array, 1)
+    correct = (predicted == label).sum().item()
+
+    return correct, len(label), 0
+
+
+
 def get_conditional_prob_accuracies(
     conv_features,
     model,
@@ -649,7 +712,16 @@ def _train_or_test(
                 global_ce=global_ce,
                 parallel_mode=parallel_mode,
             )
-            # print(is_train, probabalistic_correct_count, probabilistic_total_count, total_probabilistic_total_count)
+            print(is_train, probabalistic_correct_count, probabilistic_total_count, total_probabilistic_total_count)
+
+            # indexed_tree = dataloader.dataset.leaf_indicies
+            # probabalistic_correct_count, probabilistic_total_count, global_cross_entropy = get_conditional_prob_accuracies_fixed(
+            #     conv_features=conv_features,
+            #     model=model.module,
+            #     label=target,
+            #     indexed_tree=indexed_tree,
+            #     parallel_mode=parallel_mode
+            # )
 
             if global_ce:
                 cross_entropy = global_cross_entropy

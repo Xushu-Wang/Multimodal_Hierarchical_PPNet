@@ -29,6 +29,7 @@ _C.DATASET.IMAGE_PATH = "../datasets/full_bioscan_images/" # Path to image direc
 _C.DATASET.AUGMENTED_IMAGE_PATH = "../datasets/augmented_images/" # Path to which augmented images will be saved
 _C.DATASET.TREE_SPECIFICATION_FILE = "NA" # Path to JSON file that specifies tree structure
 _C.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS = [0,0,.25,.5] # Proportions of samples at each level that are unclassified [order, family, genus, species]. Note: Lower levels counts do not consider higher level counts, so for this default, > 50% of species are unclassified (50% + 25% of genus)
+_C.DATASET.FLAT_CLASS = True # If true, the dataset will be flattened to only include species. If false, the dataset will include all levels.
 
 _C.DATASET.MODE = 3 # 0 is illegal, don't use. 1 is genetic only, 2 is image only, 3 is joint. This will only affect what the dataloader/dataset returns. Not the augmentation.
 _C.DATASET.PARALLEL_MODE = False # If true, the image and genetic models will train separately with a shared correspondence loss. If false, the models will train jointly. Only relevant if MODE = 3.
