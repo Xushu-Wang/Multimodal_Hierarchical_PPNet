@@ -38,9 +38,8 @@ _C.DATASET.CACHED_DATASET_FOLDER = "" # Path to folder with pre-existing dataset
 
 _C.DATASET.CACHED_DATASET_ROOT = "pre_existing_datasets" # All cached datasets will be stored in this folder. You really shouldn't change this.
 
-_C.DATASET.TRAIN_VAL_TEST_SPLIT = (120, 40, 40) # For each leaf node, the number of samples in the training, validation, and test sets. Train samples will be oversampled from thos.
+_C.DATASET.TRAIN_VAL_TEST_SPLIT = (120, 40, 40) # For each leaf node, the number of samples in the training, validation, and test sets.
 
-_C.DATASET.OVERSAMPLING_RATE = 1 # How much to augment this dataset. Must be a multiple of 4
 _C.DATASET.PREEXISTING = False # Whether the dataset has already preprocessed (augmentaiton has occured)
 
 _C.DATASET.GENETIC_AUGMENTATION = CN()

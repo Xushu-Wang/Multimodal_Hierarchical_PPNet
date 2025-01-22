@@ -15,7 +15,6 @@ from dataio.dataloader import get_dataloaders
 from model.model import construct_tree_ppnet
 from torchvision.models import resnet50
 
-
 MODEL_PATHS = (
     "../output/image_only/image_species_new_backbone/images/10_push_weights.pth",
     "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth",
@@ -68,7 +67,7 @@ def get_level_mask(ppnet, indexed_tree, level, label):
                 for i in range(level):
                     matching = child.int_location[i] == label[:, i]
                     mask[:,location] = mask[:,location] * matching
-    
+
     return mask
 
 def get_blackbox(path):
@@ -81,6 +80,86 @@ def get_blackbox(path):
 
     return model.cuda()
 
+def get_model(cfg, name, path, is_hierarchical):
+    if is_hierarchical:
+        print("AAA")
+        cfg.DATASET.MODE = 3
+        cfg.MODEL.MULTI.MULTI_PPNET_PATH = path
+        joint_tree_ppnet = construct_tree_ppnet(cfg)
+        return joint_tree_ppnet.image_hierarchical_ppnet.to("cuda")
+    else:
+        cfg.DATASET.IMAGE.PPNET_PATH = path
+        return construct_tree_ppnet(cfg).to("cuda")
+
+def get_tree_out_array(image, tree_ppnet, indexed_tree):
+    conv_features = tree_ppnet.conv_features(image)
+
+    recursive_throw_probs_on_there(
+        tree_ppnet.root,
+        conv_features,
+    )
+
+    out = []
+    indicies = []
+
+    for node in tree_ppnet.nodes_with_children:
+        if len(node.child_nodes) == 0:
+            for child in node.all_child_nodes:
+                bit = indexed_tree
+                for loc in child.named_location:
+                    bit = bit[loc]
+                
+                location = bit["idx"]
+                out.append(child.prob)
+                indicies.append(location)
+
+    # Sort out by index
+    out = [x for _, x in sorted(zip(indicies, out))]
+    out_array = torch.stack(out, dim=1)
+
+    return out_array
+
+def eval_model(eval_blackbox, indexed_tree, name, model, dataloader):
+    with torch.no_grad():
+        tot_correct = [0,0,0,0]
+        total = [0,0,0,0]
+
+        for ((_, image), label) in dataloader:
+            # print(label.shape)
+            # full_label = label[:, :4]
+            # label = label[:, 4]
+
+            image = image.to("cuda")
+            label = label.to("cuda")
+
+            # full_label = full_label.to("cuda")
+
+            if not eval_blackbox:
+                out_array = get_tree_out_array(image, model, indexed_tree)
+            else:
+                out_array = model(image)
+                out_array = torch.nn.functional.softmax(out_array, dim=1)
+
+            for cond_level in range(4):
+                if not eval_blackbox:
+                    mask = get_level_mask(model, indexed_tree, cond_level, full_label)
+                else:
+                    mask = dataloader.dataset.get_species_mask(label[:, cond_level], cond_level).cuda()
+                    # mask = torch.ones_like(mask)
+
+                # Accuracy
+                # print(f"----{cond_level}----")
+                # print(label)
+                # print(out_array[0, :100])
+                # print((out_array * mask)[0, :100])
+                _, predicted = torch.max(out_array * mask, 1)
+                total[cond_level] += label.size(0)
+                correct = (predicted == label[:,cond_level]).sum().item()
+                tot_correct[cond_level] += correct
+                
+        for cond_level in range(4):
+            print(f"[{cond_level}] {name}: {tot_correct[cond_level]/total[cond_level]:.6f}")
+
 
 def main():
     cfg = get_cfg_defaults()
@@ -88,7 +167,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
     parser.add_argument('--configs', type=str, default='configs/image_species.yaml')
-    parser.add_argument('--find-conditional', action="store_true")
+    parser.add_argument('--eval-blackbox', action="store_true")
     args = parser.parse_args()
     cfg.merge_from_file(args.configs)
 
@@ -99,70 +178,13 @@ def main():
 
     blackbox = get_blackbox("/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/backbones/image_species_120_80train_028/image_species_120_80train_028_best.pth")
 
-    for name, path, is_hierarchical in zip(MODEL_NAMES, MODEL_PATHS, IS_HIERARCHICAL):
-        cfg.DATASET.IMAGE.PPNET_PATH = path
-
-        if is_hierarchical:
-            print("AAA")
-            cfg.DATASET.MODE = 3
-            cfg.MODEL.MULTI.MULTI_PPNET_PATH = path
-            joint_tree_ppnet = construct_tree_ppnet(cfg)
-            tree_ppnet = joint_tree_ppnet.image_hierarchical_ppnet.to("cuda")
-        else:
+    if not args.eval_blackbox:
+        for name, path, is_hierarchical in zip(MODEL_NAMES, MODEL_PATHS, IS_HIERARCHICAL):
             cfg.DATASET.IMAGE.PPNET_PATH = path
-            tree_ppnet = construct_tree_ppnet(cfg).to("cuda")
+            tree_ppnet = get_model(cfg, name, path, is_hierarchical)
 
-        with torch.no_grad():
-                tot_correct = [0,0,0,0]
-                total = [0,0,0,0]
-
-                for ((_, image), label) in val_loader:
-                    full_label = label[:, :4]
-                    label = label[:, 4]
-
-                    image = image.to("cuda")
-                    label = label.to("cuda")
-                    full_label = full_label.to("cuda")
-
-                    conv_features = tree_ppnet.conv_features(image)
-
-                    recursive_throw_probs_on_there(
-                        tree_ppnet.root,
-                        conv_features,
-                    )
-
-                    out = []
-                    indecies = []
-
-                    for node in tree_ppnet.nodes_with_children:
-                        if len(node.child_nodes) == 0:
-                            for child in node.all_child_nodes:
-                                bit = indexed_tree
-                                for loc in child.named_location:
-                                    bit = bit[loc]
-                                
-                                location = bit["idx"]
-                                out.append(child.prob)
-                                indecies.append(location)
-
-                    # Sort out by index
-                    out = [x for _, x in sorted(zip(indecies, out))]
-                    out_array = torch.stack(out, dim=1)
-
-                    out_array = blackbox(image)
-
-
-
-                    for cond_level in range(4):
-                        mask = get_level_mask(tree_ppnet, indexed_tree, cond_level, full_label)
-
-                        # Accuracy
-                        _, predicted = torch.max(out_array * mask, 1)
-                        total[cond_level] += label.size(0)
-                        correct = (predicted == label).sum().item()
-                        tot_correct[cond_level] += correct
-
-                for cond_level in range(4):
-                    print(f"[{cond_level}] {name}: {tot_correct[cond_level]/total[cond_level]:.6f}")
+            eval_model(False, indexed_tree, name, tree_ppnet, val_loader)
+    else:
+        eval_model(True, indexed_tree, "blackbox", blackbox, val_loader)
 
 main()

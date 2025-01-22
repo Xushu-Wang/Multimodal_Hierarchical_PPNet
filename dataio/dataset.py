@@ -87,7 +87,7 @@ class TreeDataset(Dataset):
         genetic_transforms: Optional[GeneticMutationTransform], 
         mode: Mode, 
         flat_class: bool = False
-        ):
+    ):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
@@ -115,16 +115,21 @@ class TreeDataset(Dataset):
 
             return tree
         
-        def generate_leaf_indicies(tree, idx):
+        def generate_leaf_indicies(tree, idx, level=0, prior_vals=[]):
             tree = {k: v for k,v in tree.items()}
             for k, v in tree.items():
                 if v == None:
-                    tree[k] = {"idx": idx["val"]}
-                    idx["val"] += 1
+                    tree[k] = {"idx": idx[level]}
                 else:
-                    tree[k] = generate_leaf_indicies(v, idx)[0]
+                    min_idx = idx[3]
+                    tree[k] = generate_leaf_indicies(v, idx, level + 1, prior_vals + [idx[level]])[0]
+                    tree[k]["idx"] = idx[level]
+                    max_idx = idx[3] - 1
+
+                    self.level_species_map[level][idx[level]] = (min_idx, max_idx)
+                idx[level] += 1
             
-            return tree, idx["val"]
+            return tree, idx
 
         self.indexed_tree = generate_tree_indicies(self.tree)
 
@@ -137,22 +142,52 @@ class TreeDataset(Dataset):
         self.flat_class = flat_class
 
         if flat_class:
-            self.leaf_indicies, self.class_count = generate_leaf_indicies(self.tree, {"val": 0}) 
+            self.level_species_map = [{}, {}, {}]
+            self.leaf_indicies, idx = generate_leaf_indicies(self.tree, [0,0,0,0]) 
+            self.class_count = idx[3]
+
+    def get_species_mask(self, level_indicies:Tensor, level:int) -> Tensor:
+        """
+        Pass an nx1 tensor of level_indicies (and the corresponding level).
+
+        This returns an nx(num_species) mask of the species indicies corresponding to the level.
+        """
+        if level == 3:
+            mins = level_indicies
+            maxs = level_indicies
+        else:
+            tuples = [self.level_species_map[level][i.item()] for i in level_indicies]
+            mins = torch.tensor([t[0] for t in tuples]).long()
+            maxs = torch.tensor([t[1] for t in tuples]).long()
+
+        mask = torch.zeros(len(level_indicies), self.class_count).bool()
+
+        for i, (min_, max_) in enumerate(zip(mins, maxs)):
+            mask[i, min_:max_+1] = True
+
+        return mask
 
     def get_label(self, row:pd.Series) -> Optional[Tensor]:
         """
         Label is a tensor of indicies for each level of the tree.
         0 represents not_classified (or ignored, like in cases with only one class)
         """
+        # NOTE: To future Charlie/Muchang.
+        # Previous behavior: 
+        # If flat_class is true, this returns a single integer corresponding to the class index.
+        # New behavior:
+        # it returns [species index, genus index, family index, order index] because I'm goofy like that.
         if self.flat_class:
             tree = self.leaf_indicies
+            out = [0,0,0,0]
 
             for i, level in enumerate(self.levels):
                 if row[level] == "not_classified" or row[level] not in tree:
                     raise ValueError("Somehow you got not classified's up in here. That's not supported in this mode.")
                 
+                out[i] = tree[row[level]]["idx"]
                 if i == len(self.levels)-1:
-                    return torch.tensor(tree[row[level]]["idx"]).long()
+                    return torch.tensor(out).long()
                 
                 tree = tree[row[level]]
         else:
@@ -202,22 +237,6 @@ class TreeDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
-
-def oversample(
-    source_df: pd.DataFrame, 
-    count: int, 
-    seed:int = 2024, 
-    log: Callable = print
-    ) -> pd.DataFrame:
-    log("""Oh no, we oversampled. This will break data augmentation... 
-        Must improve data augmentation.""")
-    # Fairly oversample the source_df to count
-    shortage = count - len(source_df)
-    output = pd.concat(
-        [source_df] + [source_df] * (shortage // len(source_df)) + 
-        [source_df.sample(shortage % len(source_df), replace=False, random_state=seed)])
-
-    return output.sample(frac=1, random_state=seed)
 
 def balanced_sample(
     source_df:pd.DataFrame, 
@@ -279,7 +298,7 @@ def balanced_sample(
                 train_sample = pd.DataFrame(source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(temp_count_per_leaf.train, random_state=seed))
 
                 if len(train_sample) < count_per_leaf.train:
-                    train_sample = oversample(train_sample, count_per_leaf.train, seed)
+                    raise ValueError("Please provide a dataset with enough samples to satisfy the train,val,test proportions.")
 
                 train_output.append(train_sample)
                 val_output.append(validation_sample)
@@ -426,13 +445,6 @@ def create_datasets(
         
         # save the train_push dataframe
         train_push_df = train_df.copy()
-
-        # oversample from train dataframe if needed
-        old_train_size = len(train_df)
-        if oversampling_rate != 1:
-            train_df = oversample(train_df, len(train_df) * oversampling_rate, seed)
-
-        log(f"Oversampled train from {old_train_size:,} samples to {len(train_df):,} samples")
 
         # Save all three datasets
         output_dir = os.path.join(cached_dataset_root, run_name)

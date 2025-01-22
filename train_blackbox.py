@@ -98,59 +98,65 @@ def main():
             total_guesses = 0
             model.train()
 
-            for i, data in enumerate(train_loader):
-                inputs, labels = data
-                labels = torch.tensor(labels, dtype=torch.long)
-                inputs, labels = inputs[0 if cfg.DATASET.MODE == Mode.GENETIC else 1].to(device), labels.to(device)
+            if not args.validate:
+                for i, data in enumerate(train_loader):
+                    inputs, labels = data
+                    labels = torch.tensor(labels, dtype=torch.long)[:,3]
+                    inputs, labels = inputs[0 if cfg.DATASET.MODE == Mode.GENETIC else 1].to(device), labels.to(device)
 
-                optimizer.zero_grad()
-                outputs = model(inputs)
+                    optimizer.zero_grad()
+                    outputs = model(inputs)
 
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
+                    loss = criterion(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
 
-                running_loss += loss.item()
+                    running_loss += loss.item()
 
-                y_pred = torch.argmax(outputs, dim=1)
-                correct_guesses += torch.sum(y_pred == labels)
-                total_guesses += len(y_pred)
+                    y_pred = torch.argmax(outputs, dim=1)
+                    correct_guesses += torch.sum(y_pred == labels)
+                    total_guesses += len(y_pred)
 
-                if i % 10 == 0:
-                    log(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 10:.3f} accuracy: {correct_guesses / total_guesses}")
-                    running_loss = 0.0
-                                
-            scheduler.step(running_loss / len(train_loader.dataset))
-            log(f"Epoch {epoch + 1} training accuracy:\t{correct_guesses/total_guesses:.5f}")
+                    if i % 10 == 0:
+                        log(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 10:.3f} accuracy: {correct_guesses / total_guesses}")
+                        running_loss = 0.0
+                                    
+                scheduler.step(running_loss / len(train_loader.dataset))
+                log(f"Epoch {epoch + 1} training accuracy:\t{correct_guesses/total_guesses:.5f}")
             
             # Evaluate on test set with balanced accuracy
             model.eval()
-            correct_guesses = [0 for _ in range(class_count)]
-            total_guesses = [0 for _ in range(class_count)]
+            correct_guesses = [0 for _ in range(4)]
+            total_guesses = [0 for _ in range(4)]
 
             with torch.no_grad():
                 for data in val_loader:
-                    inputs, labels = data
+                    inputs, og_labels = data
 
-                    labels = torch.tensor(labels, dtype=torch.long)
+                    labels = torch.tensor(og_labels, dtype=torch.long)[:,3]
                     inputs, labels = inputs[0 if cfg.DATASET.MODE == Mode.GENETIC else 1].to(device), labels.to(device)
 
                     outputs = model(inputs)
-                    y_pred = torch.argmax(outputs, dim=1)
 
-                    for i in range(class_count):
-                        correct_guesses[i] += torch.sum((y_pred == labels) & (labels == i))
-                        total_guesses[i] += torch.sum(labels == i)
+                    for cond_level in range(4):
+                        mask = val_loader.dataset.get_species_mask(og_labels[:, cond_level], cond_level).long().cuda()
+                        y_pred = torch.argmax(outputs * mask, dim=1)
 
-            accuracy = torch.tensor([correct_guesses[i] / max(1, total_guesses[i]) for i in range(class_count)]).mean()
-            log(f"Epoch {epoch + 1} validation accuracy:\t{accuracy:.5f}")
+                        correct_guesses[cond_level] += torch.sum((y_pred == labels).float())
+                        total_guesses[cond_level] += len(y_pred)
+            
+            for cond_level in range(4):
+                log(f"[{cond_level}] validation accuracy:\t{correct_guesses[cond_level] / max(1, total_guesses[cond_level]):.5f}")
 
-            if accuracy > max_accuracy:
-                max_accuracy = accuracy
-                max_accuracy_epoch = epoch
-                if not os.path.exists(os.path.join(args.output, cfg.RUN_NAME)):
-                    os.mkdir(os.path.join(args.output, cfg.RUN_NAME))
-                torch.save(model.state_dict(), os.path.join(args.output, cfg.RUN_NAME, f"{cfg.RUN_NAME}_best.pth"))
+            # accuracy = torch.tensor([correct_guesses[i] / max(1, total_guesses[i]) for i in range(class_count)]).mean()
+            # log(f"Epoch {epoch + 1} validation accuracy:\t{accuracy:.5f}")
+
+            # if accuracy > max_accuracy:
+            #     max_accuracy = accuracy
+            #     max_accuracy_epoch = epoch
+            #     if not os.path.exists(os.path.join(args.output, cfg.RUN_NAME)):
+            #         os.mkdir(os.path.join(args.output, cfg.RUN_NAME))
+            #     torch.save(model.state_dict(), os.path.join(args.output, cfg.RUN_NAME, f"{cfg.RUN_NAME}_best.pth"))
             
         print(f"Best Accuracy: {max_accuracy:.4f} at epoch {max_accuracy_epoch+1}")
 
