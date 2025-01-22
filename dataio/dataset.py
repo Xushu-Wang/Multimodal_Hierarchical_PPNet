@@ -395,7 +395,6 @@ def create_datasets(
     image_root_dir: str,
     gen_aug_params:CfgNode,
     train_val_test_split:Split,
-    oversampling_rate:int,
     train_not_classified_proportions: List[float],
     tree_specification_file:str,
     cached_dataset_folder:str,
@@ -415,13 +414,12 @@ def create_datasets(
     image_root_dir - root directory for the images.
     gen_aug_params - object genetic augmentation parameters to apply to the genetic data. (found in cfg.py)
     image_augmentations - list of image augmentations to apply to the image data.
-    train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
+    train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species.
     train_end_count - The number of train_end_countsamples to end with in the training set.
     train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
     tree_specification_file - path to json file tree of valid classes.
     mode - Mode enumerate object
     seed - random seed for splitting, shuffling, transformations, etc.
-    oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
     """
     np.random.seed(seed) 
 
@@ -473,7 +471,6 @@ def create_datasets(
     # create the datasets
     train_dataset = TreeDataset(
         source_df=train_df,
-        # image_cache_dir if oversampling_rate != 1 else image_root_dir,
         image_root_dir=image_root_dir,
         class_specification=class_specification,
         image_transforms=augmented_img_transforms,
@@ -521,7 +518,6 @@ def get_datasets(cfg: CfgNode, log: Callable, flat_class=False
         image_root_dir=cfg.DATASET.IMAGE_PATH,
         gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
         train_val_test_split = Split(*cfg.DATASET.TRAIN_VAL_TEST_SPLIT),
-        oversampling_rate=cfg.DATASET.OVERSAMPLING_RATE,
         train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
         tree_specification_file=cfg.DATASET.TREE_SPECIFICATION_FILE,
         cached_dataset_folder=cfg.DATASET.CACHED_DATASET_FOLDER,
