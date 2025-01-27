@@ -748,33 +748,33 @@ def _train_or_test(
         del input, target, conv_features
 
         if i % 512 == 0:
-            log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
+            log.log({f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB"})
             
     end = time.time()
 
-    log('\ttime: \t{0:.2f}'.format(end -  start))
+    log.log({'\ttime: \t{0:.2f}'.format(end -  start)})
 
     train_or_test_string = 'train' if is_train else 'test'
 
-    log("\t[%s]\ttorch.cuda.memory_allocated: %fGB"%(train_or_test_string,torch.cuda.memory_allocated(0)/1024/1024/1024))
-    log("\t[%s]\ttorch.cuda.memory_reserved: %fGB"%(train_or_test_string,torch.cuda.memory_reserved(0)/1024/1024/1024))
-    log("\t[%s]\ttorch.cuda.max_memory_reserved: %fGB"%(train_or_test_string, torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-    log('\t[{0}]\tcross ent: \t{1:.2f}'.format(train_or_test_string, total_cross_entropy / n_batches))
+    log.log({"\t[%s]\ttorch.cuda.memory_allocated: %fGB"%(train_or_test_string,torch.cuda.memory_allocated(0)/1024/1024/1024)})
+    log.log({"\t[%s]\ttorch.cuda.memory_reserved: %fGB"%(train_or_test_string,torch.cuda.memory_reserved(0)/1024/1024/1024)})
+    log.log({"\t[%s]\ttorch.cuda.max_memory_reserved: %fGB"%(train_or_test_string, torch.cuda.max_memory_reserved(0)/1024/1024/1024)})
+    log.log({'\t[{0}]\tcross ent: \t{1:.2f}'.format(train_or_test_string, total_cross_entropy / n_batches)})
     # log('\tnoise cross ent: \t{0:.2f}'.format(total_noise_cross_ent / n_batches))
-    log('\t[{0}]\tcluster: \t{1:.2f}'.format(train_or_test_string, total_cluster_cost / n_batches))
-    log('\t[{0}]\tseparation: \t{1:.2f}'.format(train_or_test_string, total_separation_cost / n_batches))
-    log('\t[{0}]\tl1: \t{1:.2f}'.format(train_or_test_string, total_l1 / n_batches))
+    log.log({'\t[{0}]\tcluster: \t{1:.2f}'.format(train_or_test_string, total_cluster_cost / n_batches)})
+    log.log({'\t[{0}]\tseparation: \t{1:.2f}'.format(train_or_test_string, total_separation_cost / n_batches)})
+    log.log({'\t[{0}]\tl1: \t{1:.2f}'.format(train_or_test_string, total_l1 / n_batches)})
     if model.module.mode == Mode.MULTIMODAL:
-        log('\t[{0}]\tcorrespondence: \t{1:.2f}'.format(train_or_test_string, total_correspondence_cost / n_batches))
+        log({'\t[{0}]\tcorrespondence: \t{1:.2f}'.format(train_or_test_string, total_correspondence_cost / n_batches)})
     
     if parallel_mode:
-        log('\t[{0}]\tgenetic probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[0] / total_probabilistic_total_count)) 
-        log('\t[{0}]\timage probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[1] / total_probabilistic_total_count)) 
+        log({'\t[{0}]\tgenetic probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[0] / total_probabilistic_total_count)}) 
+        log({'\t[{0}]\timage probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[1] / total_probabilistic_total_count)}) 
     else:
-        log('\t[{0}]\tprobabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count / total_probabilistic_total_count)) 
+        log({'\t[{0}]\tprobabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count / total_probabilistic_total_count)}) 
 
     for i, level in enumerate(model.module.levels):
-        log(f'\t[{train_or_test_string}]\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
+        log({f'\t[{train_or_test_string}]\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)'})
 
     overall_accuracy = torch.min(total_probabalistic_correct_count / total_probabilistic_total_count) if parallel_mode else total_probabalistic_correct_count / total_probabilistic_total_count
     return overall_accuracy
@@ -790,7 +790,7 @@ def train(
     ): 
 
     assert(optimizer is not None)
-    log('train')
+    log.log('train')
     return _train_or_test(
         model=model,
         dataloader=dataloader,
@@ -810,7 +810,7 @@ def valid(
     log=print
     ):
 
-    log('valid')
+    log.log({'valid'})
     return _train_or_test(
         model=model, 
         dataloader=dataloader, 
@@ -884,7 +884,7 @@ def warm_only(model, log=print):
     layers = model.module.get_last_layer_parameters()
     for l in layers:
         l.requires_grad = False            
-    log('warm')
+    log.log({'warm'})
    
 
 def last_only(model, log=print):
@@ -899,7 +899,7 @@ def last_only(model, log=print):
     for l in model.module.get_last_layer_parameters():
         l.requires_grad = True
     
-    log('\tlast layer')
+    log.log({'\tlast layer'})
 
 # joint opts
 
@@ -921,7 +921,7 @@ def joint(model, log=print):
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = False
     
-    log('joint')
+    log.log({'joint'})
 
 def multi_last_layer(model, log=print):
     for p in model.module.features.parameters():
@@ -941,5 +941,5 @@ def multi_last_layer(model, log=print):
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = True
 
-    log('multi last layer')
+    log.log({'multi last layer'})
 

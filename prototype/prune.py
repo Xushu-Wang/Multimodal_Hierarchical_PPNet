@@ -236,6 +236,6 @@ def prune_prototypes(
     else:
         raise ValueError('Invalid pruning type')
     
-    log("Pruning Info")
+    log.log({"Pruning Info"})
     for node in prototype_network_parallel.module.nodes_with_children:
-        log(f'{node.prototype_mask.view(node.num_classes, -1).sum(dim=1)}, {node.num_prototypes_per_class}')
+        log.log({f'{node.prototype_mask.view(node.num_classes, -1).sum(dim=1)}, {node.num_prototypes_per_class}'})
