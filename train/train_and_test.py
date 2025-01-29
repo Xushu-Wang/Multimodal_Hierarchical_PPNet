@@ -135,8 +135,6 @@ def get_conditional_prob_accuracies_fixed(
 
     return correct, len(label), 0
 
-
-
 def get_conditional_prob_accuracies(
     conv_features,
     model,
@@ -159,7 +157,6 @@ def get_conditional_prob_accuracies(
         scale = (1,1) if parallel_mode else 1
     )
     
-
     cpu_target = target.cpu()
 
     level_dict = {}
@@ -355,6 +352,68 @@ def recursive_put_accuracy_probs(
             scale=scale
         )
 
+# Both of these correspondence costs work by matching each of the n image prototypes to b of the bn genetic prototypes. Obviously this requires that b be an integer. This raises some issues w/ pruning. More thought is reqd.
+def get_correspondence_loss_batched(
+    genetic_min_distances,
+    image_min_distances,
+    mask,
+    node
+):
+    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
+        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    )
+    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
+
+    # Calculate the dot product of the normalized distances along the batch dimension (gross)
+    l2_distance = (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2
+    total_dist = torch.sum(
+        l2_distance,
+        dim=0
+    )
+
+    # Get the maximum dot product for each image prototype
+    min_correspondence_costs, min_correspondence_cost_indicies = torch.min(total_dist, dim=1)
+
+    individual_min_indicies = torch.min(
+        l2_distance,
+        dim=2
+    )[1]
+
+    node.max_tracker[0].append(min_correspondence_cost_indicies)
+    node.max_tracker[1].append(individual_min_indicies)
+
+    correspondence_cost_count = len(min_correspondence_costs)
+    correspondence_cost_summed = torch.sum(min_correspondence_costs)
+
+    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis, l2_distance, total_dist
+
+    return correspondence_cost_summed, correspondence_cost_count
+
+def get_correspondence_loss_single(
+    genetic_min_distances,
+    image_min_distances,
+    mask,
+    node
+):
+    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
+        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    )
+    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
+    
+    # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
+    correspondence_cost_count = len(wrapped_genetic_min_distances)
+    correspondence_cost_summed = torch.sum(
+        torch.min(
+            (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
+            dim=2
+        )[0]
+    )
+
+    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis
+
+    return correspondence_cost_summed, correspondence_cost_count
+
+
 def recursive_get_loss_multi(
         conv_features,
         node,
@@ -365,7 +424,8 @@ def recursive_get_loss_multi(
         correct_arr,
         total_arr,
         accuracy_tree,
-        parallel_mode
+        parallel_mode,
+        cfg
     ):
     """
     This is the same as recursive get loss, but uses the multi logits
@@ -401,24 +461,25 @@ def recursive_get_loss_multi(
     image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
         image_min_distances[mask], target[mask][:, level], logits_size_1)
 
-    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
-        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
-    )
-    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
-    
-    # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
-    summed_correspondence_cost = torch.sum(
-        torch.min(
-            (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
-            dim=2
-        )[0]
-    )
-    summed_correspondence_cost_count = wrapped_genetic_min_distances.shape[0]
-
-    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis
-
     cluster_cost = genetic_cluster_cost + image_cluster_cost
     separation_cost = genetic_separation_cost + image_separation_cost
+
+    if cfg.OPTIM.CORRESPONDENCE_TYPE.lower() == "batched":
+        correspondence_cost_summed, correspondence_cost_count = get_correspondence_loss_batched(
+            genetic_min_distances,
+            image_min_distances,
+            mask,
+            node
+        )
+    elif cfg.OPTIM.CORRESPONDENCE_TYPE.lower() == "single":
+        correspondence_cost_summed, correspondence_cost_count = get_correspondence_loss_single(
+            genetic_min_distances,
+            image_min_distances,
+            mask,
+            node
+        )
+    else:
+        raise ValueError("Invalid correspondence type")
 
     genetic_l1_cost = get_l1_cost(node.genetic_tree_node)
     image_l1_cost = get_l1_cost(node.image_tree_node)
@@ -452,7 +513,7 @@ def recursive_get_loss_multi(
         if applicable_mask.sum() == 0:
             continue
 
-        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_summed_correspondence_cost, new_summed_correspondence_cost_count = recursive_get_loss_multi(
+        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
             conv_features,
             c_node,
             target,
@@ -462,7 +523,8 @@ def recursive_get_loss_multi(
             correct_arr,
             total_arr,
             accuracy_tree["children"][i],
-            parallel_mode
+            parallel_mode,
+            cfg
         )
         
         cross_entropy = cross_entropy + new_cross_entropy
@@ -470,14 +532,14 @@ def recursive_get_loss_multi(
         separation_cost = separation_cost + new_separation_cost
         l1_cost = l1_cost + new_l1_cost
         num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
-        summed_correspondence_cost = summed_correspondence_cost + new_summed_correspondence_cost
-        summed_correspondence_cost_count = summed_correspondence_cost_count + new_summed_correspondence_cost_count
+        correspondence_cost_summed += new_correspondence_cost_summed
+        correspondence_cost_count += new_correspondence_cost_count
 
-        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_summed_correspondence_cost, new_summed_correspondence_cost_count
+        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
 
     del logits, genetic_min_distances, image_min_distances, predicted, correct, logits_size_1
 
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count
+    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count
 
 
 def recursive_get_loss(
@@ -597,7 +659,8 @@ def _train_or_test(
     optimizer=None,
     coefs = None,
     log=print,
-    batch_mult = 1):
+    batch_mult = 1,
+    cfg=None):
     '''
     model: the multi-gpu model
     dataloader:
@@ -621,8 +684,6 @@ def _train_or_test(
         accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root)
     else:
         accuracy_tree = construct_accuracy_tree(model.module.root)
-
-    
 
     total_cross_entropy = 0
     total_cluster_cost = 0
@@ -666,7 +727,7 @@ def _train_or_test(
             
             if model.module.mode == Mode.MULTIMODAL:
                 # Freeze last layer multi
-                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, summed_correspondence_cost, summed_correspondence_cost_count = recursive_get_loss_multi( 
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count = recursive_get_loss_multi( 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
@@ -676,9 +737,10 @@ def _train_or_test(
                     correct_arr=correct_arr,
                     total_arr=total_arr,
                     accuracy_tree=accuracy_tree,
-                    parallel_mode=parallel_mode
+                    parallel_mode=parallel_mode,
+                    cfg=cfg
                 )
-                correspondence_cost = summed_correspondence_cost / summed_correspondence_cost_count
+                correspondence_cost = correspondence_cost_summed / correspondence_cost_count
             else:
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
                     conv_features=conv_features,
@@ -699,8 +761,6 @@ def _train_or_test(
                 global_ce=global_ce,
                 parallel_mode=parallel_mode,
             )
-            print(is_train, probabalistic_correct_count, probabilistic_total_count, total_probabilistic_total_count)
-
             # indexed_tree = dataloader.dataset.leaf_indicies
             # probabalistic_correct_count, probabilistic_total_count, global_cross_entropy = get_conditional_prob_accuracies_fixed(
             #     conv_features=conv_features,
@@ -749,7 +809,32 @@ def _train_or_test(
 
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
-            
+        
+    try:
+        for node in model.module.nodes_with_children:
+            for el1, el2 in node.max_tracker:
+                del el1, el2
+
+            node.max_tracker = ([], []) 
+    except:
+        pass
+    
+    # Do goofy shit with the max_tracker
+
+    props = [[] for i in range(4)]
+    for node in model.module.nodes_with_children:
+        try:
+            individual_min_indicies = node.max_tracker[1]
+            individual_min_indicies = torch.cat(individual_min_indicies, dim=0)
+
+            modes = torch.mode(individual_min_indicies, dim=0)[0]
+            mode_truth = individual_min_indicies == modes
+            mode_counts = torch.sum(mode_truth, dim=0)
+
+            props[len(node.int_location)-1].append(torch.mean(mode_counts / individual_min_indicies.shape[0]).item())
+        except:
+            print("No max tracker found. Huh.")
+
     end = time.time()
 
     log('\ttime: \t{0:.2f}'.format(end -  start))
@@ -766,6 +851,8 @@ def _train_or_test(
     log('\t[{0}]\tl1: \t{1:.2f}'.format(train_or_test_string, total_l1 / n_batches))
     if model.module.mode == Mode.MULTIMODAL:
         log('\t[{0}]\tcorrespondence: \t{1:.2f}'.format(train_or_test_string, total_correspondence_cost / n_batches))
+        for i, level in enumerate(model.module.levels):
+            log(f"[{train_or_test_string}]\t{level + ' level correspondence:':<23} \t{torch.mean(torch.tensor(props[i])).item():.3f}")
     
     if parallel_mode:
         log('\t[{0}]\tgenetic probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[0] / total_probabilistic_total_count)) 
@@ -786,8 +873,9 @@ def train(
     coefs, 
     parallel_mode, 
     global_ce=True, 
-    log=print
-    ): 
+    cfg=None,
+    log=print,
+): 
 
     assert(optimizer is not None)
     log('train')
@@ -798,7 +886,8 @@ def train(
         parallel_mode=parallel_mode,
         optimizer=optimizer,
         coefs=coefs,
-        log=log
+        log=log,
+        cfg=cfg
     )
 
 def valid(
@@ -807,7 +896,8 @@ def valid(
     coefs = None, 
     parallel_mode=False, 
     global_ce=True, 
-    log=print
+    cfg=None,
+    log=print,
     ):
 
     log('valid')
@@ -818,7 +908,8 @@ def valid(
         global_ce = global_ce,
         optimizer=None, 
         coefs=coefs,
-        log=log
+        log=log,
+        cfg=cfg
     )
 
 def test(
@@ -827,8 +918,9 @@ def test(
     coefs = None, 
     parallel_mode=False, 
     global_ce=True, 
+    cfg=None,
     log=print 
-    ):
+):
 
     return _train_or_test(
         model=model, 
@@ -838,6 +930,7 @@ def test(
         optimizer=None, 
         coefs = coefs,
         log=log, 
+        cfg=cfg
     )
 
 def make_one_hot(target, target_one_hot):

@@ -74,6 +74,7 @@ _C.DATASET.GENETIC.PPNET_PATH = "NA"
 
 # Training
 _C.OPTIM = CN()
+_C.OPTIM.CORRESPONDENCE_TYPE = "Batched" # One of ("Batched", "Single"). Batched evaluates the correspondence accross an entire batch.
 
 # Joint optimizer
 _C.OPTIM.JOINT_OPTIMIZER_LAYERS = CN() 

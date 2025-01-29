@@ -5,7 +5,6 @@ The probabilistic accuracy printed during training is incorrect. This (slowly) c
 
 This should be gone soon.
 """
-
 import argparse
 
 import torch
@@ -16,28 +15,36 @@ from model.model import construct_tree_ppnet
 from torchvision.models import resnet50
 
 MODEL_PATHS = (
-    "../output/image_only/image_species_new_backbone/images/10_push_weights.pth",
-    "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth",
+    # "../output/image_only/image_species_new_backbone/images/10_push_weights.pth",
+    # "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth",
     # "../output/joint/parallel_new_backbone_no_init_warm_001/images/10_push_weights.pth",
     # "../output/joint/parallel_new_backbone_no_init_warm_002/images/10_push_weights.pth",
     # "../output/joint/parallel_new_backbone_10epoch_init/images/5_push_weights.pth",
     # "../output/joint/parallel_new_backbone_10epoch_init_warm/images/10_push_weights.pth",
+    # "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth", 
+    # "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth",
+    "../output/joint/parallel_new_backbone_10epoch_init_067/50nopush0.3333.pth",
+
 )
 MODEL_NAMES = (
-    "image_bare",
-    "image_bare_warm",
+    # "image_bare",
+    # "image_bare_warm",
     # "image_no_init",
     # "image_no_init_warm",
     # "image_init",
-    # "image_init_warm"
+    # "image_init_warm",
+    "1000",
+    "80"
 )
 IS_HIERARCHICAL = (
-    False,
-    False,
+    # False,
+    # False,
     # True,
     # True,
     # True,
-    # True
+    # True,
+    True,
+    True
 )
 
 def recursive_throw_probs_on_there(tree, conv_features, above_prob=1):
@@ -82,7 +89,6 @@ def get_blackbox(path):
 
 def get_model(cfg, name, path, is_hierarchical):
     if is_hierarchical:
-        print("AAA")
         cfg.DATASET.MODE = 3
         cfg.MODEL.MULTI.MULTI_PPNET_PATH = path
         joint_tree_ppnet = construct_tree_ppnet(cfg)
@@ -126,13 +132,13 @@ def eval_model(eval_blackbox, indexed_tree, name, model, dataloader):
 
         for ((_, image), label) in dataloader:
             # print(label.shape)
-            # full_label = label[:, :4]
+            full_label = label[:, :4]
             # label = label[:, 4]
 
             image = image.to("cuda")
             label = label.to("cuda")
 
-            # full_label = full_label.to("cuda")
+            full_label = full_label.to("cuda")
 
             if not eval_blackbox:
                 out_array = get_tree_out_array(image, model, indexed_tree)

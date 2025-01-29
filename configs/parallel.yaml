@@ -1,4 +1,4 @@
-RUN_NAME: "parallel_new_backbone_10epoch_init"
+RUN_NAME: "parallel_new_backbone_10epoch_init_nopush_1000"
 
 MODEL:
     PRUNE: false
@@ -7,10 +7,11 @@ MODEL:
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
+    # TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 3
     PARALLEL_MODE: True
-    TRAIN_VAL_TEST_SPLIT: [400, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
     DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
 
@@ -19,9 +20,9 @@ DATASET:
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_.01_no_oversample"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/parallel_new_backbone_10epoch_init_012"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_1.0_10_oversample"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
 
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -58,8 +59,8 @@ DATASET:
         PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
 
 OPTIM:
-    NUM_TRAIN_EPOCHS: 50
-    PUSH_START: 5
+    NUM_TRAIN_EPOCHS: 100
+    PUSH_START: 50
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 0
     GLOBAL_CROSSENTROPY: False
@@ -71,7 +72,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 10.0
+        CORRESPONDENCE: 1000.0
     JOINT: False
 
 OUTPUT:
@@ -79,3 +80,4 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
+    NO_SAVE: True

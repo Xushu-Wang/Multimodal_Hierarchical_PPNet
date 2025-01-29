@@ -12,6 +12,8 @@ from model.features.genetic_features import GeneticCNN2D
 from prototype.receptive_field import compute_proto_layer_rf_info_v2
 from model.backbones import base_architecture_to_features
 
+import sys
+
 class Mode(Enum):  
     '''
     Enumeration object for labeling ppnet mode.  
@@ -410,6 +412,7 @@ class CombinerTreeNode(nn.Module):
         self.int_location = genetic_tree_node.int_location
         self.named_location = genetic_tree_node.named_location
         self.mode = Mode.MULTIMODAL
+        self.max_tracker = ([], [])
 
         self.child_nodes = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
 
@@ -463,10 +466,11 @@ class Multi_Hierarchical_PPNet(nn.Module):
         self.genetic_hierarchical_ppnet = genetic_hierarchical_ppnet
         self.image_hierarchical_ppnet = image_hierarchical_ppnet
 
-        if self.genetic_hierarchical_ppnet.mode != Mode.GENETIC:
+        if self.genetic_hierarchical_ppnet.mode != Mode.GENETIC and self.genetic_hierarchical_ppnet.mode != Mode.GENETIC.value:
             raise ValueError("Genetic Hierarchical PPNet must be in genetics mode")
         
-        if self.image_hierarchical_ppnet.mode != Mode.IMAGE:
+        if self.image_hierarchical_ppnet.mode != Mode.IMAGE and self.image_hierarchical_ppnet.mode != Mode.IMAGE.value:
+            print(self.image_hierarchical_ppnet.mode)
             raise ValueError("Image Hierarchical PPNet must be in image mode")
 
         if self.genetic_hierarchical_ppnet.tree_specification != self.image_hierarchical_ppnet.tree_specification:
@@ -584,7 +588,7 @@ def construct_image_tree_ppnet(cfg: CfgNode) -> Hierarchical_PPNet:
 
     if cfg.DATASET.IMAGE.PPNET_PATH != "NA":
         image_ppnet = torch.load(cfg.DATASET.IMAGE.PPNET_PATH)
-        if image_ppnet.mode == 3:
+        if image_ppnet.mode == 3 or image_ppnet.mode == Mode.MULTIMODAL:
             image_ppnet = image_ppnet.image_hierarchical_ppnet
     else:
         # Image Mode
@@ -612,6 +616,9 @@ def construct_image_tree_ppnet(cfg: CfgNode) -> Hierarchical_PPNet:
     return image_ppnet
 
 def construct_tree_ppnet(cfg: CfgNode, log=print) -> Union[Hierarchical_PPNet, Multi_Hierarchical_PPNet]:
+    # This is a gross fix to handle the renaming of the model file
+    sys.modules['model.hierarchical_ppnet'] = sys.modules['model.model']
+
     mode = Mode(cfg.DATASET.MODE) 
     match mode: 
         case Mode.GENETIC: 

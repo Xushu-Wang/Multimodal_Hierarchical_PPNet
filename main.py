@@ -68,7 +68,8 @@ def main():
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         coefs=coefs,
-                        log=log
+                        log=log,
+                        cfg=cfg
                     )
                 else:
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
@@ -80,7 +81,8 @@ def main():
                             dataloader=train_loader, 
                             optimizer=last_layer_optimizer,
                             coefs=coefs,
-                            log=log
+                            log=log,
+                            cfg=cfg
                         )
                     
                     tnt.joint(model=tree_ppnet_multi, log=log)
@@ -91,7 +93,8 @@ def main():
                         dataloader=train_loader,
                         optimizer=joint_optimizer,
                         coefs=coefs,
-                        log=log
+                        log=log,
+                        cfg=cfg
                     )
                     joint_lr_scheduler.step()
             
@@ -101,7 +104,8 @@ def main():
                 dataloader=val_loader,
                 log=log,
                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                parallel_mode=cfg.DATASET.PARALLEL_MODE
+                parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                cfg=cfg
             )
             save_model_w_condition(
                 model=tree_ppnet, 
@@ -131,7 +135,8 @@ def main():
                 )
                 prob_accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
                                      log=log,
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
+                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                        cfg=cfg)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
                                             target_accu=0, log=log, accu=prob_accu)
 
@@ -148,14 +153,16 @@ def main():
                                 dataloader=train_loader,
                                 optimizer=last_layer_optimizer,
                                 coefs=coefs,
-                                log=log
+                                log=log,
+                                cfg=cfg
                             )
                             prob_accu = tnt.test(
                                 model=tree_ppnet_multi, 
                                 parallel_mode=cfg.DATASET.PARALLEL_MODE, 
                                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
                                 dataloader=val_loader,
-                                log=log
+                                log=log,
+                                cfg=cfg
                             )
 
                             if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
@@ -168,7 +175,8 @@ def main():
                                     coefs=coefs, 
                                     parallel_mode=cfg.DATASET.PARALLEL_MODE, 
                                     global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                                    log=log
+                                    log=log,
+                                    cfg=cfg
                                 )
 
                                 prob_accu = tnt.test(
@@ -176,7 +184,9 @@ def main():
                                     parallel_mode=cfg.DATASET.PARALLEL_MODE, 
                                     global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
                                     dataloader=val_loader,
-                                    log=log)
+                                    log=log,
+                                    cfg=cfg
+                                )
 
                     prune_prototypes(
                         tree_ppnet_multi,
@@ -198,14 +208,16 @@ def main():
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                         coefs=coefs,
-                        log=log
+                        log=log,
+                        cfg=cfg
                     )
                     prob_accu = tnt.test(
                         model=tree_ppnet_multi,
                         dataloader=val_loader,
                         parallel_mode=cfg.DATASET.PARALLEL_MODE,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        log=log
+                        log=log,
+                        cfg=cfg
                     )
                     save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
@@ -217,14 +229,16 @@ def main():
                             dataloader=train_loader,
                             optimizer=last_layer_optimizer,
                             coefs=coefs,
-                            log=log
+                            log=log,
+                            cfg=cfg
                         )
                         prob_accu = tnt.test(
                             model=tree_ppnet_multi,
                             global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                             dataloader=val_loader,
                             parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                            log=log
+                            log=log,
+                            cfg=cfg
                         )
                         save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
 

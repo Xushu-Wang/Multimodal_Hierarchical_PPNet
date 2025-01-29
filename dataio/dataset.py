@@ -263,7 +263,8 @@ def balanced_sample(
         train_not_classified_proportion, 
         seed:int = 2024, 
         parent_name: Optional[str] = None, 
-        log=print) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Shortage, dict[str, Tuple[int, int, int]]]:
+        log=print
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Shortage, dict[str, Tuple[int, int, int]]]:
         train_output = []
         val_output = []
         test_output = []
