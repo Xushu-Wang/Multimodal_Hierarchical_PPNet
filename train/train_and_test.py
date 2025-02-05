@@ -684,7 +684,6 @@ def _train_or_test(
 
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
-        break
 
     # Do goofy shit with the max_tracker
     props, top_props, top_3_props = get_correspondence_proportions(model)

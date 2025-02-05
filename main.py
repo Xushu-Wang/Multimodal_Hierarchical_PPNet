@@ -146,7 +146,9 @@ def main():
                     no_save=cfg.OUTPUT.NO_SAVE,
                     run=run
                 )
-                prob_accu = tnt.test(model=tree_ppnet_multi, dataloader=val_loader,
+                prob_accu = tnt.test(model=tree_ppnet_multi,
+                                     dataloader=val_loader,
+                                     run=run,
                                 log=log,
                                 cfg=cfg,
                                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
@@ -217,7 +219,7 @@ def main():
 
                 # Optimize last layer again
                 for i in range(20):
-                    log(f'iteration: \t{0}'.format(i))
+                    log(f'iteration: \t{i}')
                     _ = tnt.train(
                         model=tree_ppnet_multi,
                         dataloader=train_loader,

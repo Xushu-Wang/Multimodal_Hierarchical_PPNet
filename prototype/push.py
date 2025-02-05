@@ -357,11 +357,12 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         for node in prototype_network_parallel.module.nodes_with_children:
             init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
 
-    for push_iter, ((genetics, image), search_y) in enumerate(dataloader):
+    for push_iter, ((genetics, image), (search_y, search_y_flat)) in enumerate(dataloader):
         '''
         start_index_of_search keeps track of the index of the image
         assigned to serve as prototype
         '''
+        print("iter")
         start_index_of_search_batch = push_iter * search_batch_size
 
         if prototype_network_parallel.module.mode == Mode.GENETIC:

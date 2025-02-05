@@ -58,5 +58,7 @@ def handle_run_name_weirdness(cfg):
 def format_dictionary_nicely_for_printing(obj):
     """
     Format a dictionary nicely for printing.
+
+    Format all decimals with 5 decimal places.
     """
-    return '\n'.join([f"{k}: {v}" for k, v in obj.items()])
+    return "\n".join([f"{k}: {v:.5f}" for k, v in obj.items()])

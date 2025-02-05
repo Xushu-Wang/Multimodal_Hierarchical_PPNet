@@ -13,3 +13,4 @@ configs/*.yaml
 slurm*.out
 */._* 
 ._*
+wandb/

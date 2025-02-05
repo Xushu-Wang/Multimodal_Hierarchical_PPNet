@@ -1,5 +1,5 @@
-RUN_NAME: "parallel_new_backbone_10epoch_init_nopush_1000"
-WANDB_MODE: "disabled"
+RUN_NAME: "batched-correspondence-10.0"
+# WANDB_MODE: "disabled"
 
 MODEL:
     PRUNE: false
@@ -16,18 +16,11 @@ DATASET:
     PARALLEL_MODE: True
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_run"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/parallel_new_backbone_10epoch_init_012"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/rec_corr_fix_3_1.0_10_oversample"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
 
-    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
     IMAGE:
@@ -42,8 +35,7 @@ DATASET:
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
-        PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth"
-
+        # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth"
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
@@ -67,12 +59,12 @@ DATASET:
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
         # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
-        PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
+        # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
     PUSH_START: 0
-    PUSH_EPOCHS: [0,5,10,15,20]
-    NUM_WARM_EPOCHS: 0
+    PUSH_EPOCHS: [5,10,15,20]
+    NUM_WARM_EPOCHS: 5
     GLOBAL_CROSSENTROPY: False
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3
@@ -82,7 +74,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 1.0
+        CORRESPONDENCE: 10.0
     JOINT: False
 
 OUTPUT:
@@ -90,5 +82,5 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    NO_SAVE: False
+    NO_SAVE: True
     MODEL_DIR: "../output"
