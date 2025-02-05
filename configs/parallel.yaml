@@ -1,8 +1,11 @@
 RUN_NAME: "parallel_new_backbone_10epoch_init_nopush_1000"
+WANDB_MODE: "disabled"
 
 MODEL:
     PRUNE: false
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
+    # MULTI:
+    #     MULTI_PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
 
 DATASET:
     # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
@@ -35,6 +38,10 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 10
         # PPNET_PATH: "../output/image_only/150_5_ImageFullTest/0_push0.8015.pth"
         # PPNET_PATH: "../output/image_only/image_species_120_80train_003/images/15_push_weights.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
         PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth"
 
     GENETIC:
@@ -56,12 +63,15 @@ DATASET:
         # Weights
         # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
 
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
+        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
         PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
-
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 50
-    PUSH_EPOCHS: [5,10,15,20]
+    PUSH_START: 0
+    PUSH_EPOCHS: [0,5,10,15,20]
     NUM_WARM_EPOCHS: 0
     GLOBAL_CROSSENTROPY: False
     # JOINT_OPTIMIZER_LAYERS:
@@ -72,7 +82,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 1000.0
+        CORRESPONDENCE: 1.0
     JOINT: False
 
 OUTPUT:
@@ -80,4 +90,5 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    NO_SAVE: True
+    NO_SAVE: False
+    MODEL_DIR: "../output"

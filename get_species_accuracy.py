@@ -23,8 +23,8 @@ MODEL_PATHS = (
     # "../output/joint/parallel_new_backbone_10epoch_init_warm/images/10_push_weights.pth",
     # "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth", 
     # "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth",
-    "../output/joint/parallel_new_backbone_10epoch_init_067/50nopush0.3333.pth",
-
+    # "../output/joint/parallel_new_backbone_10epoch_init_067/50nopush0.3333.pth",
+    "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
 )
 MODEL_NAMES = (
     # "image_bare",
@@ -55,7 +55,11 @@ def recursive_throw_probs_on_there(tree, conv_features, above_prob=1):
 
     for child in tree.all_child_nodes:
         if child.parent:
-            recursive_throw_probs_on_there(child, conv_features, probs[:, child.int_location[-1]-1].unsqueeze(1))
+            recursive_throw_probs_on_there(
+                child,
+                conv_features,
+                probs[:, child.int_location[-1]-1].unsqueeze(1)
+            )
         else:
             child.prob = probs[:, child.int_location[-1]-1]
 

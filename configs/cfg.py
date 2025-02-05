@@ -4,6 +4,7 @@ _C = CN()
 
 _C.RUN_NAME = "" # Name of the run. If "", will be set to the current time.
 _C.SEED = 2024
+_C.WANDB_MODE = "online"
 
 # Model
 _C.MODEL = CN()
@@ -62,7 +63,6 @@ _C.DATASET.IMAGE.PPNET_PATH = "NA"
 _C.DATASET.IMAGE.TRAIN_BATCH_SIZE = 0
 _C.DATASET.IMAGE.TRANSFORM_MEAN = ()
 _C.DATASET.IMAGE.TRANSFORM_STD = ()
-
 
 # Genetic Dataset 
 _C.DATASET.GENETIC = CN()
@@ -126,7 +126,6 @@ _C.OUTPUT.PROTOTYPE_SELF_ACT_FILENAME_PREFIX = "NA"
 _C.OUTPUT.PROTO_BOUND_BOXES_FILENAME_PREFIX = "NA" 
 _C.OUTPUT.NO_SAVE = False
 _C.OUTPUT.PREPROCESS_INPUT_FUNCTION = None
-
 
 def get_cfg_defaults(): 
     return _C.clone()

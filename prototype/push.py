@@ -329,6 +329,7 @@ def nodal_update_prototypes_on_batch(
 # push each prototype to the nearest patch in the training set
 def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel, # pytorch network with prototype_vectors, basically our Hierarchical PPnet
+                    run,
                     preprocess_input_function=None, # normalize if needed
                     prototype_layer_stride=1,       # might be the stride of the prototype (?) Find out what this is
                     root_dir_for_saving_prototypes=None, # if not None, prototypes will be saved here

@@ -5,6 +5,8 @@ from pympler.tracker import SummaryTracker
 from model.model import Mode
 from typing import Union, Tuple
 
+from utils.util import format_dictionary_nicely_for_printing
+
 tracker = SummaryTracker()
 
 def CE(logits, target):
@@ -74,45 +76,33 @@ def find_lowest_level_node(node, target):
 def clear_accu_probs(node):
     del node.accu_probs
 
-def recursive_throw_probs_on_there(tree, conv_features, above_prob=1):
-    logits, _ = tree(conv_features)
-    probs = torch.softmax(logits, dim=1) * above_prob
-    tree.probs = probs
+"""
+Recursively put the conditional probabilities on the tree
+"""
+def recursive_update_probs_on_there(node, above_prob=1):
+    node.probs = torch.softmax(node._logits, dim=1) * above_prob
 
-    for child in tree.all_child_nodes:
-        if child.parent:
-            recursive_throw_probs_on_there(child, conv_features, probs[:, child.int_location[-1]-1].unsqueeze(1))
-        else:
-            child.prob = probs[:, child.int_location[-1]-1]
+    for child in node.child_nodes:
+        recursive_update_probs_on_there(child, node.probs[:, child.int_location[-1]-1].unsqueeze(1))
 
-def get_conditional_prob_accuracies_fixed(
-    conv_features,
+"""
+Gets the conditional probabilities at each level of conditioning [None, Order, Family, Genus]
+"""
+def get_conditional_accuracies_flat(
     model,
-    label,
-    indexed_tree,
-    parallel_mode=False
+    target,
+    dataset
 ):
-    if parallel_mode:
-        correct_0, total_0, _ = get_conditional_prob_accuracies_fixed(
-            conv_features[0],
-            model.genetic_hierarchical_ppnet,
-            label,
-            indexed_tree,
-            parallel_mode=False
-        )
-        correct_1, total_1, _ = get_conditional_prob_accuracies_fixed(
-            conv_features[1],
-            model.image_hierarchical_ppnet,
-            label,
-            indexed_tree,
-            parallel_mode=False
-        )
-        return torch.tensor([correct_0, correct_1]), torch.tensor([total_0, total_1]), 0
+    tot_correct = [0,0,0,0]
+    total = [0,0,0,0]
     
-    recursive_throw_probs_on_there(model.root, conv_features)
+    indexed_tree = dataset.leaf_indicies
 
+    # Calculate the final layer outputs for the model
     out = []
     indicies = []
+
+    recursive_update_probs_on_there(model.root)
 
     for node in model.nodes_with_children:
         if len(node.child_nodes) == 0:
@@ -122,235 +112,43 @@ def get_conditional_prob_accuracies_fixed(
                     bit = bit[loc]
                 
                 location = bit["idx"]
-                out.append(child.prob)
+                out.append(node.probs[:, child.int_location[-1]-1].unsqueeze(1))
                 indicies.append(location)
+    
 
-    # Sort out by index
-    out = [x for _, x in sorted(zip(indicies, out))]
-    out_array = torch.stack(out, dim=1)
+    # print(indicies)
+    out = [x for (_, x) in sorted(zip(indicies, out))]
+    out_array = torch.stack(out, dim=1).squeeze(2)
 
-    # Accuracy
-    _, predicted = torch.max(out_array, 1)
-    correct = (predicted == label).sum().item()
+    for cond_level in range(4):
+        mask = dataset.get_species_mask(target[:, cond_level], cond_level).cuda()
 
-    return correct, len(label), 0
+        # Accuracy
+        _, predicted = torch.max(out_array*mask, 1)
+        total[cond_level] += target.size(0)
+        # correct = (predicted == target[:,cond_level]).sum().item()
+        correct = (predicted == target[:,-1]).sum().item()
+        tot_correct[cond_level] += correct
+    
+    return torch.tensor(tot_correct), torch.tensor(total)
 
-def get_conditional_prob_accuracies(
-    conv_features,
-    model,
-    target,
-    global_ce=False,
-    parallel_mode=False
+def get_correlation_matrix(
+    genetic_min_distances,
+    image_min_distances
 ):
-    """
-    This returns the predicted classes for each input using the conditional probability method.
+    genetic_min_distances = genetic_min_distances.view(genetic_min_distances.shape[0], 40, -1)
+    image_min_distances = image_min_distances.view(genetic_min_distances.shape[0], 10, -1)
 
-    If global_ce is true, the cross entropy is calculated using the conditional probabilities of each class.
-    """
-    
-    recursive_put_accuracy_probs(
-        conv_features,
-        model.root,
-        target,
-        0,
-        parallel_mode,
-        scale = (1,1) if parallel_mode else 1
-    )
-    
-    cpu_target = target.cpu()
+    sq_distance = torch.zeros(genetic_min_distances.shape[0], 40, 10).cuda()
 
-    level_dict = {}
+    for i in range(40):
+        for j in range(10):
+            sq_distance[:,i,j] = (genetic_min_distances[:,i,0] - image_min_distances[:,j,0]) ** 2
 
-    for node in model.nodes_with_children:
-        if not level_dict.get(len(node.int_location), False):
-            level_dict[len(node.int_location)] = []
-        
-        level_dict[len(node.int_location)].append(node)
-    
-    if parallel_mode:
-        agreements = ([] , [])
-    else:
-        agreements = []
+    # sq_distance = (genetic_min_distances.unsqueeze(2) - image_min_distances.unsqueeze(1)) ** 2
+    sq_distance = torch.sum(sq_distance, dim=0)
 
-    cross_entropies = []
-    for level in level_dict:
-        if parallel_mode:
-            node_probs = ([], [])
-        else:
-            node_probs = []
-
-        node_labels = []
-    
-        best_probs = torch.zeros(cpu_target.shape[0]).cpu()
-        for node in level_dict[level]:
-            if parallel_mode:
-                accu_probs = (node.accu_probs[0].cpu(), node.accu_probs[1].cpu())
-
-                node_probs[0].append(accu_probs[0])
-                node_probs[1].append(accu_probs[1])
-            else:
-                accu_probs = node.accu_probs.cpu()
-                node_probs.append(accu_probs)
-
-            child_count = node.accu_probs[0].shape[1] if parallel_mode else node.accu_probs.shape[1]
-
-            for i in range(child_count):
-                node_label = torch.tensor(node.int_location + [i + 1]).cpu()
-                node_labels.append(node_label)
-
-                # Find if this node corresponds to any samples, if so add them to best_probs
-                # Get a mask of all rows of cpu_target[:, :len(node_label)] that match node_label
-                # TODO - Move this up a level for a small speedup
-                if global_ce:
-                    if parallel_mode:
-                        raise NotImplementedError("Parallel mode not implemented for global_ce")
-                    mask = (cpu_target[:, :len(node_label)] == node_label).all(dim=1).cpu()
-                    best_probs[mask] = accu_probs[mask, i]
-
-        if parallel_mode:
-            labels = torch.stack(node_labels,dim=1)
-
-            genetic_probs = torch.cat(node_probs[0], dim=1)
-
-            genetic_best_indicies = torch.argmax(genetic_probs, dim=1).cpu()
-            genetic_best_labels = labels[:, genetic_best_indicies].permute(1, 0)
-
-            genetic_diff = genetic_best_labels - cpu_target[:, :genetic_best_labels.shape[1]]
-            genetic_agreement = (genetic_diff == 0).all(dim=1)
-            agreements[0].append(genetic_agreement)
-
-            image_probs = torch.cat(node_probs[1], dim=1)
-
-            image_best_indicies = torch.argmax(image_probs, dim=1).cpu()
-            image_best_labels = labels[:, image_best_indicies].permute(1, 0)
-
-            image_diff = image_best_labels - cpu_target[:, :image_best_labels.shape[1]]
-            image_agreement = (image_diff == 0).all(dim=1)
-            agreements[1].append(image_agreement)
-
-            del genetic_probs, genetic_best_indicies, genetic_best_labels, genetic_diff, genetic_agreement
-
-            if global_ce:
-                # Calculate cross entropy, but don't use torch cross entropy because we have already softmaxed the logits
-                # Handle the case where the best_probs are 0
-                raise NotImplementedError("Parallel mode not implemented for global_ce")
-                best_probs[best_probs == 0] = 1e-10
-                cross_entropy = -torch.log(best_probs)
-                cross_entropies.append(cross_entropy)
-        else:
-            labels = torch.stack(node_labels,dim=1)
-            probs = torch.cat(node_probs, dim=1)
-
-            best_indicies = torch.argmax(probs, dim=1).cpu()
-            best_labels = labels[:, best_indicies].permute(1, 0)
-
-            diff = best_labels - cpu_target[:, :best_labels.shape[1]]
-            agreement = (diff == 0).all(dim=1)
-            agreements.append(agreement)
-
-            if global_ce:
-                # Calculate cross entropy, but don't use torch cross entropy because we have already softmaxed the logits
-                # Handle the case where the best_probs are 0
-                best_probs[best_probs == 0] = 1e-10
-                cross_entropy = -torch.log(best_probs)
-                cross_entropies.append(cross_entropy)
-
-    if parallel_mode:
-        genetic_agreements = torch.stack(agreements[0], dim=1)
-        image_agreements = torch.stack(agreements[1], dim=1)
-        
-        if global_ce:
-            raise NotImplementedError("Parallel mode not implemented for global_ce")
-            cross_entropies = torch.stack(cross_entropies, dim=1)
-        
-        # This is gross, I know. I'm sorry.
-        # Find the lowest level classified
-        lowest_level_classified = torch.argmax(
-            (torch.cat((cpu_target, torch.zeros((cpu_target.shape[0], 1))), dim=1) == 0).int(), dim=1
-        ) - 1
-        
-        # Index into aggreements with lowest_level_classified
-        genetic_agreements = genetic_agreements[range(genetic_agreements.shape[0]), lowest_level_classified]
-        image_agreements = image_agreements[range(image_agreements.shape[0]), lowest_level_classified]
-
-        if global_ce:
-            raise NotImplementedError("Parallel mode not implemented for global_ce")
-            cross_entropies = cross_entropies[range(cross_entropies.shape[0]), lowest_level_classified]
-            total_cross_entropy = torch.mean(cross_entropies)
-        else:
-            total_cross_entropy = 0
-
-        for node in model.nodes_with_children:
-            clear_accu_probs(node)
-
-        return torch.tensor([genetic_agreements.sum().item(), image_agreements.sum().item()]), len(genetic_agreements), total_cross_entropy
-    else:
-        agreements = torch.stack(agreements, dim=1)
-        
-        if global_ce:
-            cross_entropies = torch.stack(cross_entropies, dim=1)
-        
-        # This is gross, I know. I'm sorry.
-        # Find the lowest level classified
-        lowest_level_classified = torch.argmax(
-            (torch.cat((cpu_target, torch.zeros((cpu_target.shape[0], 1))), dim=1) == 0).int(), dim=1
-        ) - 1
-        
-        # Index into aggreements with lowest_level_classified
-        agreements = agreements[range(agreements.shape[0]), lowest_level_classified]
-
-        if global_ce:
-            cross_entropies = cross_entropies[range(cross_entropies.shape[0]), lowest_level_classified]
-            total_cross_entropy = torch.mean(cross_entropies)
-        else:
-            total_cross_entropy = 0
-
-        for node in model.nodes_with_children:
-            clear_accu_probs(node)
-
-        del labels, probs, best_indicies, best_labels, diff, agreement
-
-        return agreements.sum().item(), len(agreements), total_cross_entropy
-
-def recursive_put_accuracy_probs(
-    conv_features,
-    node,
-    target,
-    level,
-    parallel_mode,
-    scale: Union[int, Tuple[int, int]],
-):
-    """
-    This puts the softmax probabilities for each class into the node object. It scales the probabilities by the previous node's probability.
-    """
-    # TODO - This is calculated twice! BAD! We can't cache it frgenetic_logits, image_logitsom the main_train_loop step, because that doesn't evaluate the whole tree. This should be run first, then it should cache the logits within the tree. The get_loss function should then use the logits from the tree.
-    if parallel_mode:
-        (genetic_logits, image_logits), _ = node(conv_features, get_middle_logits=parallel_mode)
-        
-        node.accu_probs = (
-            torch.nn.functional.softmax(genetic_logits, dim=1) * scale[0],
-            torch.nn.functional.softmax(image_logits, dim=1) * scale[1]
-        )
-
-        scale = (node.accu_probs[0][:, -1].unsqueeze(1), node.accu_probs[1][:, -1].unsqueeze(1))
-
-        del genetic_logits, image_logits
-    else:
-        node.accu_probs = torch.nn.functional.softmax(node(conv_features)[0], dim=1) * scale
-        scale = node.accu_probs[:, -1].unsqueeze(1)
-
-
-
-    for c_node in node.child_nodes:
-        i = c_node.int_location[-1] - 1
-        recursive_put_accuracy_probs(
-            conv_features,
-            c_node,
-            target,
-            level + 1,
-            parallel_mode=parallel_mode,
-            scale=scale
-        )
+    return sq_distance[:,:]
 
 # Both of these correspondence costs work by matching each of the n image prototypes to b of the bn genetic prototypes. Obviously this requires that b be an integer. This raises some issues w/ pruning. More thought is reqd.
 def get_correspondence_loss_batched(
@@ -359,6 +157,10 @@ def get_correspondence_loss_batched(
     mask,
     node
 ):
+    if len(node.named_location) and node.named_location[-1] == "Diptera":
+        # node.correlation_table += get_correlation_matrix(genetic_min_distances[mask], image_min_distances[mask])
+        node.correlation_count += len(genetic_min_distances[mask])
+
     wrapped_genetic_min_distances = genetic_min_distances[mask].view(
         -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
     )
@@ -384,6 +186,7 @@ def get_correspondence_loss_batched(
 
     correspondence_cost_count = len(min_correspondence_costs)
     correspondence_cost_summed = torch.sum(min_correspondence_costs)
+
 
     del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis, l2_distance, total_dist
 
@@ -413,7 +216,6 @@ def get_correspondence_loss_single(
 
     return correspondence_cost_summed, correspondence_cost_count
 
-
 def recursive_get_loss_multi(
         conv_features,
         node,
@@ -439,30 +241,11 @@ def recursive_get_loss_multi(
     mask = prev_mask & mask
     num_parents_in_batch = 1
 
-    if mask.sum() == 0:
-        return 0, 0, 0, 0, 0, 0, 0
-
-    if global_ce:
-        cross_entropy = 0
-    else:
-        if parallel_mode:
-            # If we are in parallel mode, we calculate each model's cross entropy separately. We ignore the last layer.
-            genetic_logits, image_logits = logits
-            genetic_cross_entropy = torch.nn.functional.cross_entropy(genetic_logits[mask], target[mask][:, level] - 1)
-            image_cross_entropy = torch.nn.functional.cross_entropy(image_logits[mask], target[mask][:, level] - 1)
-            cross_entropy = genetic_cross_entropy + image_cross_entropy
-            del genetic_cross_entropy, image_cross_entropy, genetic_logits, image_logits
-        else:
-            # If we are not in parallel mode, we calculate the cross entropy using the multi logits
-            cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
-
-    genetic_cluster_cost, genetic_separation_cost = get_cluster_and_sep_cost(
-        genetic_min_distances[mask], target[mask][:, level], logits_size_1)
-    image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
-        image_min_distances[mask], target[mask][:, level], logits_size_1)
-
-    cluster_cost = genetic_cluster_cost + image_cluster_cost
-    separation_cost = genetic_separation_cost + image_separation_cost
+    # Be cognizant of a potential memory leak here
+    # Populate the node with logits (for conditional probability calculation)
+    genetic_logits, image_logits = logits
+    node.genetic_tree_node._logits = genetic_logits
+    node.image_tree_node._logits = image_logits
 
     if cfg.OPTIM.CORRESPONDENCE_TYPE.lower() == "batched":
         correspondence_cost_summed, correspondence_cost_count = get_correspondence_loss_batched(
@@ -481,65 +264,108 @@ def recursive_get_loss_multi(
     else:
         raise ValueError("Invalid correspondence type")
 
-    genetic_l1_cost = get_l1_cost(node.genetic_tree_node)
-    image_l1_cost = get_l1_cost(node.image_tree_node)
-    multi_layer_l1_cost = get_multi_last_layer_l1_cost(node)
-
-    l1_cost = genetic_l1_cost + image_l1_cost + multi_layer_l1_cost
-
-    # Update correct and total counts
-    # TODO - Implement accuracy tree for parallel mode
-    if parallel_mode:
-        predicted = torch.zeros_like(target[mask][:, level])
-        correct = torch.zeros_like(target[mask][:, level])
+    if mask.sum() == 0:
+        for c_node in node.child_nodes:
+            i = c_node.int_location[-1] - 1
+            
+            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
+                conv_features,
+                c_node,
+                target,
+                mask,
+                level + 1,
+                global_ce,
+                correct_arr,
+                total_arr,
+                accuracy_tree["children"][i],
+                parallel_mode,
+                cfg
+            )
+            correspondence_cost_summed += new_correspondence_cost_summed
+            correspondence_cost_count += new_correspondence_cost_count
+        
+        del genetic_logits, image_logits
+        return 0, 0, 0, 0, 0, correspondence_cost_summed, correspondence_cost_count
     else:
-        _, predicted = torch.max(logits[mask], 1)
-        correct = predicted == (target[mask][:, level] - 1)
+        if global_ce:
+            cross_entropy = 0
+        else:
+            if parallel_mode:
+                # If we are in parallel mode, we calculate each model's cross entropy separately. We ignore the last layer.
+                genetic_cross_entropy = torch.nn.functional.cross_entropy(genetic_logits[mask], target[mask][:, level] - 1)
+                image_cross_entropy = torch.nn.functional.cross_entropy(image_logits[mask], target[mask][:, level] - 1)
+                cross_entropy = genetic_cross_entropy + image_cross_entropy
+                
+                del genetic_cross_entropy, image_cross_entropy        
+            else:
+                # If we are not in parallel mode, we calculate the cross entropy using the multi logits
+                cross_entropy = torch.nn.functional.cross_entropy(logits[mask], target[mask][:, level] - 1)
 
-    correct_arr[level] += correct.sum().item()
-    total_arr[level] += len(predicted)
+        del genetic_logits, image_logits
 
-    for i in range(logits_size_1):
-        class_mask = (target[mask][:, level] - 1) == i
-        class_correct = correct[class_mask]
-        accuracy_tree["children"][i]["correct"] += class_correct.sum()
-        accuracy_tree["children"][i]["total"] += class_mask.sum()
-        
-    for c_node in node.child_nodes:
-        i = c_node.int_location[-1] - 1
-        
-        applicable_mask = target[:,level] - 1 == i
-        
-        if applicable_mask.sum() == 0:
-            continue
+        genetic_cluster_cost, genetic_separation_cost = get_cluster_and_sep_cost(
+            genetic_min_distances[mask], target[mask][:, level], logits_size_1)
+        image_cluster_cost, image_separation_cost = get_cluster_and_sep_cost(
+            image_min_distances[mask], target[mask][:, level], logits_size_1)
 
-        new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
-            conv_features,
-            c_node,
-            target,
-            mask & applicable_mask,
-            level + 1,
-            global_ce,
-            correct_arr,
-            total_arr,
-            accuracy_tree["children"][i],
-            parallel_mode,
-            cfg
-        )
-        
-        cross_entropy = cross_entropy + new_cross_entropy
-        cluster_cost = cluster_cost + new_cluster_cost 
-        separation_cost = separation_cost + new_separation_cost
-        l1_cost = l1_cost + new_l1_cost
-        num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
-        correspondence_cost_summed += new_correspondence_cost_summed
-        correspondence_cost_count += new_correspondence_cost_count
+        cluster_cost = genetic_cluster_cost + image_cluster_cost
+        separation_cost = genetic_separation_cost + image_separation_cost
 
-        del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
+        genetic_l1_cost = get_l1_cost(node.genetic_tree_node)
+        image_l1_cost = get_l1_cost(node.image_tree_node)
+        multi_layer_l1_cost = get_multi_last_layer_l1_cost(node)
 
-    del logits, genetic_min_distances, image_min_distances, predicted, correct, logits_size_1
+        l1_cost = genetic_l1_cost + image_l1_cost + multi_layer_l1_cost
 
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count
+        # Update correct and total counts
+        # TODO - Implement accuracy tree for parallel mode
+        if parallel_mode:
+            predicted = torch.zeros_like(target[mask][:, level])
+            correct = torch.zeros_like(target[mask][:, level])
+        else:
+            _, predicted = torch.max(logits[mask], 1)
+            correct = predicted == (target[mask][:, level] - 1)
+
+        correct_arr[level] += correct.sum().item()
+        total_arr[level] += len(predicted)
+
+        for i in range(logits_size_1):
+            class_mask = (target[mask][:, level] - 1) == i
+            class_correct = correct[class_mask]
+            accuracy_tree["children"][i]["correct"] += class_correct.sum()
+            accuracy_tree["children"][i]["total"] += class_mask.sum()
+            
+        for c_node in node.child_nodes:
+            i = c_node.int_location[-1] - 1
+            
+            applicable_mask = target[:,level] - 1 == i
+            
+            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
+                conv_features,
+                c_node,
+                target,
+                mask & applicable_mask,
+                level + 1,
+                global_ce,
+                correct_arr,
+                total_arr,
+                accuracy_tree["children"][i],
+                parallel_mode,
+                cfg
+            )
+            
+            cross_entropy = cross_entropy + new_cross_entropy
+            cluster_cost = cluster_cost + new_cluster_cost 
+            separation_cost = separation_cost + new_separation_cost
+            l1_cost = l1_cost + new_l1_cost
+            num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
+            correspondence_cost_summed += new_correspondence_cost_summed
+            correspondence_cost_count += new_correspondence_cost_count
+
+            del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
+
+        del logits, genetic_min_distances, image_min_distances, predicted, correct, logits_size_1
+        return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count
 
 
 def recursive_get_loss(
@@ -651,16 +477,51 @@ def construct_accuracy_tree(root):
             construct_accuract_tree_rec(child) for child in root.all_child_nodes
         ]}
 
+def get_correspondence_proportions(model):
+    props = [[] for i in range(4)]
+    top_props = [[] for i in range(4)]
+    for node in model.module.nodes_with_children:
+        try:
+            individual_min_indicies = node.max_tracker[1]
+        except Exception as e:
+            print("No max tracker found. Huh.")
+            continue
+
+        individual_min_indicies = torch.cat(individual_min_indicies, dim=0)
+        if individual_min_indicies.shape[0] == 0:
+            continue
+
+        modes = torch.mode(individual_min_indicies, dim=0)[0]
+        mode_truth = individual_min_indicies == modes
+        # print(mode_truth.shape)
+        mode_counts = torch.sum(mode_truth, dim=0)
+        mode_counts_folded_by_10 = mode_counts.reshape((10,-1)).float()
+
+        # if node.correlation_count > 0:
+        #     print(node.correlation_table / node.correlation_count)
+
+        props[len(node.int_location)].append(torch.mean(mode_counts / individual_min_indicies.shape[0]).item())
+        top_props[len(node.int_location)].append(torch.sort(torch.mean(mode_counts_folded_by_10, dim=1), descending=True)[0] / individual_min_indicies.shape[0])
+    
+    props = torch.tensor([torch.mean(torch.tensor(prop)) for prop in props])
+    a = [torch.stack(t) for t in top_props]
+    top_props = torch.stack([torch.stack(t).float().mean(dim=0) for t in top_props])
+    top_3_props = top_props[:, :3].mean(dim=1)
+
+    return props, top_props, top_3_props
+
 def _train_or_test(
     model,
     dataloader,
     global_ce,
     parallel_mode,
+    run,
     optimizer=None,
     coefs = None,
     log=print,
     batch_mult = 1,
-    cfg=None):
+    cfg=None,
+):
     '''
     model: the multi-gpu model
     dataloader:
@@ -692,7 +553,16 @@ def _train_or_test(
     total_correspondence_cost = 0
     # torch.autograd.set_detect_anomaly(True)
     
-    for i, ((genetics, image), label) in enumerate(dataloader):
+    try:
+        for node in model.module.nodes_with_children:
+            for el1, el2 in node.max_tracker:
+                del el1, el2
+            
+            node.max_tracker = ([], []) 
+    except:
+        pass
+
+    for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader):
         if model.module.mode == Mode.GENETIC:
             input = genetics.to("cuda")
         elif model.module.mode == Mode.IMAGE:
@@ -712,10 +582,10 @@ def _train_or_test(
         l1 = 0
 
         if parallel_mode:
-            total_probabalistic_correct_count = torch.zeros(2)
+            total_probabalistic_correct_count = torch.zeros((2,4))
         else:
-            total_probabalistic_correct_count = 0
-        total_probabilistic_total_count = 0
+            total_probabalistic_correct_count = torch.zeros(4)
+        total_probabilistic_total_count = torch.zeros(4)
 
         num_parents_in_batch = 0
 
@@ -740,6 +610,7 @@ def _train_or_test(
                     parallel_mode=parallel_mode,
                     cfg=cfg
                 )
+
                 correspondence_cost = correspondence_cost_summed / correspondence_cost_count
             else:
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
@@ -754,31 +625,35 @@ def _train_or_test(
                     accuracy_tree=accuracy_tree
                 )
             
-            probabalistic_correct_count, probabilistic_total_count, global_cross_entropy = get_conditional_prob_accuracies(
-                conv_features=conv_features,
-                model=model.module,
-                target=target,
-                global_ce=global_ce,
-                parallel_mode=parallel_mode,
-            )
-            # indexed_tree = dataloader.dataset.leaf_indicies
-            # probabalistic_correct_count, probabilistic_total_count, global_cross_entropy = get_conditional_prob_accuracies_fixed(
-            #     conv_features=conv_features,
-            #     model=model.module,
-            #     label=target,
-            #     indexed_tree=indexed_tree,
-            #     parallel_mode=parallel_mode
-            # )
+            if parallel_mode:
+                genetic_probabalistic_correct_counts, genetic_probabilistic_total_counts = get_conditional_accuracies_flat(
+                    model=model.module.genetic_hierarchical_ppnet,
+                    target=flat_label.cuda(),
+                    dataset=dataloader.dataset
+                )
+                image_probabalistic_correct_counts, _ = get_conditional_accuracies_flat(
+                    model=model.module.image_hierarchical_ppnet,
+                    target=flat_label.cuda(),
+                    dataset=dataloader.dataset
+                )
 
-            if global_ce:
-                cross_entropy = global_cross_entropy
+                total_probabalistic_correct_count += torch.stack([genetic_probabalistic_correct_counts, image_probabalistic_correct_counts])
+                total_probabilistic_total_count += genetic_probabilistic_total_counts
 
-            total_probabalistic_correct_count += probabalistic_correct_count
-            total_probabilistic_total_count += probabilistic_total_count
+                for node in model.module.nodes_with_children:
+                    del node.genetic_tree_node._logits, node.image_tree_node._logits
+                    del node.genetic_tree_node.probs, node.image_tree_node.probs
+            else:
+                probabalistic_correct_counts, probabilistic_total_counts = get_conditional_accuracies_flat(
+                    model=model.module,
+                    target=flat_label.cuda(),
+                    dataset=dataloader.dataset
+                )
+                total_probabalistic_correct_count += probabalistic_correct_counts
+                total_probabilistic_total_count += probabilistic_total_counts
 
-            # TODO - Maybe warm up
 
-        if is_train:          
+        if is_train:
             loss = (coefs['crs_ent'] * cross_entropy
                           + coefs['clst'] * cluster_cost
                           + coefs['sep'] * separation_cost
@@ -809,61 +684,37 @@ def _train_or_test(
 
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
-        
-    try:
-        for node in model.module.nodes_with_children:
-            for el1, el2 in node.max_tracker:
-                del el1, el2
+        break
 
-            node.max_tracker = ([], []) 
-    except:
-        pass
-    
     # Do goofy shit with the max_tracker
+    props, top_props, top_3_props = get_correspondence_proportions(model)
 
-    props = [[] for i in range(4)]
-    for node in model.module.nodes_with_children:
-        try:
-            individual_min_indicies = node.max_tracker[1]
-            individual_min_indicies = torch.cat(individual_min_indicies, dim=0)
+    mode_str = "train" if is_train else "val"
 
-            modes = torch.mode(individual_min_indicies, dim=0)[0]
-            mode_truth = individual_min_indicies == modes
-            mode_counts = torch.sum(mode_truth, dim=0)
+    batch = {
+        f"{mode_str}-cross_ent": total_cross_entropy / n_batches,
+        f"{mode_str}-cluster": total_cluster_cost / n_batches,
+        f"{mode_str}-separation": total_separation_cost / n_batches,
+        f"{mode_str}-l1": total_l1 / n_batches,
+        f"{mode_str}-correspondence": total_correspondence_cost / n_batches,
+        f"{mode_str}-mean-top-3-correspondence-agreement": total_correspondence_cost / n_batches,
+    }
 
-            props[len(node.int_location)-1].append(torch.mean(mode_counts / individual_min_indicies.shape[0]).item())
-        except:
-            print("No max tracker found. Huh.")
+    for i, level in enumerate(["base", "order", "family", "genus"]):
+        if parallel_mode:
+            batch[f"{mode_str}-genetic-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[0,i] / total_probabilistic_total_count[i]
+            batch[f"{mode_str}-image-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[1,i] / total_probabilistic_total_count[i]
+        else:
+            batch[f"{mode_str}-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[i] / total_probabilistic_total_count[i]
 
-    end = time.time()
+    run.log(batch, commit=False)
+    log(format_dictionary_nicely_for_printing(batch))
 
-    log('\ttime: \t{0:.2f}'.format(end -  start))
-
-    train_or_test_string = 'train' if is_train else 'test'
-
-    log("\t[%s]\ttorch.cuda.memory_allocated: %fGB"%(train_or_test_string,torch.cuda.memory_allocated(0)/1024/1024/1024))
-    log("\t[%s]\ttorch.cuda.memory_reserved: %fGB"%(train_or_test_string,torch.cuda.memory_reserved(0)/1024/1024/1024))
-    log("\t[%s]\ttorch.cuda.max_memory_reserved: %fGB"%(train_or_test_string, torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-    log('\t[{0}]\tcross ent: \t{1:.2f}'.format(train_or_test_string, total_cross_entropy / n_batches))
-    # log('\tnoise cross ent: \t{0:.2f}'.format(total_noise_cross_ent / n_batches))
-    log('\t[{0}]\tcluster: \t{1:.2f}'.format(train_or_test_string, total_cluster_cost / n_batches))
-    log('\t[{0}]\tseparation: \t{1:.2f}'.format(train_or_test_string, total_separation_cost / n_batches))
-    log('\t[{0}]\tl1: \t{1:.2f}'.format(train_or_test_string, total_l1 / n_batches))
-    if model.module.mode == Mode.MULTIMODAL:
-        log('\t[{0}]\tcorrespondence: \t{1:.2f}'.format(train_or_test_string, total_correspondence_cost / n_batches))
-        for i, level in enumerate(model.module.levels):
-            log(f"[{train_or_test_string}]\t{level + ' level correspondence:':<23} \t{torch.mean(torch.tensor(props[i])).item():.3f}")
-    
+    # If is parallel mode
     if parallel_mode:
-        log('\t[{0}]\tgenetic probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[0] / total_probabilistic_total_count)) 
-        log('\t[{0}]\timage probabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count[1] / total_probabilistic_total_count)) 
+        overall_accuracy = total_probabalistic_correct_count[1,0] / total_probabilistic_total_count[0]
     else:
-        log('\t[{0}]\tprobabilistic accuracy: \t{1:.5f}'.format(train_or_test_string, total_probabalistic_correct_count / total_probabilistic_total_count)) 
-
-    for i, level in enumerate(model.module.levels):
-        log(f'\t[{train_or_test_string}]\t{level + " level accuracy:":<23} \t{correct_arr[i] / total_arr[i]:.5f} ({int(total_arr[i])} samples)')
-
-    overall_accuracy = torch.min(total_probabalistic_correct_count / total_probabilistic_total_count) if parallel_mode else total_probabalistic_correct_count / total_probabilistic_total_count
+        overall_accuracy = total_probabalistic_correct_count[0] / total_probabilistic_total_count[0]
     return overall_accuracy
 
 def train(
@@ -872,6 +723,7 @@ def train(
     optimizer, 
     coefs, 
     parallel_mode, 
+    run,
     global_ce=True, 
     cfg=None,
     log=print,
@@ -887,12 +739,14 @@ def train(
         optimizer=optimizer,
         coefs=coefs,
         log=log,
-        cfg=cfg
+        cfg=cfg,
+        run=run
     )
 
 def valid(
     model, 
     dataloader, 
+    run,
     coefs = None, 
     parallel_mode=False, 
     global_ce=True, 
@@ -909,12 +763,14 @@ def valid(
         optimizer=None, 
         coefs=coefs,
         log=log,
-        cfg=cfg
+        cfg=cfg,
+        run=run
     )
 
 def test(
     model, 
     dataloader, 
+    run,
     coefs = None, 
     parallel_mode=False, 
     global_ce=True, 
@@ -930,7 +786,8 @@ def test(
         optimizer=None, 
         coefs = coefs,
         log=log, 
-        cfg=cfg
+        cfg=cfg,
+        run=run
     )
 
 def make_one_hot(target, target_one_hot):
@@ -977,7 +834,6 @@ def warm_only(model, log=print):
     layers = model.module.get_last_layer_parameters()
     for l in layers:
         l.requires_grad = False            
-    log('warm')
    
 
 def last_only(model, log=print):
@@ -992,8 +848,6 @@ def last_only(model, log=print):
     for l in model.module.get_last_layer_parameters():
         l.requires_grad = True
     
-    log('\tlast layer')
-
 # joint opts
 
 def joint(model, log=print):
@@ -1014,8 +868,6 @@ def joint(model, log=print):
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = False
     
-    log('joint')
-
 def multi_last_layer(model, log=print):
     for p in model.module.features.parameters():
         p.requires_grad = False
@@ -1033,6 +885,3 @@ def multi_last_layer(model, log=print):
     if model.module.mode == Mode.MULTIMODAL:
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = True
-
-    log('multi last layer')
-

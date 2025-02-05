@@ -68,7 +68,7 @@ class TreeNode(nn.Module):
         self.parent = True # True for all tree nodes since it's a parent, not a leaf node. 
         self.level = len(int_location)
         self.max_num_prototypes_per_class = max_num_prototypes_per_class
-       
+
         # a 0/1 block of maps between prototype and its corresponding class label
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
         for j in range(self.num_prototypes):
@@ -413,6 +413,8 @@ class CombinerTreeNode(nn.Module):
         self.named_location = genetic_tree_node.named_location
         self.mode = Mode.MULTIMODAL
         self.max_tracker = ([], [])
+        self.correlation_count = 0
+        self.correlation_table = torch.zeros((40,10)).cuda()
 
         self.child_nodes = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
 
@@ -465,6 +467,12 @@ class Multi_Hierarchical_PPNet(nn.Module):
         super().__init__()
         self.genetic_hierarchical_ppnet = genetic_hierarchical_ppnet
         self.image_hierarchical_ppnet = image_hierarchical_ppnet
+
+        if self.genetic_hierarchical_ppnet.mode == Mode.MULTIMODAL or self.genetic_hierarchical_ppnet.mode == Mode.MULTIMODAL.value:
+            self.genetic_hierarchical_ppnet = self.genetic_hierarchical_ppnet.genetic_hierarchical_ppnet
+        
+        if self.image_hierarchical_ppnet.mode == Mode.MULTIMODAL or self.image_hierarchical_ppnet.mode == Mode.MULTIMODAL.value:
+            self.image_hierarchical_ppnet = self.image_hierarchical_ppnet.image_hierarchical_ppnet
 
         if self.genetic_hierarchical_ppnet.mode != Mode.GENETIC and self.genetic_hierarchical_ppnet.mode != Mode.GENETIC.value:
             raise ValueError("Genetic Hierarchical PPNet must be in genetics mode")
@@ -626,13 +634,14 @@ def construct_tree_ppnet(cfg: CfgNode, log=print) -> Union[Hierarchical_PPNet, M
         case Mode.IMAGE: 
             return construct_image_tree_ppnet(cfg)
         case Mode.MULTIMODAL: 
+            # if cfg.MODEL.MULTI.MULTI_PPNET_PATH != "NA":
+            #     if cfg.DATASET.GENETIC.PPNET_PATH != "NA" or cfg.DATASET.IMAGE.PPNET_PATH != "NA":
+            #         log("Warning: Loading MultiModalNetwork, other pretrained networks are ignored...")
+            #     # Load from file, not from state_dict
+            #     multi = torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH)
+            #     return multi
             multi = Multi_Hierarchical_PPNet(
                 construct_genetic_tree_ppnet(cfg), 
                 construct_image_tree_ppnet(cfg) 
             )
-            if cfg.MODEL.MULTI.MULTI_PPNET_PATH != "NA":
-                if cfg.DATASET.GENETIC.PPNET_PATH != "NA" or cfg.DATASET.IMAGE.PPNET_PATH != "NA":
-                    log("Warning: Loading MultiModalNetwork, other pretrained networks are ignored...")
-                # Load from file, not from state_dict
-                multi = torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH)
             return multi

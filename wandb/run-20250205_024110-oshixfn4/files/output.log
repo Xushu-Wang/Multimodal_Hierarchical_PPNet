@@ -1,0 +1,85 @@
+Getting Datasets
+Getting Dataloaders
+Dataloaders Got
+PPNET constructed
+train
+[0] VRAM Usage: 15.80GB
+[0] VRAM Usage: 16.98GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.04GB
+[0] VRAM Usage: 17.04GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+[0] VRAM Usage: 17.05GB
+[0] VRAM Usage: 17.05GB
+	above 0.00%
+train
+Traceback (most recent call last):
+  File "/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/main.py", line 275, in <module>
+    main()
+  File "/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/main.py", line 92, in main
+    tnt.train(
+  File "/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/train/train_and_test.py", line 718, in train
+    return _train_or_test(
+  File "/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/train/train_and_test.py", line 555, in _train_or_test
+    for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader):
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 630, in __next__
+    data = self._next_data()
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1328, in _next_data
+    idx, data = self._get_data()
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1294, in _get_data
+    success, data = self._try_get_data()
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1132, in _try_get_data
+    data = self._data_queue.get(timeout=timeout)
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/multiprocessing/queues.py", line 113, in get
+    if not self._poll(timeout):
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/multiprocessing/connection.py", line 424, in _poll
+    r = wait([self], timeout)
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/multiprocessing/connection.py", line 931, in wait
+    ready = selector.select(timeout)
+  File "/home/users/cjb131/miniconda3/envs/intnn/lib/python3.10/selectors.py", line 416, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
