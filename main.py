@@ -66,7 +66,7 @@ def main():
             # Warm up and Training Epochs
             if not args.validate:
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
-                    tnt.warm_only(model=tree_ppnet_multi, log=log)
+                    tnt.warm_only(model=tree_ppnet_multi, log=run)
                     tnt.train(
                         model=tree_ppnet_multi,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
@@ -80,7 +80,7 @@ def main():
                     )
                 else:
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                        tnt.multi_last_layer(model=tree_ppnet_multi, log=run)
                         tnt.train(
                             model=tree_ppnet_multi,
                             global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
@@ -92,7 +92,7 @@ def main():
                             run=run
                         )
                     
-                    tnt.joint(model=tree_ppnet_multi, log=log)
+                    tnt.joint(model=tree_ppnet_multi, log=run)
                     tnt.train( 
                         model=tree_ppnet_multi,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
@@ -110,7 +110,7 @@ def main():
             prob_accu = tnt.test(
                 model=tree_ppnet_multi,
                 dataloader=val_loader,
-                log=log,
+                log=run,
                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
                 parallel_mode=cfg.DATASET.PARALLEL_MODE,
                 cfg=cfg,
@@ -123,7 +123,7 @@ def main():
                 model_name=str(epoch) + 'nopush', 
                 accu=prob_accu,
                 target_accu=0, 
-                log=log
+                log=run
             )
 
             if args.validate:
@@ -151,12 +151,12 @@ def main():
                                 cfg=cfg,
                                 global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
                 save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
-                                            target_accu=0, log=log, accu=prob_accu)
+                                            target_accu=0, log=run, accu=prob_accu)
 
                 # Optimize last layer
                 if cfg.MODEL.PRUNE and epoch >= cfg.OPTIM.PRUNE_START:
                     if cfg.MODEL.PRUNING_TYPE == "weights":
-                        tnt.last_only(model=tree_ppnet_multi, log=log)
+                        tnt.last_only(model=tree_ppnet_multi, log=run)
                         for i in range(10):
                             log(f'[weights pruning] iteration: {i}')
                             _ = tnt.train(
@@ -181,7 +181,7 @@ def main():
                             )
 
                             if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                                tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                                tnt.multi_last_layer(model=tree_ppnet_multi, log=run)
 
                                 tnt.train(
                                     model=tree_ppnet_multi, 
@@ -212,7 +212,7 @@ def main():
                         pruning_type=cfg.MODEL.PRUNING_TYPE,
                         k=cfg.MODEL.PRUNING_K,
                         tau=cfg.MODEL.PRUNING_TAU,
-                        log=log
+                        log=run
                     )
 
                 # Optimize last layer again
@@ -238,9 +238,9 @@ def main():
                         cfg=cfg,
                         run=run
                     )
-                    save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
+                    save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=run)
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
+                        tnt.multi_last_layer(model=tree_ppnet_multi, log=run)
                         _ = tnt.train(
                             model=tree_ppnet_multi,
                             global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
@@ -261,7 +261,7 @@ def main():
                             cfg=cfg,
                             run=run
                         )
-                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
+                        save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=run)
 
                 # Print the weights of the last layer
                 # Save the weigts of the last layer

@@ -366,7 +366,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     no_save=False,
 ):
     prototype_network_parallel.eval()
-    log('\tpush')
+    log.log({'\tpush'})
 
     start = time.time()
 
@@ -470,7 +470,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
 
     # TODO - Implement bounding box saving
 
-    log('\tExecuting push ...')
+    log.log({'\tExecuting push ...'})
     if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
             prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
@@ -486,4 +486,4 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
             node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
     end = time.time()
-    log('\tpush time: \t{0}'.format(end -  start))
+    log.log({'\tpush time: \t{0}'.format(end -  start)})
