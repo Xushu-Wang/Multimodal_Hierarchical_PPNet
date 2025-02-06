@@ -466,8 +466,6 @@ class CombinerTreeNode(nn.Module):
     def forward(self, x, get_middle_logits=False):
         genetic_conv_features, image_conv_features = x
 
-        print(image_conv_features)
-
         return self.get_logits(genetic_conv_features, image_conv_features, get_middle_logits=get_middle_logits)
 
 class Multi_Hierarchical_PPNet(nn.Module):
