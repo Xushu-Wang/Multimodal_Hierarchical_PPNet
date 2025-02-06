@@ -1,86 +1,53 @@
 RUN_NAME: "round-2-1.0-push-rand-small"
-# WANDB_MODE: "disabled"
+WANDB_MODE: "disabled" # Comment this out to connect to WANDB
 
 MODEL:
-    PRUNE: false
+    PRUNE: false # Keep disabled. This has not been updated to work with new changes.
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
-    # MULTI:
+
+    # BUGFIX!
+    # MULTI: # There are some issues with preloading old multi_ppnets because the model code has changed. Look into this.
     #     MULTI_PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
 
 DATASET:
-    # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
-    # TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
-    MODE: 3
-    PARALLEL_MODE: True
-    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
+    MODE: 3 # For parallel mode, always set to 3
+    PARALLEL_MODE: True # I doubt "False" works any more. This will use the combined predictions to predict. We don't want that any more
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
 
-    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected. Never change.
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
 
-    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
+    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
 
-    IMAGE:
-        PROTOTYPE_SHAPE: (2048, 1, 1)
+    IMAGE: 
+        PROTOTYPE_SHAPE: (2048, 1, 1) 
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
-        # PPNET_PATH: "../output/image_only/150_5_ImageFullTest/0_push0.8015.pth"
-        # PPNET_PATH: "../output/image_only/image_species_120_80train_003/images/15_push_weights.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
-        # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth"
+        # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth" # Path to pretrained image ppnet. This can be used in multimodal mode.
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
-        # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_None/1_push0.9701.pth"
-        # PPNET_PATH: "../output/genetic_only/150_5_GenFullTest_Quality/1_push0.9705.pth"
-        # PPNET_PATH: "../output/genetic_only/genetic_species_006/images/20_push_weights.pth"
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Weights_40_Batch_001/5_push0.7559.pth"
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality/2_push0.9762.pth"
-
-        # 8_8
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_001/10_push0.9441.pth"
-
-        # 5_6
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/10_push0.9577.pth"
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/15_push0.9542.pth"
-        
-        # Weights
-        # PPNET_PATH: "../output/genetic_only/150_Lite_GenFullTest_Quality_40_Weights/5_push0.8972.pth"
-
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_80/50nopush0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10nopush0.3333.pth"
-        # PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_nopush_1000_002/50nopush0.3333.pth"
-        # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
+        # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
     PUSH_START: 0
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 3
-    GLOBAL_CROSSENTROPY: False
-    # JOINT_OPTIMIZER_LAYERS:
-    #     ADD_ON_LAYERS: 1e-3
-    #     PROTOTYPE_VECTORS: 1e-3
-    # WARM_OPTIMIZER_LAYERS:
-    #     ADD_ON_LAYERS: 1e-3
-    #     PROTOTYPE_VECTORS: 1e-3
+    GLOBAL_CROSSENTROPY: False # Keep this at false. True never worked properly. If false, crossentropy is calculated at each node of the tree
     COEFS:
         SEP: -0.1
         CORRESPONDENCE: 1.0
-    JOINT: False
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    NO_SAVE: False
+    NO_SAVE: False # If this is false, images won't be saved.
