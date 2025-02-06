@@ -1,4 +1,4 @@
-RUN_NAME: "round-2-1.0-push-rand-small"
+RUN_NAME: "reasonable_dataset"
 WANDB_MODE: "disabled" # Comment this out to connect to WANDB
 
 MODEL:
@@ -20,7 +20,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
 

@@ -742,7 +742,7 @@ def train(
 ): 
 
     assert(optimizer is not None)
-    log.log('train')
+    log('train')
     return _train_or_test(
         model=model,
         dataloader=dataloader,
@@ -766,7 +766,7 @@ def valid(
     log=print,
     ):
 
-    log.log({'valid'})
+    log('valid')
     return _train_or_test(
         model=model, 
         dataloader=dataloader, 
