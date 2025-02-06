@@ -1,4 +1,4 @@
-RUN_NAME: "round-2-1.0-nopush"
+RUN_NAME: "round-2-1.0-push-rand-small"
 # WANDB_MODE: "disabled"
 
 MODEL:
@@ -19,8 +19,8 @@ DATASET:
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
@@ -63,7 +63,7 @@ DATASET:
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 30
+    PUSH_START: 0
     PUSH_EPOCHS: [5,10,15,20]
     NUM_WARM_EPOCHS: 3
     GLOBAL_CROSSENTROPY: False

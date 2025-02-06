@@ -79,8 +79,12 @@ class TreeNode(nn.Module):
         self.child_nodes = [] # a list of TreeNode objects that are direct children. 
         self.all_child_nodes = [] # All child nodes includes leafs, child nodes does not
 
+        # self.prototype_vectors = nn.Parameter(
+        #     torch.randn(self.full_prototype_shape),
+        #     requires_grad=True
+        # )
         self.prototype_vectors = nn.Parameter(
-            torch.randn(self.full_prototype_shape),
+            torch.rand(self.full_prototype_shape),
             requires_grad=True
         )
         # This is used for pruning. We mask the prototypes that are not used.
@@ -461,6 +465,8 @@ class CombinerTreeNode(nn.Module):
     
     def forward(self, x, get_middle_logits=False):
         genetic_conv_features, image_conv_features = x
+
+        print(image_conv_features)
 
         return self.get_logits(genetic_conv_features, image_conv_features, get_middle_logits=get_middle_logits)
 
