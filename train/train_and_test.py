@@ -121,7 +121,10 @@ def get_conditional_accuracies_flat(
     out_array = torch.stack(out, dim=1).squeeze(2)
 
     for cond_level in range(4):
-        mask = dataset.get_species_mask(target[:, cond_level], cond_level).cuda()
+        if cond_level == 0:
+            mask = torch.ones_like(out_array, dtype=bool).cuda()
+        else:
+            mask = dataset.get_species_mask(target[:, cond_level-1], cond_level-1).cuda()
 
         # Accuracy
         _, predicted = torch.max(out_array*mask, 1)
@@ -187,7 +190,6 @@ def get_correspondence_loss_batched(
     correspondence_cost_count = len(min_correspondence_costs)
     correspondence_cost_summed = torch.sum(min_correspondence_costs)
 
-
     del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis, l2_distance, total_dist
 
     return correspondence_cost_summed, correspondence_cost_count
@@ -244,6 +246,13 @@ def recursive_get_loss_multi(
     # Be cognizant of a potential memory leak here
     # Populate the node with logits (for conditional probability calculation)
     genetic_logits, image_logits = logits
+
+    # Check if the node has attribute _logits
+    if hasattr(node.genetic_tree_node, "_logits"):
+        del node.genetic_tree_node._logits
+    if hasattr(node.image_tree_node, "_logits"):
+        del node.image_tree_node._logits
+
     node.genetic_tree_node._logits = genetic_logits
     node.image_tree_node._logits = image_logits
 
@@ -284,7 +293,7 @@ def recursive_get_loss_multi(
             correspondence_cost_summed += new_correspondence_cost_summed
             correspondence_cost_count += new_correspondence_cost_count
         
-        del genetic_logits, image_logits
+        del genetic_logits, image_logits, logits, genetic_min_distances, image_min_distances
         return 0, 0, 0, 0, 0, correspondence_cost_summed, correspondence_cost_count
     else:
         if global_ce:
@@ -530,8 +539,12 @@ def _train_or_test(
     
     is_train = optimizer is not None
     
-    if not is_train: 
+    print(is_train)
+
+    if not is_train:
         model.eval()
+    else:
+        model.train()
         
     start = time.time()
     
@@ -685,7 +698,6 @@ def _train_or_test(
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
 
-    # Do goofy shit with the max_tracker
     props, top_props, top_3_props = get_correspondence_proportions(model)
 
     mode_str = "train" if is_train else "val"
@@ -696,7 +708,6 @@ def _train_or_test(
         f"{mode_str}-separation": total_separation_cost / n_batches,
         f"{mode_str}-l1": total_l1 / n_batches,
         f"{mode_str}-correspondence": total_correspondence_cost / n_batches,
-        f"{mode_str}-mean-top-3-correspondence-agreement": total_correspondence_cost / n_batches,
     }
 
     for i, level in enumerate(["base", "order", "family", "genus"]):
@@ -705,6 +716,8 @@ def _train_or_test(
             batch[f"{mode_str}-image-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[1,i] / total_probabilistic_total_count[i]
         else:
             batch[f"{mode_str}-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[i] / total_probabilistic_total_count[i]
+
+        batch[f"{mode_str}-{level}-mean-top-3-correspondence-agreement"] = top_3_props[i].item()
 
     run.log(batch, commit=False)
     log(format_dictionary_nicely_for_printing(batch))
@@ -832,8 +845,11 @@ def warm_only(model, log=print):
 
     layers = model.module.get_last_layer_parameters()
     for l in layers:
-        l.requires_grad = False            
-   
+        l.requires_grad = False
+
+    for p in model.module.get_last_layer_multi_parameters():
+        p.requires_grad = False
+
 
 def last_only(model, log=print):
     for p in model.module.features.parameters():

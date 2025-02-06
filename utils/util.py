@@ -52,7 +52,7 @@ def handle_run_name_weirdness(cfg):
     if cfg.OUTPUT.MODEL_DIR == '':
         cfg.OUTPUT.MODEL_DIR = os.path.join("../output", mode_name, cfg.RUN_NAME)
         # If the model directory doesn't exist, create it
-        os.makedir(cfg.OUTPUT.MODEL_DIR)
+        os.mkdir(cfg.OUTPUT.MODEL_DIR)
     cfg.OUTPUT.IMG_DIR = os.path.join(cfg.OUTPUT.MODEL_DIR, "images")
 
 def format_dictionary_nicely_for_printing(obj):
@@ -62,3 +62,12 @@ def format_dictionary_nicely_for_printing(obj):
     Format all decimals with 5 decimal places.
     """
     return "\n".join([f"{k}: {v:.5f}" for k, v in obj.items()])
+
+def does_it_match(
+    matcher,
+    location
+):
+    for i in range(min(len(location), len(matcher))):
+        if matcher[i] != location[i]:
+            return False
+    return True

@@ -6,7 +6,7 @@
 #SBATCH --mem=80gb                  # Job memory request
 #SBATCH --time=48:00:00                # Time limit hrs:min:sec
 #SBATCH --partition=compsci-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a5000:1
 #SBATCH --output=logs/correspondence-testing/%j.out
 
 eval "$(conda shell.bash hook)" 

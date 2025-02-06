@@ -14,7 +14,6 @@ from train.optimizer import get_optimizers
 import train.train_and_test as tnt
 import prototype.push as push    
 from utils.util import handle_run_name_weirdness
-# import wandb   
 
 def main():
     parser = argparse.ArgumentParser()
@@ -69,11 +68,11 @@ def main():
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
                     tnt.warm_only(model=tree_ppnet_multi, log=log)
                     tnt.train(
-                        model=tree_ppnet_multi, 
-                        dataloader=train_loader, 
-                        optimizer=warm_optimizer,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                        model=tree_ppnet_multi,
                         global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
+                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                        dataloader=train_loader,
+                        optimizer=warm_optimizer,
                         coefs=coefs,
                         log=log,
                         cfg=cfg,
@@ -103,8 +102,7 @@ def main():
                         coefs=coefs,
                         log=log,
                         cfg=cfg,
-                        run=run
-                        
+                        run=run                        
                     )
                     joint_lr_scheduler.step()
             

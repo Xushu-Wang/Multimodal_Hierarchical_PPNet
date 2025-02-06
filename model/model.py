@@ -68,6 +68,7 @@ class TreeNode(nn.Module):
         self.parent = True # True for all tree nodes since it's a parent, not a leaf node. 
         self.level = len(int_location)
         self.max_num_prototypes_per_class = max_num_prototypes_per_class
+        self._logits = None
 
         # a 0/1 block of maps between prototype and its corresponding class label
         self.prototype_class_identity = torch.zeros(self.num_prototypes, self.num_classes)
@@ -355,6 +356,7 @@ class Hierarchical_PPNet(nn.Module):
         '''
         x = self.features(x)
         x = self.add_on_layers(x)
+
         return x
             
     def forward(self, x):
@@ -541,7 +543,9 @@ class Multi_Hierarchical_PPNet(nn.Module):
         return nn.ParameterList([*self.genetic_hierarchical_ppnet.get_last_layer_parameters(), *self.image_hierarchical_ppnet.get_last_layer_parameters()])
     
     def get_prototype_parameters(self):
-        return nn.ParameterList([*self.genetic_hierarchical_ppnet.get_prototype_parameters(), *self.image_hierarchical_ppnet.get_prototype_parameters()])
+        return nn.ParameterList(
+            [*self.genetic_hierarchical_ppnet.get_prototype_parameters(), *self.image_hierarchical_ppnet.get_prototype_parameters()]
+        )
     
     def get_last_layer_multi_parameters(self):
         return nn.ParameterList([child.multi_last_layer.weight for child in self.root.child_nodes])

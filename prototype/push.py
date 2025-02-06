@@ -5,10 +5,11 @@ import cv2
 import os
 import time
 import pandas as pd
+import wandb
 
 from model.model import TreeNode, Mode
 from prototype.receptive_field import compute_rf_prototype
-from utils.util import find_high_activation_crop 
+from utils.util import does_it_match, find_high_activation_crop 
 from configs.io import makedir
 from typing import Optional, Callable
 
@@ -88,6 +89,7 @@ def nodal_update_prototypes_on_batch(
     start_index_of_search_batch,
     model,
     full_search_y,
+    run,
     preprocess_input_function,
     prototype_layer_stride,
     prototype_img_filename_prefix,
@@ -142,6 +144,15 @@ def nodal_update_prototypes_on_batch(
 
     if mode == Mode.GENETIC or mode == Mode.MULTIMODAL:
         patch_df_list = []
+
+    add_to_arr = does_it_match(
+        ["Diptera", "Chironomidae", "Tanytarsus"],
+        node.named_location
+    )
+    add_to_arr = False
+    location_name = ">".join(node.named_location) if len(node.named_location) else "root"
+    prototype_images = []
+    overlayed_images = []
 
     for j in range(n_prototypes):
         # We assume class_specifc is true
@@ -287,6 +298,11 @@ def nodal_update_prototypes_on_batch(
                                 vmin=0.0,
                                 vmax=1.0)
                         
+                        # Send this image to wandb if it matches the criteria (we don't want to send every image, don't be absurd)
+                        if add_to_arr:
+                            prototype_images.append(proto_img_j)
+                            overlayed_images.append(overlayed_original_img_j)
+
                         # if different from the original (whole) image, save the prototype receptive field as png
                         if rf_img_j.shape[0] != original_img_size or rf_img_j.shape[1] != original_img_size:
                             plt.imsave(os.path.join(dir_for_saving_prototypes,
@@ -308,6 +324,14 @@ def nodal_update_prototypes_on_batch(
                                 proto_img_j,
                                 vmin=0.0,
                                 vmax=1.0)
+                        
+    if add_to_arr:
+        run.log({
+            f"prototypes-{location_name}": [wandb.Image(image) for image in prototype_images[:10]],
+            f"overlayed-images-{location_name}": [wandb.Image(image) for image in overlayed_images[:10]]
+        }
+        # commit=False
+        )
     # If we're saving genetic patches. Save 'em here.
     if mode == Mode.GENETIC and patch_df_list is not None and len(patch_df_list):
         patch_df = pd.DataFrame(patch_df_list, columns=["key", "class_index", "prototype_index", "patch"])
@@ -402,6 +426,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.genetic_hierarchical_ppnet,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -417,6 +442,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.image_hierarchical_ppnet,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -433,6 +459,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,

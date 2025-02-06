@@ -1,4 +1,4 @@
-RUN_NAME: "batched-correspondence-10.0"
+RUN_NAME: "round-2-1.0-nopush"
 # WANDB_MODE: "disabled"
 
 MODEL:
@@ -20,6 +20,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
@@ -62,9 +63,9 @@ DATASET:
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth"
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 0
+    PUSH_START: 30
     PUSH_EPOCHS: [5,10,15,20]
-    NUM_WARM_EPOCHS: 5
+    NUM_WARM_EPOCHS: 3
     GLOBAL_CROSSENTROPY: False
     # JOINT_OPTIMIZER_LAYERS:
     #     ADD_ON_LAYERS: 1e-3
@@ -74,7 +75,7 @@ OPTIM:
     #     PROTOTYPE_VECTORS: 1e-3
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 10.0
+        CORRESPONDENCE: 1.0
     JOINT: False
 
 OUTPUT:
@@ -82,5 +83,4 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    NO_SAVE: True
-    MODEL_DIR: "../output"
+    NO_SAVE: False
