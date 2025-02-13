@@ -486,7 +486,7 @@ def construct_accuracy_tree(root):
             construct_accuract_tree_rec(child) for child in root.all_child_nodes
         ]}
 
-def get_correspondence_proportions(model):
+def get_correspondence_proportions(model, cfg):
     props = [[] for i in range(4)]
     top_props = [[] for i in range(4)]
     for node in model.module.nodes_with_children:
@@ -504,7 +504,7 @@ def get_correspondence_proportions(model):
         mode_truth = individual_min_indicies == modes
         # print(mode_truth.shape)
         mode_counts = torch.sum(mode_truth, dim=0)
-        mode_counts_folded_by_10 = mode_counts.reshape((10,-1)).float()
+        mode_counts_folded_by_10 = mode_counts.reshape((cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS,-1)).float()
 
         # if node.correlation_count > 0:
         #     print(node.correlation_table / node.correlation_count)
@@ -575,6 +575,12 @@ def _train_or_test(
     except:
         pass
 
+    if parallel_mode:
+        total_probabalistic_correct_count = torch.zeros((2,4))
+    else:
+        total_probabalistic_correct_count = torch.zeros(4)
+    total_probabilistic_total_count = torch.zeros(4)
+
     for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader):
         if model.module.mode == Mode.GENETIC:
             input = genetics.to("cuda")
@@ -593,12 +599,6 @@ def _train_or_test(
         cluster_cost = 0
         separation_cost = 0
         l1 = 0
-
-        if parallel_mode:
-            total_probabalistic_correct_count = torch.zeros((2,4))
-        else:
-            total_probabalistic_correct_count = torch.zeros(4)
-        total_probabilistic_total_count = torch.zeros(4)
 
         num_parents_in_batch = 0
 
@@ -698,7 +698,7 @@ def _train_or_test(
         if i % 512 == 0:
             log(f"[{i}] VRAM Usage: {torch.cuda.memory_reserved()/1024/1024/1024:.2f}GB")
 
-    props, top_props, top_3_props = get_correspondence_proportions(model)
+    props, top_props, top_3_props = get_correspondence_proportions(model, cfg)
 
     mode_str = "train" if is_train else "val"
 

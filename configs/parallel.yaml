@@ -1,5 +1,5 @@
-RUN_NAME: "reasonable_dataset"
-WANDB_MODE: "disabled" # Comment this out to connect to WANDB
+RUN_NAME: "reasonable_dataset_2500.0_8"
+# WANDB_MODE: "disabled" # Comment this out to connect to WANDB
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
@@ -19,8 +19,8 @@ DATASET:
     PARALLEL_MODE: True # I doubt "False" works any more. This will use the combined predictions to predict. We don't want that any more
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
 
@@ -29,7 +29,7 @@ DATASET:
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
-        NUM_PROTOTYPES_PER_CLASS: 10
+        NUM_PROTOTYPES_PER_CLASS: 8
         # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth" # Path to pretrained image ppnet. This can be used in multimodal mode.
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
@@ -37,13 +37,13 @@ DATASET:
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
     NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 0
-    PUSH_EPOCHS: [5,10,15,20]
-    NUM_WARM_EPOCHS: 3
+    PUSH_START: 15
+    PUSH_EPOCHS: [5,10,15,20, 25, 30, 35]
+    NUM_WARM_EPOCHS: 5
     GLOBAL_CROSSENTROPY: False # Keep this at false. True never worked properly. If false, crossentropy is calculated at each node of the tree
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 1.0
+        CORRESPONDENCE: 2500.0
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"
