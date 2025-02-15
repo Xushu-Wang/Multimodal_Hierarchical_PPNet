@@ -18,7 +18,7 @@ from utils.util import handle_run_name_weirdness
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/genetics.yaml')
+    parser.add_argument('--configs', type=str, default='configs/parallel.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
     

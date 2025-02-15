@@ -3,8 +3,10 @@ import torch
 import numpy as np
 from pympler.tracker import SummaryTracker
 from model.model import Mode
+from pprint import pprint
 from typing import Union, Tuple
 
+from dataio.dataset import TreeDataset
 from utils.util import format_dictionary_nicely_for_printing
 
 tracker = SummaryTracker()
@@ -83,8 +85,8 @@ def clear_accu_probs(node):
 """
 Recursively put the conditional probabilities on the tree
 """
-def recursive_update_probs_on_there(node, above_prob=1):
-    node.probs = torch.softmax(node._logits, dim=1) * above_prob
+def recursive_update_probs_on_there(node, above_prob=1): 
+    node.probs = torch.softmax(node._logits, dim=1) * above_prob  
 
     for child in node.child_nodes:
         recursive_update_probs_on_there(child, node.probs[:, child.int_location[-1]-1].unsqueeze(1))
@@ -95,43 +97,44 @@ Gets the conditional probabilities at each level of conditioning [None, Order, F
 def get_conditional_accuracies_flat(
     model,
     target,
-    dataset
+    dataset: TreeDataset
 ):
     tot_correct = [0,0,0,0]
     total = [0,0,0,0]
     
-    indexed_tree = dataset.leaf_indicies
+    indexed_tree = dataset.leaf_indicies  
 
     # Calculate the final layer outputs for the model
     out = []
-    indicies = []
+    indicies = [] 
 
-    recursive_update_probs_on_there(model.root)
+    recursive_update_probs_on_there(model.root)  
 
     for node in model.nodes_with_children:
-        if len(node.child_nodes) == 0:
-            for child in node.all_child_nodes:
+        if len(node.child_nodes) == 0: # only consider leaf nodes
+            for child in node.all_child_nodes: # each child is a species
+                # just traverse down the tree using each location in named_location
                 bit = indexed_tree
                 for loc in child.named_location:
                     bit = bit[loc]
-                
-                location = bit["idx"]
-                out.append(node.probs[:, child.int_location[-1]-1].unsqueeze(1))
-                indicies.append(location)
-    
 
-    # print(indicies)
+                location = bit["idx"]
+                out.append(node.probs[:, child.int_location[-1]-1].unsqueeze(1)) 
+                indicies.append(location)
+
+    # sum(out) should be a Tensor of 1s
+
     out = [x for (_, x) in sorted(zip(indicies, out))]
-    out_array = torch.stack(out, dim=1).squeeze(2)
+    out_array = torch.stack(out, dim=1).squeeze(2)  
 
     for cond_level in range(4):
         if cond_level == 0:
             mask = torch.ones_like(out_array, dtype=bool).cuda()
         else:
-            mask = dataset.get_species_mask(target[:, cond_level-1], cond_level-1).cuda()
+            mask = dataset.get_species_mask(target[:, cond_level-1], cond_level-1).cuda()  
 
         # Accuracy
-        _, predicted = torch.max(out_array*mask, 1)
+        _, predicted = torch.max(out_array*mask, 1)  # predicted = [80], target = [80, 4]
         total[cond_level] += target.size(0)
         # correct = (predicted == target[:,cond_level]).sum().item()
         correct = (predicted == target[:,-1]).sum().item()
@@ -550,7 +553,7 @@ def _train_or_test(
     
     is_train = optimizer is not None
     
-    print(is_train)
+    print(is_train) 
 
     if not is_train:
         model.eval()
@@ -566,7 +569,7 @@ def _train_or_test(
     
     if model.module.mode == Mode.MULTIMODAL:
         # I can't be bothered to implement all_child_nodes for the multimodal model. This will work, though it's gross. 
-        accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root)
+        accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root) 
     else:
         accuracy_tree = construct_accuracy_tree(model.module.root)
 
@@ -575,7 +578,6 @@ def _train_or_test(
     total_separation_cost = 0
     total_l1 = 0
     total_correspondence_cost = 0
-    # torch.autograd.set_detect_anomaly(True)
     
     try:
         for node in model.module.nodes_with_children:
@@ -592,7 +594,7 @@ def _train_or_test(
         total_probabalistic_correct_count = torch.zeros(4)
     total_probabilistic_total_count = torch.zeros(4)
 
-    for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader):
+    for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader): 
         if model.module.mode == Mode.GENETIC:
             input = genetics.to("cuda")
         elif model.module.mode == Mode.IMAGE:
@@ -619,6 +621,7 @@ def _train_or_test(
         with grad_req:
             conv_features = model.module.conv_features(input)
             
+            # compute the loss
             if model.module.mode == Mode.MULTIMODAL:
                 # Freeze last layer multi
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count, orthogonality_cost = recursive_get_loss_multi( 
@@ -649,6 +652,7 @@ def _train_or_test(
                     accuracy_tree=accuracy_tree
                 )
             
+            # compute the conditional accuracies
             if parallel_mode:
                 genetic_probabalistic_correct_counts, genetic_probabilistic_total_counts = get_conditional_accuracies_flat(
                     model=model.module.genetic_hierarchical_ppnet,
@@ -659,10 +663,15 @@ def _train_or_test(
                     model=model.module.image_hierarchical_ppnet,
                     target=flat_label.cuda(),
                     dataset=dataloader.dataset
-                )
-
+                ) 
+                print("-------------------------------------")
                 total_probabalistic_correct_count += torch.stack([genetic_probabalistic_correct_counts, image_probabalistic_correct_counts])
+                print(total_probabilistic_total_count)
                 total_probabilistic_total_count += genetic_probabilistic_total_counts
+                print(total_probabalistic_correct_count)
+                print(genetic_probabilistic_total_counts)
+                print(total_probabilistic_total_count)
+                print("-------------------------------------")
 
                 for node in model.module.nodes_with_children:
                     del node.genetic_tree_node._logits, node.image_tree_node._logits
@@ -674,7 +683,7 @@ def _train_or_test(
                     dataset=dataloader.dataset
                 )
                 total_probabalistic_correct_count += probabalistic_correct_counts
-                total_probabilistic_total_count += probabilistic_total_counts
+                total_probabilistic_total_count += probabilistic_total_counts 
 
 
         if is_train:
@@ -724,7 +733,7 @@ def _train_or_test(
         f"{mode_str}-orthogonality-image": orthogonality_cost[1].item(),
     }
 
-    for i, level in enumerate(["base", "order", "family", "genus"]):
+    for i, level in enumerate(["base", "order", "family", "genus"]): 
         if parallel_mode:
             batch[f"{mode_str}-genetic-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[0,i] / total_probabilistic_total_count[i]
             batch[f"{mode_str}-image-{level}-conditional-prob-accuracy"] = total_probabalistic_correct_count[1,i] / total_probabilistic_total_count[i]
