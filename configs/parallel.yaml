@@ -1,4 +1,4 @@
-RUN_NAME: "reasonable_dataset_2500.0_8"
+RUN_NAME: "muchang"
 # WANDB_MODE: "disabled" # Comment this out to connect to WANDB
 
 MODEL:
