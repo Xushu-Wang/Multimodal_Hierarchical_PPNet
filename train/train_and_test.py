@@ -49,6 +49,10 @@ def get_multi_last_layer_l1_cost(node):
 
     return l1
 
+def get_orthogonality_cost(node):
+    P = node.prototype_vectors.squeeze(-1).squeeze(-1)
+    P = P / torch.linalg.norm(P, dim=1).unsqueeze(-1)
+    return torch.sum(P@P.T-torch.eye(P.size(0)).cuda())
 
 def print_accuracy_tree(accuracy_tree, log=print):
     print_accuracy_tree_rec(accuracy_tree["children"], log)
@@ -273,11 +277,16 @@ def recursive_get_loss_multi(
     else:
         raise ValueError("Invalid correspondence type")
 
+    genetic_orthogonality_cost = get_orthogonality_cost(node.genetic_tree_node)
+    image_orthogonality_cost = get_orthogonality_cost(node.image_tree_node)
+
+    orthogonality_cost = torch.tensor([genetic_orthogonality_cost, image_orthogonality_cost])
+
     if mask.sum() == 0:
         for c_node in node.child_nodes:
             i = c_node.int_location[-1] - 1
             
-            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
+            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count, new_orthogonality_cost = recursive_get_loss_multi(
                 conv_features,
                 c_node,
                 target,
@@ -292,9 +301,10 @@ def recursive_get_loss_multi(
             )
             correspondence_cost_summed += new_correspondence_cost_summed
             correspondence_cost_count += new_correspondence_cost_count
+            orthogonality_cost += new_orthogonality_cost
         
         del genetic_logits, image_logits, logits, genetic_min_distances, image_min_distances
-        return 0, 0, 0, 0, 0, correspondence_cost_summed, correspondence_cost_count
+        return 0, 0, 0, 0, 0, correspondence_cost_summed, correspondence_cost_count, orthogonality_cost
     else:
         if global_ce:
             cross_entropy = 0
@@ -349,7 +359,7 @@ def recursive_get_loss_multi(
             
             applicable_mask = target[:,level] - 1 == i
             
-            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count = recursive_get_loss_multi(
+            new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count, new_orthogonality_cost = recursive_get_loss_multi(
                 conv_features,
                 c_node,
                 target,
@@ -370,11 +380,12 @@ def recursive_get_loss_multi(
             num_parents_in_batch =  num_parents_in_batch + new_num_parents_in_batch
             correspondence_cost_summed += new_correspondence_cost_summed
             correspondence_cost_count += new_correspondence_cost_count
+            orthogonality_cost += new_orthogonality_cost
 
-            del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch
+            del applicable_mask, new_cross_entropy, new_cluster_cost, new_separation_cost, new_l1_cost, new_num_parents_in_batch, new_correspondence_cost_summed, new_correspondence_cost_count, new_orthogonality_cost
 
         del logits, genetic_min_distances, image_min_distances, predicted, correct, logits_size_1
-        return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count
+        return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count, orthogonality_cost
 
 
 def recursive_get_loss(
@@ -610,7 +621,7 @@ def _train_or_test(
             
             if model.module.mode == Mode.MULTIMODAL:
                 # Freeze last layer multi
-                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count = recursive_get_loss_multi( 
+                cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count, orthogonality_cost = recursive_get_loss_multi( 
                     conv_features=conv_features,
                     node=model.module.root,
                     target=target,
@@ -674,6 +685,7 @@ def _train_or_test(
             
             if model.module.mode == Mode.MULTIMODAL:
                 loss += coefs['correspondence'] * correspondence_cost
+                loss += (coefs['orthogonality'] * orthogonality_cost).sum()
                           
             loss.backward()
             
@@ -708,6 +720,8 @@ def _train_or_test(
         f"{mode_str}-separation": total_separation_cost / n_batches,
         f"{mode_str}-l1": total_l1 / n_batches,
         f"{mode_str}-correspondence": total_correspondence_cost / n_batches,
+        f"{mode_str}-orthogonality-genetic": orthogonality_cost[0].item(),
+        f"{mode_str}-orthogonality-image": orthogonality_cost[1].item(),
     }
 
     for i, level in enumerate(["base", "order", "family", "genus"]):

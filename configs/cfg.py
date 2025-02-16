@@ -101,6 +101,9 @@ _C.OPTIM.COEFS.CLST = 0.001
 _C.OPTIM.COEFS.SEP = 0.06
 _C.OPTIM.COEFS.L1 = 5e-3 
 _C.OPTIM.COEFS.CORRESPONDENCE = 5e-3 
+_C.OPTIM.COEFS.ORTHOGONALITY = CN()
+_C.OPTIM.COEFS.ORTHOGONALITY.GENETIC = 1e-4 
+_C.OPTIM.COEFS.ORTHOGONALITY.IMAGE = 1e-3 
 _C.OPTIM.CEDA = False
 
 # If true, the crossentropy term will be applied to a large vector corresponding to conditional probabilities of each species (or higher level if not classified).

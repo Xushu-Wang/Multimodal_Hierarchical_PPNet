@@ -1,4 +1,4 @@
-RUN_NAME: "reasonable_dataset_2500.0_8"
+RUN_NAME: "reasonable_dataset_1000.0_1e-4_1e-3"
 # WANDB_MODE: "disabled" # Comment this out to connect to WANDB
 
 MODEL:
@@ -29,7 +29,7 @@ DATASET:
         TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
-        NUM_PROTOTYPES_PER_CLASS: 8
+        NUM_PROTOTYPES_PER_CLASS: 10
         # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth" # Path to pretrained image ppnet. This can be used in multimodal mode.
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
@@ -43,7 +43,10 @@ OPTIM:
     GLOBAL_CROSSENTROPY: False # Keep this at false. True never worked properly. If false, crossentropy is calculated at each node of the tree
     COEFS:
         SEP: -0.1
-        CORRESPONDENCE: 2500.0
+        CORRESPONDENCE: 1000.0
+        ORTHOGONALITY: 
+            GENETIC: 1e-4
+            IMAGE: 1e-3
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"

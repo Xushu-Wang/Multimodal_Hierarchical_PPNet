@@ -58,6 +58,7 @@ def main():
             'sep': cfg.OPTIM.COEFS.SEP,
             'l1': cfg.OPTIM.COEFS.L1,
             "correspondence": cfg.OPTIM.COEFS.CORRESPONDENCE,
+            "orthogonality": torch.tensor([cfg.OPTIM.COEFS.ORTHOGONALITY.GENETIC, cfg.OPTIM.COEFS.ORTHOGONALITY.IMAGE]),
             'CEDA': False
         }
         
