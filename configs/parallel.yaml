@@ -19,8 +19,7 @@ DATASET:
     PARALLEL_MODE: True # I doubt "False" works any more. This will use the combined predictions to predict. We don't want that any more
 
     # Uncomment these once datasets have already been generated and you want to reuse them
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
 
