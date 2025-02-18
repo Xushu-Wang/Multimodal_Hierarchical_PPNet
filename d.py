@@ -7,7 +7,7 @@ from configs.cfg import get_cfg_defaults
 from configs.io import create_logger, run_id_accumulator, save_model_w_condition
 from model.model import Mode
 from dataio.dataloader import get_dataloaders
-from dataio.dataset import get_datasets 
+from dataio.dataset import get_datasets, Hierarchy
 from model.model import construct_tree_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
@@ -20,7 +20,14 @@ cfg = get_cfg_defaults()
 cfg.merge_from_file("configs/parallel.yaml")
 run_id_accumulator(cfg) 
 
-tree_ppnet = construct_tree_ppnet(cfg).to("cuda") 
+json_file = cfg.DATASET.TREE_SPECIFICATION_FILE 
 
-genetic_root = tree_ppnet.genetic_hierarchical_ppnet.root
-image_root = tree_ppnet.image_hierarchical_ppnet.root 
+h = Hierarchy(json_file) 
+print(h)
+
+print(h.root)
+for c in h.root.children: 
+    print("  " + c.__repr__()) 
+    for c2 in c.children: 
+        print("    " + c2.__repr__())
+

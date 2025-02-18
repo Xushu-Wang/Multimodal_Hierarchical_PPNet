@@ -20,7 +20,10 @@ def create_dataloaders(
 ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, transforms.Normalize]:
     np.random.seed(seed) 
 
-    def collate_fn(batch):
+    def collate_fn(batch): 
+        '''
+        postprocessing collate function
+        '''
         genetics = []
         images = []
         labels = []

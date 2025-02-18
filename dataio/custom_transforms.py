@@ -63,7 +63,7 @@ class GeneticOneHot(CustomTransform):
 
         return onehot_tensor.float()
 
-class ImageGeometricTransform():
+class ImageGeometricTransform(CustomTransform): 
     def __init__(self):
         super().__init__()
 
@@ -84,7 +84,7 @@ class ImageGeometricTransform():
 
         return p.torch_transform()(image)
 
-class GeneticMutationTransform(): 
+class GeneticMutationTransform(CustomTransform): 
     def __init__(self, insertion_amount: int, deletion_amount: int, substitution_rate: float): 
         self.insertion_amount = insertion_amount 
         self.deletion_amount = deletion_amount 

@@ -6,14 +6,13 @@ from os import mkdir
 import wandb
 
 from configs.cfg import get_cfg_defaults 
-from configs.io import create_logger, save_model_w_condition
+from configs.io import create_logger, save_model_w_condition, run_id_accumulator
 from model.model import Mode
 from dataio.dataloader import get_dataloaders
 from model.model import construct_tree_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
 import prototype.push as push    
-from utils.util import handle_run_name_weirdness
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,7 +23,8 @@ def main():
     
     cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
-    handle_run_name_weirdness(cfg)
+    run_id_accumulator(cfg)
+
     # log_id_accumulator(cfg)
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     run = wandb.init(
