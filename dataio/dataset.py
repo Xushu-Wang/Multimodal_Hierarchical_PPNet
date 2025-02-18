@@ -12,7 +12,49 @@ from yacs.config import CfgNode
 from .custom_transforms import GeneticOneHot, GeneticMutationTransform, create_transforms
 import math 
 
-class Split(): 
+class TaxNode(): 
+    def __init__(self, taxonomy, idx: List): 
+        self.taxonomy = taxonomy 
+        self.children = set()
+        self.idx = idx
+
+    def __repr__(self): 
+        return f"TaxNode({self.taxonomy}, {self.idx})"
+
+class Hierarchy(): 
+    """
+    Stores the hierarchy of a dataset that we will work with. 
+    Attributes: 
+        tree   - the actual tree with the different classes
+        levels - the metadata describing each level, e.g. ["order", "family", "genus"]
+    """
+
+    def __init__(self, json_file: str): 
+        """
+        All json files should be created by build_class_tree.py. 
+        Simply input in the path to the json file to instantiate an Hierarchy object. 
+        """
+        meta = json.load(open(json_file, "r")) 
+        self.levels = meta["levels"] 
+        self.tree_dict = meta["tree"]
+        self.root = self.dict_to_tree(TaxNode("Insect", []), self.tree_dict)
+
+    def dict_to_tree(self, node, d): 
+        """
+        Convert dictionary loaded from json file to actual tree of TaxNodes. 
+        Traversed using DFS. 
+        """
+        for i, (k, v) in enumerate(d.items()): 
+            if isinstance(v, dict): 
+                child = self.dict_to_tree(TaxNode(k, node.idx + [i]), v) 
+                node.children.add(child)
+
+        return node
+
+class Split():  
+    """
+    A class that holds train/val/test splits 
+    """
     def __init__(self, train: int, val: int, test: int): 
         assert(train >= 0 and val >= 0 and test >= 0) 
         self.train = train 
@@ -29,29 +71,21 @@ class Split():
     def __repr__(self): 
         return f"Split(train={self.train}, val={self.val}, test={self.test})"
 
-def scaled_split(split: Split, total: int) -> Split: 
-    """Scales all split counts equally so that they sum approx to total."""
-    ratio = (total - 3) / split.sum() 
-    new_split = Split(
-        math.ceil(ratio * split.train) + 1,
-        math.ceil(ratio * split.val) + 1,
-        math.ceil(ratio * split.test) + 1
-    )
-
-    while new_split.sum() > total: 
-        i: int = np.random.choice(3) 
-        match i: 
-            case 0: new_split.train -= 1 
-            case 1: new_split.val -= 1 
-            case 2: new_split.test -= 1 
-        new_split._sum -= 1 
-    
-    if new_split.train < 0 or new_split.val < 0 or new_split.test < 0: 
-        raise Exception("We decremented to negative counts. ")
-
-    return new_split 
+    def scale(self, total: int) -> "Split": 
+        """Scales all split counts equally so that they sum approx to total."""
+        ratio = total / self.sum()
+        scaled_split = Split(
+            math.floor(ratio * self.train), 
+            math.floor(ratio * self.val), 
+            math.floor(ratio * self.test)
+        )
+        scaled_split.train += (total - scaled_split.sum())
+        return scaled_split 
 
 class Shortage(): 
+    """
+    Class to hold the validation and test shortage inputs.  
+    """
     def __init__(self, val: int = 0, test = 0): 
         self.val = val      # validation shortage
         self.test = test    # test shortage  
@@ -75,22 +109,22 @@ class Shortage():
 
 class TreeDataset(Dataset):
     """
-    This is a heirarchichal dataset for genetics and images.
+    Hierarchical dataset for genetics and images. 
     """
 
     def __init__(
         self, 
         source_df:pd.DataFrame, 
         image_root_dir: str, 
-        class_specification: Dict, 
+        hierarchy: Dict, 
         image_transforms: transforms.Compose, 
         genetic_transforms: Optional[GeneticMutationTransform], 
-        mode: Mode, 
+        mode: Mode
     ):
         self.df = source_df
         self.image_root_dir = image_root_dir
 
-        self.tree, self.levels = class_specification["tree"], class_specification["levels"]
+        self.tree, self.levels = hierarchy["tree"], hierarchy["levels"]
 
         def generate_tree_indicies(tree:dict, idx=0):
             """
@@ -230,18 +264,18 @@ class TreeDataset(Dataset):
         return len(self.df)
 
 def balanced_sample(
-    source_df:pd.DataFrame, 
-    class_specification:dict, 
-    count_per_leaf:Split, 
+    source_df: pd.DataFrame, 
+    hierarchy: dict, 
+    count_per_leaf: Split, 
     train_not_classified_proportions: List[float],
-    seed:int = 2024, 
+    seed: int = 2024, 
     log = print
 ):
     """
     Returns a balanced sample of the source_df based on the class_specification and count_per_leaf.
     """
     source_df = source_df.sample(frac=1, random_state=seed)
-    tree, levels = class_specification["tree"], class_specification["levels"]  
+    tree, levels = hierarchy["tree"], hierarchy["levels"]  
 
     # convert to dict
     train_not_classified_proportion = {l : p for l, p in zip(levels, train_not_classified_proportions)}
@@ -274,7 +308,7 @@ def balanced_sample(
                 if class_size < (s := count_per_leaf.sum()):
                     log(f"Only {class_size} (of needed {s}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
                     
-                    temp_count_per_leaf = scaled_split(count_per_leaf, class_size)
+                    temp_count_per_leaf = count_per_leaf.scale(class_size)
 
                     log(f"New counts for {k}")
                     log(f"Train:\t\t{temp_count_per_leaf.train}")
@@ -310,7 +344,7 @@ def balanced_sample(
                     if len(not_classified) < (s := count_per_leaf.sum()):
                         log(f"Only {len(not_classified)} (of needed {s}) samples for {k} ({levels[0]}) of parent {parent_name}. Dividing proportionally")
                         
-                        temp_count_per_leaf = scaled_split(count_per_leaf, len(not_classified))
+                        temp_count_per_leaf = count_per_leaf.scale(len(not_classified))
 
                         log(f"New counts for {k}")
                         log(f"Train:\t\t{temp_count_per_leaf.train}")
@@ -350,7 +384,7 @@ def balanced_sample(
             log(f"Unable to counterbalance with not_classified for {parent_name} at {levels[0]}. Sorry.")
             # TODO - This could be handled by going up one level and adding more not classified.
             not_classified_sample_amounts = Shortage()
-            s = scaled_split(count_per_leaf, len(not_classified))
+            s = count_per_leaf.split(len(not_classified))
             train_not_classified_count = s.train
             not_classified_sample_amounts.val = s.val
             not_classified_sample_amounts.test = s.test
@@ -382,15 +416,13 @@ def balanced_sample(
 
     return train_df, val_df, test_df, count_tree
 
-def create_datasets(
+def create_new_ds(
     source: str,                        # path to dataset tsv file
     image_root_dir: str,
     gen_aug_params:CfgNode,
     train_val_test_split:Split,
     train_not_classified_proportions: List[float],
-    tree_specification_file:str,
-    cached_dataset_folder:str,
-    cached_dataset_root:str,
+    hierarchy: Dict, 
     run_name:str,
     transform_mean:tuple,
     transform_std:tuple,
@@ -414,43 +446,33 @@ def create_datasets(
     """
     np.random.seed(seed) 
 
-    # load the tree 
-    class_specification = json.load(open(tree_specification_file, "r"))
+    train_df, val_df, test_df, _ = balanced_sample(
+        pd.read_csv(source, sep="\t"),
+        hierarchy, 
+        train_val_test_split, 
+        train_not_classified_proportions, 
+        seed
+    )
+    
+    # save the train_push dataframe
+    train_push_df = train_df.copy()
 
-    if cached_dataset_folder.strip():
-        train_df = pd.read_csv(os.path.join(cached_dataset_folder, "train.tsv"), sep="\t")
-        train_push_df = pd.read_csv(os.path.join(cached_dataset_folder, "train_push.tsv"), sep="\t")
-        val_df = pd.read_csv(os.path.join(cached_dataset_folder, "val.tsv"), sep="\t")
-        test_df = pd.read_csv(os.path.join(cached_dataset_folder, "test.tsv"), sep="\t")
-    else:
-        # generate the dataframes
-        train_df, val_df, test_df, _ = balanced_sample(
-            pd.read_csv(source, sep="\t"),
-            class_specification, 
-            train_val_test_split, 
-            train_not_classified_proportions, 
-            seed
-        )
-        
-        # save the train_push dataframe
-        train_push_df = train_df.copy()
+    # Save all three datasets
+    output_dir = os.path.join("pre_existing_datasets", run_name)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    train_df.to_csv(train_path := os.path.join(output_dir, "train.tsv"), sep="\t", index=False)
+    log(f"Saved train dataset to {train_path}")
 
-        # Save all three datasets
-        output_dir = os.path.join(cached_dataset_root, run_name)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        
-        train_df.to_csv(train_path := os.path.join(output_dir, "train.tsv"), sep="\t", index=False)
-        log(f"Saved train dataset to {train_path}")
+    train_push_df.to_csv(train_push_path := os.path.join(output_dir, "train_push.tsv"), sep="\t", index=False)
+    log(f"Saved train_push dataset to {train_push_path}")
 
-        train_push_df.to_csv(train_push_path := os.path.join(output_dir, "train_push.tsv"), sep="\t", index=False)
-        log(f"Saved train_push dataset to {train_push_path}")
+    val_df.to_csv(val_path := os.path.join(output_dir, "val.tsv"), sep="\t", index=False)
+    log(f"Saved validation dataset to {val_path}")
 
-        val_df.to_csv(val_path := os.path.join(output_dir, "val.tsv"), sep="\t", index=False)
-        log(f"Saved validation dataset to {val_path}")
-
-        test_df.to_csv(test_path := os.path.join(output_dir, "test.tsv"), sep="\t", index=False)
-        log(f"Saved test dataset to {test_path}")
+    test_df.to_csv(test_path := os.path.join(output_dir, "test.tsv"), sep="\t", index=False)
+    log(f"Saved test dataset to {test_path}")
 
     # generate the transforms for image and genetics datasets
     augmented_img_transforms, \
@@ -463,7 +485,7 @@ def create_datasets(
     train_dataset = TreeDataset(
         source_df=train_df,
         image_root_dir=image_root_dir,
-        class_specification=class_specification,
+        class_specification=hierarchy,
         image_transforms=augmented_img_transforms,
         genetic_transforms=augmented_genetic_transforms,
         mode=mode,
@@ -471,7 +493,7 @@ def create_datasets(
     train_push_dataset = TreeDataset(
         source_df=train_push_df,
         image_root_dir=image_root_dir,
-        class_specification=class_specification,
+        class_specification=hierarchy,
         image_transforms=push_img_transforms,
         genetic_transforms=None,
         mode=mode,
@@ -480,7 +502,7 @@ def create_datasets(
     val_dataset = TreeDataset(
         source_df=val_df,
         image_root_dir=image_root_dir,
-        class_specification=class_specification,
+        class_specification=hierarchy,
         image_transforms=img_transforms,
         genetic_transforms=None,
         mode=mode,
@@ -488,7 +510,7 @@ def create_datasets(
     test_dataset = TreeDataset(
         source_df=test_df,
         image_root_dir=image_root_dir,
-        class_specification=class_specification,
+        class_specification=hierarchy,
         image_transforms=img_transforms,
         genetic_transforms=None,
         mode=mode,
@@ -496,24 +518,101 @@ def create_datasets(
 
     return train_dataset, train_push_dataset, val_dataset, test_dataset, normalize
 
-def get_datasets(cfg: CfgNode, log: Callable
-) -> Tuple[TreeDataset, TreeDataset, TreeDataset, TreeDataset, transforms.Normalize]:
-    log("Getting Datasets")
+def retrieve_cached_ds(
+    image_root_dir: str,
+    gen_aug_params:CfgNode,
+    hierarchy: Dict, 
+    cache_ds_dir:str,
+    transform_mean:tuple,
+    transform_std:tuple,
+    mode:Mode,
+    log: Callable = print
+):
 
-    return create_datasets(
-        source=cfg.DATASET.DATA_FILE,
-        image_root_dir=cfg.DATASET.IMAGE_PATH,
-        gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
-        train_val_test_split = Split(*cfg.DATASET.TRAIN_VAL_TEST_SPLIT),
-        train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
-        tree_specification_file=cfg.DATASET.TREE_SPECIFICATION_FILE,
-        cached_dataset_folder=cfg.DATASET.CACHED_DATASET_FOLDER,
-        cached_dataset_root=cfg.DATASET.CACHED_DATASET_ROOT,
-        run_name=cfg.RUN_NAME,
-        transform_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
-        transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
-        mode=Mode(cfg.DATASET.MODE),
-        seed=cfg.SEED,
-        log=log,
+    train_df = pd.read_csv(os.path.join(cache_ds_dir, "train.tsv"), sep="\t")
+    train_push_df = pd.read_csv(os.path.join(cache_ds_dir, "train_push.tsv"), sep="\t")
+    val_df = pd.read_csv(os.path.join(cache_ds_dir, "val.tsv"), sep="\t")
+    test_df = pd.read_csv(os.path.join(cache_ds_dir, "test.tsv"), sep="\t")
+
+    augmented_img_transforms, \
+    augmented_genetic_transforms, \
+    push_img_transforms, \
+    img_transforms, \
+    normalize = create_transforms(transform_mean, transform_std, gen_aug_params)
+    
+    # create the datasets
+    train_dataset = TreeDataset(
+        source_df=train_df,
+        image_root_dir=image_root_dir,
+        hierarchy=hierarchy,
+        image_transforms=augmented_img_transforms,
+        genetic_transforms=augmented_genetic_transforms,
+        mode=mode,
     )
+    train_push_dataset = TreeDataset(
+        source_df=train_push_df,
+        image_root_dir=image_root_dir,
+        hierarchy=hierarchy,
+        image_transforms=push_img_transforms,
+        genetic_transforms=None,
+        mode=mode,
+    )
+
+    val_dataset = TreeDataset(
+        source_df=val_df,
+        image_root_dir=image_root_dir,
+        hierarchy=hierarchy,
+        image_transforms=img_transforms,
+        genetic_transforms=None,
+        mode=mode,
+    )
+    test_dataset = TreeDataset(
+        source_df=test_df,
+        image_root_dir=image_root_dir,
+        hierarchy=hierarchy,
+        image_transforms=img_transforms,
+        genetic_transforms=None,
+        mode=mode,
+    )
+
+    log("Datasets created")
+
+    return train_dataset, train_push_dataset, val_dataset, test_dataset, normalize
+
+
+def get_datasets(
+    cfg: CfgNode, 
+    log: Callable = print
+) -> Tuple[TreeDataset, TreeDataset, TreeDataset, TreeDataset, transforms.Normalize]:
+    log("Getting Datasets") 
+    hierarchy = json.load(open(cfg.DATASET.TREE_SPECIFICATION_FILE, "r"))
+
+    if cfg.DATASET.CACHED_DATASET_FOLDER.strip(): 
+        # if we want to retrieve a cached dataset
+        return retrieve_cached_ds(
+            image_root_dir=cfg.DATASET.IMAGE_PATH,
+            gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
+            hierarchy = hierarchy, 
+            cache_ds_dir=cfg.DATASET.CACHED_DATASET_FOLDER,
+            transform_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
+            transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
+            mode=Mode(cfg.DATASET.MODE),
+            log=log
+        )
+    else: 
+        # if we want to create a new dataset 
+        return create_new_ds(
+            source=cfg.DATASET.DATA_FILE,
+            image_root_dir=cfg.DATASET.IMAGE_PATH,
+            gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
+            train_val_test_split = Split(*cfg.DATASET.TRAIN_VAL_TEST_SPLIT),
+            train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
+            hierarchy = hierarchy, 
+            run_name=cfg.RUN_NAME,
+            transform_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
+            transform_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
+            mode=Mode(cfg.DATASET.MODE),
+            seed=cfg.SEED,
+            log=log,
+        )
 
