@@ -1,14 +1,5 @@
 # symlinks 
-backbones
-logs
-output
-pre_existing_datasets
-
-datasets/*
-datasets
 __pycache__/
-saved_models/
-configs/*.yaml
 .DS_STORE
 slurm*.out
 */._* 

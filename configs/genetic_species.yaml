@@ -1,7 +1,6 @@
 RUN_NAME: "genetic_species"
 
 MODEL:
-    # GENETIC_BACKBONE_PATH: "../test/MultiModalPPNet/saved_models/backbones/family_new_aug_1/family_new_aug_1_best.pth"
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
     PRUNE: false
     PRUNING_TYPE: "weights"
