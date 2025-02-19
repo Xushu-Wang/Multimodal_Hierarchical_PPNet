@@ -1,4 +1,5 @@
 RUN_NAME: "no_global_ce_massive"
+WANDB_MODE: "disabled" 
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
@@ -18,7 +19,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # PRE_EXISTING_IMAGES: true
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/no_global_ce_massive"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/muchang"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory

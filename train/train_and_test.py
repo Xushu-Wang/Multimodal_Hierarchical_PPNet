@@ -2,12 +2,13 @@ import time
 import torch
 import numpy as np
 from pympler.tracker import SummaryTracker
-from model.model import Mode
+from model.model import Mode, HierProtoPNet, MultiHierProtoPNet
 from pprint import pprint
-from typing import Union, Tuple
-
+from typing import Union
 from dataio.dataset import TreeDataset
 from utils.util import format_dictionary_nicely_for_printing
+
+Model = Union[HierProtoPNet, MultiHierProtoPNet, torch.nn.DataParallel]
 
 tracker = SummaryTracker()
 
@@ -536,9 +537,9 @@ def get_correspondence_proportions(model, cfg):
 def _train_or_test(
     model,
     dataloader,
-    global_ce,
+    global_ce: bool,
     parallel_mode,
-    run,
+    run, # wandb 
     optimizer=None,
     coefs = None,
     log=print,
@@ -546,7 +547,6 @@ def _train_or_test(
     cfg=None,
 ):
     '''
-    model: the multi-gpu model
     dataloader:
     optimizer: if None, will be test evaluation
     '''
@@ -564,14 +564,14 @@ def _train_or_test(
     
     n_batches = 0
 
-    correct_arr = np.zeros(len(model.module.levels)) # This is the number of correct predictions at each level
-    total_arr = np.zeros(len(model.module.levels)) # This is the total number of predictions at each level
+    correct_arr = np.zeros(len(model.levels)) # This is the number of correct predictions at each level
+    total_arr = np.zeros(len(model.levels)) # This is the total number of predictions at each level
     
-    if model.module.mode == Mode.MULTIMODAL:
+    if model.mode == Mode.MULTIMODAL:
         # I can't be bothered to implement all_child_nodes for the multimodal model. This will work, though it's gross. 
-        accuracy_tree = construct_accuracy_tree(model.module.genetic_hierarchical_ppnet.root) 
+        accuracy_tree = construct_accuracy_tree(model.genetic_hierarchical_ppnet.root) 
     else:
-        accuracy_tree = construct_accuracy_tree(model.module.root)
+        accuracy_tree = construct_accuracy_tree(model.root)
 
     total_cross_entropy = 0
     total_cluster_cost = 0
@@ -580,7 +580,7 @@ def _train_or_test(
     total_correspondence_cost = 0
     
     try:
-        for node in model.module.nodes_with_children:
+        for node in model.nodes_with_children:
             for el1, el2 in node.max_tracker:
                 del el1, el2
             
@@ -595,13 +595,12 @@ def _train_or_test(
     total_probabilistic_total_count = torch.zeros(4)
 
     for i, ((genetics, image), (label, flat_label)) in enumerate(dataloader): 
-        if model.module.mode == Mode.GENETIC:
+        if model.mode == Mode.GENETIC:
             input = genetics.to("cuda")
-        elif model.module.mode == Mode.IMAGE:
+        elif model.mode == Mode.IMAGE:
             input = image.to("cuda")
         else:
             input = (genetics.to("cuda"), image.to("cuda"))
-            # raise NotImplementedError("Multimodal not implemented")
 
         target = label.type(torch.LongTensor)
         target = target.to("cuda")
@@ -619,14 +618,14 @@ def _train_or_test(
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
 
         with grad_req:
-            conv_features = model.module.conv_features(input)
+            conv_features = model.conv_features(input)
             
             # compute the loss
-            if model.module.mode == Mode.MULTIMODAL:
+            if model.mode == Mode.MULTIMODAL:
                 # Freeze last layer multi
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch, correspondence_cost_summed, correspondence_cost_count, orthogonality_cost = recursive_get_loss_multi( 
                     conv_features=conv_features,
-                    node=model.module.root,
+                    node=model.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).to("cuda"),
                     level=0,
@@ -642,7 +641,7 @@ def _train_or_test(
             else:
                 cross_entropy, cluster_cost, separation_cost, l1, num_parents_in_batch = recursive_get_loss(
                     conv_features=conv_features,
-                    node=model.module.root,
+                    node=model.root,
                     target=target,
                     prev_mask=torch.ones(batch_size, dtype=bool).to("cuda"),
                     level=0,
@@ -655,12 +654,12 @@ def _train_or_test(
             # compute the conditional accuracies
             if parallel_mode:
                 genetic_probabalistic_correct_counts, genetic_probabilistic_total_counts = get_conditional_accuracies_flat(
-                    model=model.module.genetic_hierarchical_ppnet,
+                    model=model.genetic_hierarchical_ppnet,
                     target=flat_label.cuda(),
                     dataset=dataloader.dataset
                 )
                 image_probabalistic_correct_counts, _ = get_conditional_accuracies_flat(
-                    model=model.module.image_hierarchical_ppnet,
+                    model=model.image_hierarchical_ppnet,
                     target=flat_label.cuda(),
                     dataset=dataloader.dataset
                 ) 
@@ -673,12 +672,12 @@ def _train_or_test(
                 # print(total_probabilistic_total_count)
                 # print("-------------------------------------")
 
-                for node in model.module.nodes_with_children:
+                for node in model.nodes_with_children:
                     del node.genetic_tree_node._logits, node.image_tree_node._logits
                     del node.genetic_tree_node.probs, node.image_tree_node.probs
             else:
                 probabalistic_correct_counts, probabilistic_total_counts = get_conditional_accuracies_flat(
-                    model=model.module,
+                    model=model,
                     target=flat_label.cuda(),
                     dataset=dataloader.dataset
                 )
@@ -692,7 +691,7 @@ def _train_or_test(
                           + coefs['sep'] * separation_cost
                           + coefs['l1'] * l1)
             
-            if model.module.mode == Mode.MULTIMODAL:
+            if model.mode == Mode.MULTIMODAL:
                 loss += coefs['correspondence'] * correspondence_cost
                 loss += (coefs['orthogonality'] * orthogonality_cost).sum()
                           
@@ -709,7 +708,7 @@ def _train_or_test(
         total_separation_cost += separation_cost / num_parents_in_batch
         total_l1 += l1
 
-        if model.module.mode == Mode.MULTIMODAL:
+        if model.mode == Mode.MULTIMODAL:
             total_correspondence_cost += correspondence_cost
             del correspondence_cost
         # total_noise_cross_ent += noise_cross_ent.item() if CEDA else 0
@@ -854,9 +853,10 @@ def auxiliary_costs(label,num_prototypes_per_class,num_classes,prototype_shape,m
     separation_cost = torch.mean(inverted_distances_to_nontarget_prototypes)
 
     return cluster_cost, separation_cost
-    
-
-def warm_only(model, log=print):
+   
+def warm_only(model: Model):
+    if isinstance(model, torch.nn.DataParallel): 
+        model = model.module
     for p in model.module.features.parameters():
         p.requires_grad = False
     for p in model.module.add_on_layers.parameters():
@@ -873,8 +873,9 @@ def warm_only(model, log=print):
     for p in model.module.get_last_layer_multi_parameters():
         p.requires_grad = False
 
-
-def last_only(model, log=print):
+def last_only(model: Model):
+    if isinstance(model, torch.nn.DataParallel): 
+        model = model.module
     for p in model.module.features.parameters():
         p.requires_grad = False
     for p in model.module.add_on_layers.parameters():
@@ -886,9 +887,9 @@ def last_only(model, log=print):
     for l in model.module.get_last_layer_parameters():
         l.requires_grad = True
     
-# joint opts
-
-def joint(model, log=print):
+def joint(model: Model):
+    if isinstance(model, torch.nn.DataParallel): 
+        model = model.module
     for p in model.module.features.parameters():
         p.requires_grad = True
     for p in model.module.add_on_layers.parameters():
@@ -906,7 +907,9 @@ def joint(model, log=print):
         for p in model.module.get_last_layer_multi_parameters():
             p.requires_grad = False
     
-def multi_last_layer(model, log=print):
+def multi_last_layer(model: Model): 
+    if isinstance(model, torch.nn.DataParallel): 
+        model = model.module 
     for p in model.module.features.parameters():
         p.requires_grad = False
     for p in model.module.add_on_layers.parameters():

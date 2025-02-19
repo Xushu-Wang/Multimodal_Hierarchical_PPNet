@@ -4,7 +4,7 @@ from torch.optim import Optimizer
 from typing import Tuple
 from typing_extensions import deprecated
 
-def get_optimizers(ppnet: Module) -> Tuple[Optimizer, Optimizer, Optimizer, Optimizer]:
+def get_optimizers(ppnet: Module):
     # through_protos_optimizer
     through_protos_optimizer_specs = [
         {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},

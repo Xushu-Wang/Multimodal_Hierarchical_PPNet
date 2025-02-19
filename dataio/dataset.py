@@ -5,16 +5,24 @@ from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
 from skimage import io
-from model.model import Mode
+from enum import Enum
 from yacs.config import CfgNode
 from .custom_transforms import GeneticOneHot, create_transforms
+
+class Mode(Enum):  
+    '''
+    Enumeration object for labeling ppnet mode.  
+    '''
+    GENETIC = 1
+    IMAGE = 2 
+    MULTIMODAL = 3 
 
 class TaxNode(): 
     """
     Node class that store taxonomy. 
     Attributes: 
         taxonomy - the name of the order/family/genus/species 
-        children - pointers to TaxNodes in the subclass 
+        childs - pointers to TaxNodes in the subclass 
         idx      - Tensor([a, b, c, d]), d-th class of c-th class of b-th class ...
         flat_idx - Tensor([w, x, y, z]), ordered using indices in each depth
         depth    - int within [0, 1, 2, 3, 4] 
@@ -22,7 +30,7 @@ class TaxNode():
     """
     def __init__(self, taxonomy, idx, flat_idx): 
         self.taxonomy = taxonomy 
-        self.children = dict()
+        self.childs = dict()
         self.idx = idx
         self.flat_idx = flat_idx
         self.depth = len(idx)
@@ -54,7 +62,7 @@ class Level():
         elif isinstance(level, str): 
             self.counts[self.names[level]] += 1
         else: 
-            raise ValueError("Cannot retrieve count.")  
+            raise ValueError("Cannot retrieve count for increment.")  
 
     def __repr__(self): 
         out = "Level\n" 
@@ -66,7 +74,10 @@ class Level():
         return iter(self.names)
 
     def __len__(self): 
-        return len(self.counts)
+        return len(self.counts) 
+
+    def __eq__(self, other): 
+        return self.counts == other.counts and self.names == other.names
 
 class Hierarchy(): 
     """
@@ -114,7 +125,7 @@ class Hierarchy():
 
             self.levels.increment(node.depth)
 
-            node.children[k] = child 
+            node.childs[k] = child 
         node.idx = torch.tensor(node.idx).long()
         node.flat_idx = torch.tensor(node.flat_idx).long()
         return node 
@@ -126,9 +137,9 @@ class Hierarchy():
         """
         node = self.root 
         for next in path: 
-            if next not in node.children: 
+            if next not in node.childs: 
                 return False, node
-            node = node.children[next] 
+            node = node.childs[next] 
         return True, node
 
     def __repr__(self): 
@@ -136,16 +147,19 @@ class Hierarchy():
         Hacky way to print tree for debugging. Hard-coded for 4 levels. 
         """
         out = self.root.__repr__() + "\n"
-        for _, c1 in self.root.children.items(): 
+        for _, c1 in self.root.childs.items(): 
             out += f"  {c1.__repr__()}\n"
-            for _, c2 in c1.children.items(): 
+            for _, c2 in c1.childs.items(): 
                 out += f"    {c2.__repr__()}\n"
-                for _, c3 in c2.children.items(): 
+                for _, c3 in c2.childs.items(): 
                     out += f"      {c3.__repr__()}\n"
-                    for _, c4 in c3.children.items(): 
+                    for _, c4 in c3.childs.items(): 
                         out += f"      {c4.__repr__()}\n"
 
         return out
+
+    def __eq__(self, other): 
+        return self.levels == other.levels and self.tree_dict == other.tree_dict 
 
 class TreeDataset(Dataset): 
     """
