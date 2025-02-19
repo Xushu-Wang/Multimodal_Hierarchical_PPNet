@@ -31,7 +31,7 @@ class LeafNode(nn.Module):
         self.all_child_nodes = []
         self.parent = False
 
-class TreeNode(nn.Module):
+class TreeNode(nn.Module): 
     def __init__(
         self,
         int_location: List[int],
@@ -79,10 +79,6 @@ class TreeNode(nn.Module):
         self.child_nodes = [] # a list of TreeNode objects that are direct children. 
         self.all_child_nodes = [] # All child nodes includes leafs, child nodes does not
 
-        # self.prototype_vectors = nn.Parameter(
-        #     torch.randn(self.full_prototype_shape),
-        #     requires_grad=True
-        # )
         self.prototype_vectors = nn.Parameter(
             torch.rand(self.full_prototype_shape),
             requires_grad=True
@@ -469,6 +465,7 @@ class CombinerTreeNode(nn.Module):
         return self.get_logits(genetic_conv_features, image_conv_features, get_middle_logits=get_middle_logits)
 
 class Multi_Hierarchical_PPNet(nn.Module):
+
     def __init__(self, genetic_hierarchical_ppnet, image_hierarchical_ppnet):
         super().__init__()
         self.genetic_hierarchical_ppnet = genetic_hierarchical_ppnet

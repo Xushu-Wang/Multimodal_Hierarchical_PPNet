@@ -73,8 +73,7 @@ def create_dataloaders(
 
     return train_loader, train_push_loader, val_loader, test_loader, normalize
 
-def get_dataloaders(cfg: CfgNode, log: Callable, validate=False
-) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, transforms.Normalize]: 
+def get_dataloaders(cfg: CfgNode, log: Callable, validate = False):
     train, train_push, val, test, normalize = get_datasets(cfg, log) 
     log("Getting Dataloaders")
 

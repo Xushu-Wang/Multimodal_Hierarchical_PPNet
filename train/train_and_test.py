@@ -136,8 +136,8 @@ def get_conditional_accuracies_flat(
         # Accuracy
         _, predicted = torch.max(out_array*mask, 1)  # predicted = [80], target = [80, 4]
         total[cond_level] += target.size(0)
-        # correct = (predicted == target[:,cond_level]).sum().item()
-        correct = (predicted == target[:,-1]).sum().item()
+        correct = (predicted == target[:,cond_level]).sum().item()
+        # correct = (predicted == target[:,-1]).sum().item()
         tot_correct[cond_level] += correct
     
     return torch.tensor(tot_correct), torch.tensor(total)
@@ -664,14 +664,14 @@ def _train_or_test(
                     target=flat_label.cuda(),
                     dataset=dataloader.dataset
                 ) 
-                print("-------------------------------------")
-                total_probabalistic_correct_count += torch.stack([genetic_probabalistic_correct_counts, image_probabalistic_correct_counts])
-                print(total_probabilistic_total_count)
-                total_probabilistic_total_count += genetic_probabilistic_total_counts
-                print(total_probabalistic_correct_count)
-                print(genetic_probabilistic_total_counts)
-                print(total_probabilistic_total_count)
-                print("-------------------------------------")
+                # print("-------------------------------------")
+                # total_probabalistic_correct_count += torch.stack([genetic_probabalistic_correct_counts, image_probabalistic_correct_counts])
+                # print(total_probabilistic_total_count)
+                # total_probabilistic_total_count += genetic_probabilistic_total_counts
+                # print(total_probabalistic_correct_count)
+                # print(genetic_probabilistic_total_counts)
+                # print(total_probabilistic_total_count)
+                # print("-------------------------------------")
 
                 for node in model.module.nodes_with_children:
                     del node.genetic_tree_node._logits, node.image_tree_node._logits
