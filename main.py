@@ -25,7 +25,6 @@ def main():
     cfg.merge_from_file(args.configs)
     run_id_accumulator(cfg)
 
-    # log_id_accumulator(cfg)
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     run = wandb.init(
         project="Multimodal Hierarchical Protopnet",
@@ -67,17 +66,14 @@ def main():
             # Warm up and Training Epochs
             if not args.validate:
                 if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
-                    tnt.warm_only(model=tree_ppnet_multi, log=log)
+                    tnt.warm_only(model=tree_ppnet_multi)
                     tnt.train(
-                        model=tree_ppnet_multi,
-                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
+                        model=tree_ppnet,
                         dataloader=train_loader,
                         optimizer=warm_optimizer,
-                        coefs=coefs,
-                        log=log,
                         cfg=cfg,
-                        run=run
+                        run=run,
+                        log=log
                     )
                 else:
                     if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:

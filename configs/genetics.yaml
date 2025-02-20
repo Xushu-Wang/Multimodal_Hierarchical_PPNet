@@ -15,7 +15,7 @@ DATASET:
     MODE: 1
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    TRAIN_BATCH_SIZE: 40
+    TRAIN_BATCH_SIZE: 20
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # PRE_EXISTING_IMAGES: true

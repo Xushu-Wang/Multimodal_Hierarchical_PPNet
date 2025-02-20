@@ -52,7 +52,10 @@ class ProtoNode(nn.Module):
             self.last_layer = self.init_last_layer()
 
             if self.mode == Mode.GENETIC: 
-                  self.offset_tensor = self.init_offset_tensor()
+                  self.offset_tensor = self.init_offset_tensor() 
+
+            self.predictions = 0 
+            self.correct = 0
 
     def init_match(self): 
         """
@@ -74,7 +77,6 @@ class ProtoNode(nn.Module):
         last_layer.weight.data.copy_(param)
         return last_layer  
 
-    
     def init_offset_tensor(self): 
         """
         This finds the tensor used to offset each prototype to a different spatial location.
@@ -119,7 +121,6 @@ class ProtoNode(nn.Module):
                 params.append(param)
         return params
 
-
     def find_offsetting_tensor_for_similarity(self, similarities):
         """
         This finds the tensor used to offset each prototype to a different spatial location.
@@ -131,14 +132,13 @@ class ProtoNode(nn.Module):
 
         return eye.to(similarities.device)
 
-
     def cos_sim(self, x, with_width_dim = False): 
         """
         x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40) 
         """
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
         x = F.normalize(x, dim=1) / sqrt_D 
-        normalized_prototypes = F.normalize(self.prototypes, dim=1) / sqrt_D 
+        normalized_prototypes = F.normalize(self.prototype, dim=1) / sqrt_D # type:ignore
 
         if self.mode == Mode.GENETIC: 
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
@@ -168,13 +168,11 @@ class ProtoNode(nn.Module):
         return F.conv2d(x, normalized_prototypes)
 
     def get_logits(self, conv_features):
-        sim = self.cosine_similarity(conv_features)
+        sim = self.cos_sim(conv_features)
         max_sim = F.max_pool2d(
             sim,
             kernel_size = (sim.size()[2], sim.size()[3])
         )
-        # Set pruned prototype similarities to 0.
-        max_sim = self.prototype_mask * max_sim
         min_distances = -1 * max_sim
 
         # for each prototype, finds the spatial location that's closest to the prototype.
@@ -457,7 +455,7 @@ class MultiHierProtoPNet(nn.Module):
         get_nodes_with_children_recursive(self.root)
         return nodes_with_children
 
-    def build_combiner_proto_tree(self):
+    def build_combiner_proto_tree(self) -> CombinerProtoNode:
         """
         Makes a tree, mirroring the genetic and image trees, but with a combiner node instead of a tree node.
         """

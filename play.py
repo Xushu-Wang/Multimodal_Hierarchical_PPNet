@@ -14,7 +14,7 @@ import train.train_and_test as tnt
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/parallel.yaml')
+    parser.add_argument('--configs', type=str, default='configs/genetics.yaml')
     parser.add_argument('--validate', action='store_true')
     args = parser.parse_args()
     
@@ -44,28 +44,29 @@ def main():
 
         joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
 
-        coefs = {
-            'crs_ent': cfg.OPTIM.COEFS.CRS_ENT,
-            'clst': cfg.OPTIM.COEFS.CLST,
-            'sep': cfg.OPTIM.COEFS.SEP,
-            'l1': cfg.OPTIM.COEFS.L1,
-            "correspondence": cfg.OPTIM.COEFS.CORRESPONDENCE,
-            "orthogonality": torch.tensor([cfg.OPTIM.COEFS.ORTHOGONALITY.GENETIC, cfg.OPTIM.COEFS.ORTHOGONALITY.IMAGE]),
-            'CEDA': False
-        }
+        for epoch in range(cfg.OPTIM.NUM_WARM_EPOCHS): 
+            log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
+            tnt.warm_only(model=tree_ppnet) 
+            tnt.train(
+                model=tree_ppnet,
+                dataloader=train_loader,
+                optimizer=warm_optimizer,
+                cfg=cfg,
+                run=run,
+                log=log
+            )
 
-        tnt.warm_only(model=tree_ppnet) 
-        tnt.train(
-            model=tree_ppnet,
-            global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-            parallel_mode=cfg.DATASET.PARALLEL_MODE,
-            dataloader=train_loader,
-            optimizer=warm_optimizer,
-            coefs=coefs,
-            log=log,
-            cfg=cfg,
-            run=run
-        )
+        for epoch in range(cfg.OPTIM.NUM_WARM_EPOCHS, cfg.OPTIM.NUM_TRAIN_EPOCHS): 
+            log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}')
+            tnt.joint(model=tree_ppnet) 
+            tnt.train(
+                model=tree_ppnet,
+                dataloader=train_loader,
+                optimizer=warm_optimizer,
+                cfg=cfg,
+                run=run,
+                log=log
+            )
 
     except Exception as e:
         # Print e with the traceback
