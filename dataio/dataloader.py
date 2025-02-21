@@ -1,4 +1,4 @@
-from typing import Tuple, Callable
+from typing import Callable
 import torch 
 from torch.utils.data import DataLoader
 import numpy as np
@@ -17,7 +17,7 @@ def create_dataloaders(
     test_batch_size:int,
     seed: int = 2024,
     validate=False
-) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, transforms.Normalize]:
+):
     np.random.seed(seed) 
 
     def collate_fn(batch): 

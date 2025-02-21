@@ -5,10 +5,6 @@ import numpy as np
 from torch import Tensor
 from typing_extensions import deprecated 
 
-@deprecated("This is not called anywhere.")
-def list_of_distances(X: Tensor, Y: Tensor) -> Tensor:
-    return torch.sum((torch.unsqueeze(X, dim=2) - torch.unsqueeze(Y.t(), dim=0)) ** 2, dim=1)
-
 def find_high_activation_crop(activation_map, percentile=95):
     threshold = np.percentile(activation_map, percentile)
     mask = np.ones(activation_map.shape)
@@ -31,14 +27,6 @@ def find_high_activation_crop(activation_map, percentile=95):
             upper_x = j
             break
     return lower_y, upper_y+1, lower_x, upper_x+1
-
-def format_dictionary_nicely_for_printing(obj):
-    """
-    Format a dictionary nicely for printing.
-
-    Format all decimals with 5 decimal places.
-    """
-    return "\n".join([f"{k}: {v:.5f}" for k, v in obj.items()])
 
 def does_it_match(
     matcher,

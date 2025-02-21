@@ -3,7 +3,7 @@ All functions regarding logging and saving models is defined here
 """ 
 import datetime
 import os
-from model.model import Mode
+from model.hierarchical import Mode
 import torch
 from typing import Callable, Tuple 
 from yacs.config import CfgNode

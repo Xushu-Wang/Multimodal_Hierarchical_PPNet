@@ -1,5 +1,5 @@
-RUN_NAME: "muchang"
-WANDB_MODE: "disabled" # Comment this out to connect to WANDB
+RUN_NAME: "muchang_parallel"
+# WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
@@ -13,12 +13,9 @@ DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     MODE: 3 # For parallel mode, always set to 3
-    PARALLEL_MODE: True # I doubt "False" works any more. This will use the combined predictions to predict. We don't want that any more
-
-    # Uncomment these once datasets have already been generated and you want to reuse them
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/muchang"
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
 
@@ -34,11 +31,9 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 15
-    PUSH_EPOCHS: [5,10,15,20, 25, 30, 35]
     NUM_WARM_EPOCHS: 5
-    GLOBAL_CROSSENTROPY: False # Keep this at false. True never worked properly. If false, crossentropy is calculated at each node of the tree
+    NUM_TRAIN_EPOCHS: 100
+    PUSH_EPOCHS: [15, 20, 25, 30, 35]
     COEFS:
         SEP: -0.1
         CORRESPONDENCE: 1000.0

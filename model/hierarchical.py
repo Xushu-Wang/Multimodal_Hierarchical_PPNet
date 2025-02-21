@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor
+import numpy as np
 from yacs.config import CfgNode
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,6 +32,10 @@ class ProtoNode(nn.Module):
         """
         super().__init__()
         self.taxnode = taxnode 
+        self.taxonomy = taxnode.taxonomy
+        self.idx = taxnode.idx 
+        self.flat_idx = taxnode.flat_idx 
+        self.depth = taxnode.depth
         self.childs = dict() 
         self.prototype = None
         self.mode = mode 
@@ -42,20 +46,45 @@ class ProtoNode(nn.Module):
             self.nprotos = nprotos # prototypes PER CLASS
             self.pshape = pshape 
             self.nprotos_total = self.nprotos * self.nclass
-            self.match = self.init_match()
+            self.match = self.init_match().cuda()
 
             self.prototype = nn.Parameter(
-                torch.rand((self.nclass * self.nprotos, *pshape)),
+                torch.rand((self.nprotos_total, *pshape), device="cuda"),
                 requires_grad=True
             )
 
             self.last_layer = self.init_last_layer()
 
-            if self.mode == Mode.GENETIC: 
-                  self.offset_tensor = self.init_offset_tensor() 
+            # outputs of forward pass will be stored here 
+            self.logits = None
+            self.min_dist = None
 
-            self.predictions = 0 
-            self.correct = 0
+            if self.mode == Mode.GENETIC: 
+                self.register_buffer('offset_tensor', self.init_offset_tensor())
+
+            self.npredictions = 0 
+            self.correct = 0 
+
+            # all attributes regarding to push stage 
+            # saves the closest distance seen so far 
+            # add a new attribute and initialize it to be infinity
+            self.global_min_proto_dist = np.full(self.nprotos_total, np.inf)
+
+            # saves the patch representation that gives the current smallest distance
+            self.global_min_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
+
+            # We assume save_prototype_class_identity is true
+            '''
+            proto_rf_boxes and proto_bound_boxes column:
+            0: image index in the entire dataset
+            1: height start index
+            2: height end index
+            3: width start index
+            4: width end index
+            5: (optional) class identity
+            '''
+            self.proto_rf_boxes = np.full([self.nprotos, 6], fill_value=-1)
+            self.proto_bound_boxes = np.full([self.nprotos, 6], fill_value=-1)
 
     def init_match(self): 
         """
@@ -89,10 +118,20 @@ class ProtoNode(nn.Module):
         arange3 = arange3.repeat((self.nprotos, 1))
         
         arange4 = torch.concatenate((arange2, arange3), dim=1)
-        arange4 = arange4.view(40, 1, 1, 40)
+        arange4 = arange4.reshape(40, 1, 1, 40)
         arange4 = arange4.repeat((self.nclass, 64, 1, 1))
         return arange4
     
+    def cuda(self, device = None):
+        for _, child in self.childs.items():
+            child.cuda(device)
+        return super().cuda(device)
+
+    def to(self, *args, **kwargs):
+        for _, child in self.childs.items():
+            child.to(*args, **kwargs)
+        return super().to(*args, **kwargs)
+
     def get_prototype_parameters(self):
         """
         Puts all prototype tensors of this ProtoNode and all child ProtoNodes into a list
@@ -138,11 +177,12 @@ class ProtoNode(nn.Module):
         """
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
         x = F.normalize(x, dim=1) / sqrt_D 
-        normalized_prototypes = F.normalize(self.prototype, dim=1) / sqrt_D # type:ignore
+        prototype = self.prototype.to(x.device)
+        normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
         if self.mode == Mode.GENETIC: 
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
-            normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor.to(x.device))
+            normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
             
             if with_width_dim:
                 sim = F.conv2d(x, normalized_prototypes)
@@ -169,10 +209,7 @@ class ProtoNode(nn.Module):
 
     def get_logits(self, conv_features):
         sim = self.cos_sim(conv_features)
-        max_sim = F.max_pool2d(
-            sim,
-            kernel_size = (sim.size()[2], sim.size()[3])
-        )
+        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))
         min_distances = -1 * max_sim
 
         # for each prototype, finds the spatial location that's closest to the prototype.
@@ -185,35 +222,17 @@ class ProtoNode(nn.Module):
         return logits, min_distances
 
     def push_get_dist(self, conv_features):
-        similarities = self.cos_sim(conv_features)
-        distances = -1 * similarities
+        with torch.no_grad(): 
+            similarities = self.cos_sim(conv_features)
+            distances = -1 * similarities
 
         return distances
 
     def forward(self, conv_features):
-        logits, min_distances = self.get_logits(conv_features)
-        return logits, min_distances
-    
-    def recursive_forward(self,conv_features):
-        return (*self.forward(conv_features), [
-            child(conv_features) for child in self.childs
-        ])
-
-    def cuda(self, device = None):
-        for _, child_node in self.childs.items():
-            child_node.cuda(device)
-        return super().cuda(device)
-
-    def to(self, *args, **kwargs):
-        for _, child_node in self.childs.items():
-            child_node.to(*args, **kwargs)
-        return super().to(*args, **kwargs)
-
-    def push_forward(self, conv_features):
-        """
-        This one is not recursive, because I realized doing it recursive was a bad idea.
-        """
-        return conv_features, self.push_get_dist(conv_features)
+        logits, min_dist = self.get_logits(conv_features) 
+        self.logits = logits 
+        self.min_dist = min_dist
+        return logits, min_dist
 
 class HierProtoPNet(nn.Module): 
     def __init__(
@@ -243,29 +262,33 @@ class HierProtoPNet(nn.Module):
         self.nprotos = nprotos
         self.pshape = pshape
         self.mode = mode
+        self.classifier_nodes = []
         self.root = self.build_proto_tree(self.hierarchy.root) 
         self.add_on_layers = nn.Sequential() 
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
         """
         Construct the hierarchy tree with identical structure as Hierarchy. 
-        But this new tree has prototypes and linear layers for class prediction.
+        But this new tree has prototypes and linear layers for class prediction. 
+        We also add references to all non-leaf nodes into list
         """ 
         node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode) 
+        if taxnode.childs: 
+            self.classifier_nodes.append(node)
         node.childs = dict() 
         for k, v in taxnode.childs.items(): 
             node.childs[k] = self.build_proto_tree(v)
 
         return node
 
-    def cuda(self, device = None):
-        self.root.cuda(device) 
+    def cuda(self, device = None): 
+        self.root.cuda(device)
         return super().cuda(device)
 
-    def to(self, *args, **kwargs):
-        self.root.to(*args, **kwargs) 
-        self.features = self.features.to(*args, **kwargs) 
-        return super().to(*args, **kwargs) 
+    def to(self, *args, **kwargs): 
+        self.root.to(*args, **kwargs)
+        self.features = self.features.to(*args, **kwargs)
+        return super().to(*args, **kwargs)
 
     def get_prototype_parameters(self): 
         return self.root.get_prototype_parameters() 
@@ -279,19 +302,19 @@ class HierProtoPNet(nn.Module):
         return x
 
     def forward(self, x): 
+        """
+        Calls forward on every prototype node 
+        """
         conv_features = self.conv_features(x) 
-        logit_tree = self.root.recursive_forward(conv_features) 
-        return logit_tree
+        for node in self.classifier_nodes: 
+            node.forward(conv_features)
 
     def _initialize_weights(self):
         for m in self.add_on_layers.modules():
             if isinstance(m, nn.Conv2d):
-                # every init technique has an underscore _ in the name
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -306,7 +329,7 @@ def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet:
         backbone = GeneticCNN2D(720, 1, include_connected_layer=False)
 
         # Remove the fully connected layer
-        weights = torch.load(cfg.MODEL.GENETIC_BACKBONE_PATH)
+        weights = torch.load(cfg.MODEL.GENETIC_BACKBONE_PATH, weights_only=True)
         for k in list(weights.keys()):
             if "conv" not in k:
                 del weights[k]
@@ -357,167 +380,8 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
             features = backbone, 
             nprotos = cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.DATASET.IMAGE.PROTOTYPE_SHAPE,
-            mode=Mode.IMAGE
+            mode = Mode.IMAGE
         )
 
     return image_ppnet
 
-class CombinerProtoNode(nn.Module):
-    """
-    A wrapper node containing a genetic and image ProtoNode for the same TaxNode
-    """
-    def __init__(self, gen_node: ProtoNode, img_node: ProtoNode): 
-        super().__init__()
-        self.gen_node = gen_node
-        self.img_node = img_node
-        # self.int_location = gen_node.int_location
-        # self.named_location = gen_node.named_location
-        self.mode = Mode.MULTIMODAL
-        self.max_tracker = ([], [])
-        self.correlation_count = 0
-        self.correlation_table = torch.zeros((40,10)).cuda()
-
-        self.childs = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
-
-        self.match = self.init_match()
-        
-        # Create the correspondence map 
-        if self.gen_node.nprotos % self.img_node.nprotos == 0: 
-            self.prototype_ratio = self.gen_node.nprotos // self.img_node.nprotos
-        else: 
-            raise ValueError("Number of genetic prototypes must be an integral multiple of image prototypes.")
-
-        self.multi_last_layer = self.init_multi_last_layer()
-
-    def init_match(self): 
-        """
-        A 0/1 block of maps between img/gen class and classes
-        """
-        match = torch.zeros(2 * self.gen_node.nclass, self.gen_node.nclass)
-        for i in range(2 * self.gen_node.nclass):
-            match[i, i % self.gen_node.nclass] = 1 
-        return match
-
-    def init_multi_last_layer(self, inc_str = -0.5):
-        """
-        initializes a matrix mapping activations to next classes in the hierarchy
-        inc_str - incorrect strength initialized usually to -0.5 in paper
-        """
-        last_layer = nn.Linear(2 * self.gen_node.nclass, self.gen_node.nclass, bias=False) 
-        param = self.match.clone().T
-        param[param == 0] = inc_str
-        last_layer.weight.data.copy_(param)
-        return last_layer  
-
-    def get_logits(self, gen_conv_features, img_conv_features, intermediate=False):
-        genetic_logit, genetic_dist = self.gen_node.get_logits(gen_conv_features)
-        image_logit, image_dist = self.img_node.get_logits(img_conv_features)
-
-        if intermediate:
-            return (genetic_logit, image_logit), (genetic_dist, image_dist)
-
-        logits = self.multi_last_layer(torch.cat((genetic_logit, image_logit), dim=1))
-        return logits, (genetic_dist, image_dist)
-    
-    def forward(self, x, intermediate=False):
-        gen_conv_features, img_conv_features = x
-        return self.get_logits(gen_conv_features, img_conv_features, intermediate=intermediate)
-
-class MultiHierProtoPNet(nn.Module):
-    """
-    A wrapper class around a Genetic and Image Hierarchical ProtoPNet 
-    Adds another tree of CombinerProtoNodes 
-    """
-    def __init__(self, gen_net: HierProtoPNet, img_net: HierProtoPNet):
-        super().__init__()
-        if (gen_net.mode != Mode.GENETIC) or (img_net.mode != Mode.IMAGE): 
-            raise ValueError(f"Incorrect Modes: GenNet [{gen_net.mode.value}], ImgNet [{img_net.mode.value}]")
-        if gen_net.hierarchy != img_net.hierarchy:
-            raise ValueError("Hierarchies between gen and img nets must be the same.")
-
-        self.hierarchy = gen_net.hierarchy
-        self.features = nn.ModuleList([gen_net.features, img_net.features])
-        self.gen_net = gen_net
-        self.img_net = img_net
-
-        # self.levels = self.gen_net.levels
-        self.mode = Mode.MULTIMODAL
-        self.root = self.build_combiner_proto_tree()
-        self.add_on_layers = nn.ModuleList([self.gen_net.add_on_layers, self.img_net.add_on_layers])
-        self.nodes_with_children = self.get_nodes_with_children()
-
-    def get_nodes_with_children(self):
-        nodes_with_children = nn.ModuleList()
-        def get_nodes_with_children_recursive(node):
-            nodes_with_children.append(node)
-            for child in node.childs:
-                get_nodes_with_children_recursive(child)
-        get_nodes_with_children_recursive(self.root)
-        return nodes_with_children
-
-    def build_combiner_proto_tree(self) -> CombinerProtoNode:
-        """
-        Makes a tree, mirroring the genetic and image trees, but with a combiner node instead of a tree node.
-        """
-        def build_combiner_proto_tree_rec(gen_node: ProtoNode, img_node: ProtoNode):
-            # Check if genetic_node is an instance of LeafNode 
-            if gen_node.prototype is None: 
-                return gen_node
-            
-            if len(gen_node.childs) != len(img_node.childs):
-                raise ValueError("Genetic and Image nodes must have the same number of children")
-            if len(gen_node.childs) == 0:
-                return CombinerProtoNode(gen_node, img_node)
-            else:
-                node = CombinerProtoNode(gen_node, img_node)
-                childs = [] 
-                for name in gen_node.childs: 
-                    gen_child_node = gen_node.childs[name] 
-                    img_child_node = img_node.childs[name] 
-                    childs.append(build_combiner_proto_tree_rec(gen_child_node, img_child_node))
-                node.childs = nn.ModuleList(childs)
-
-                return node
-
-        return build_combiner_proto_tree_rec(self.gen_net.root, self.img_net.root)
-
-    def cuda(self, device = None):
-        self.gen_net.cuda(device)
-        self.img_net.cuda(device)
-        return super().cuda()
-
-    def conv_features(self, x):
-        return (self.gen_net.conv_features(x[0]), self.img_net.conv_features(x[1]))
-
-    def forward(self, x, intermediate=False):
-        genetic_conv_features, image_conv_features = self.conv_features(x) 
-        return self.root((genetic_conv_features, image_conv_features), intermediate=intermediate)
-    
-    def get_last_layer_parameters(self):
-        return nn.ParameterList([
-            *self.gen_net.get_last_layer_parameters(), 
-            *self.img_net.get_last_layer_parameters()
-        ])
-    
-    def get_prototype_parameters(self):
-        return nn.ParameterList([
-            *self.gen_net.get_prototype_parameters(), 
-            *self.img_net.get_prototype_parameters()
-        ])
-    
-    def get_last_layer_multi_parameters(self):
-        return nn.ParameterList([child.multi_last_layer.weight for child in self.root.childs])
-
-def construct_ppnet(cfg: CfgNode):
-    mode = Mode(cfg.DATASET.MODE) 
-    match mode: 
-        case Mode.GENETIC: 
-            return construct_genetic_ppnet(cfg)
-        case Mode.IMAGE: 
-            return construct_image_ppnet(cfg)
-        case Mode.MULTIMODAL: 
-            multi = MultiHierProtoPNet(
-                construct_genetic_ppnet(cfg), 
-                construct_image_ppnet(cfg) 
-            )
-            return multi

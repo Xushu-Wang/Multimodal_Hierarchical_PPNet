@@ -1,20 +1,16 @@
-RUN_NAME: "global_ce_larger"
+RUN_NAME: "muchang_image"
+WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false
 
 DATASET:
-    # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
-    TREE_SPECIFICATION_FILE: "class_trees/larger.json"
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 2
-    TRAIN_VAL_TEST_SPLIT: [200, 40, 40] # Number of unaugmented samples per leaf in train, val, and test splits.
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
 
-    # DATA_FILE: "datasets/metadata/metadata_cleaned_permissive.tsv"
-
-    # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -26,24 +22,12 @@ DATASET:
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
-        # PPNET_PATH: "../output/joint/Correspondance-1/9nopush0.9932.pth"
-        # PPNET_PATH: "../output/joint/Memfix-Correspondance-1/9nopush0.9935.pth"
-        # PPNET_PATH: "../output/joint/rec_corr_fix_3_0.0_10_oversample/0nopush0.9898.pth"
-        # PPNET_PATH: "../output/joint/Correspondance-0/0nopush0.9932.pth"
         # PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
 
 OPTIM:
-    NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 5
-    PUSH_EPOCHS: [5,10,15,20]
-    NUM_WARM_EPOCHS: 0
-    GLOBAL_CROSSENTROPY: True
-    # JOINT_OPTIMIZER_LAYERS:
-    #     ADD_ON_LAYERS: 1e-3
-    #     PROTOTYPE_VECTORS: 1e-3
-    # WARM_OPTIMIZER_LAYERS:
-    #     ADD_ON_LAYERS: 1e-3
-    #     PROTOTYPE_VECTORS: 1e-3
+    NUM_WARM_EPOCHS: 5
+    NUM_TRAIN_EPOCHS: 20
+    PUSH_EPOCHS: [0,10,15,20]
     COEFS:
         SEP: -0.1
     JOINT: False

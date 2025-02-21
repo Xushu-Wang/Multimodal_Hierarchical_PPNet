@@ -1,4 +1,4 @@
-RUN_NAME: "no_global_ce_massive"
+RUN_NAME: "muchang_genetics"
 WANDB_MODE: "disabled" 
 
 MODEL:
@@ -15,11 +15,11 @@ DATASET:
     MODE: 1
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    TRAIN_BATCH_SIZE: 20
+    TRAIN_BATCH_SIZE: 80
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/muchang"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -29,12 +29,10 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
-    NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 5
-    PUSH_EPOCHS: [5,10,15,20]
-    PRUNE_START: 5
     NUM_WARM_EPOCHS: 0
-    GLOBAL_CROSSENTROPY: False
+    NUM_TRAIN_EPOCHS: 20
+    PUSH_EPOCHS: [0,10,15,20]
+    PRUNE_START: 5
     COEFS:
         SEP: -0.1
     JOINT: False
