@@ -305,7 +305,7 @@ def resnet_bioscan_features(pretrained=True, **kwargs):
     model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
 
     if pretrained:
-        my_dict = torch.load(model_urls['resnetbioscan'], map_location=torch.device('cpu'))
+        my_dict = torch.load(model_urls['resnetbioscan'], map_location=torch.device('cpu'), weights_only=True)
                 
         my_dict.pop('fc.weight')
         my_dict.pop('fc.bias')

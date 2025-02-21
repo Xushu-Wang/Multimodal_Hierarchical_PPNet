@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_genetics"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "disabled" 
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
@@ -19,7 +19,7 @@ DATASET:
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # PRE_EXISTING_IMAGES: true
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -29,10 +29,9 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
-    NUM_WARM_EPOCHS: 0
+    NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 20
-    PUSH_EPOCHS: [0,10,15,20]
-    PRUNE_START: 5
+    PUSH_EPOCHS: [10, 20]
     COEFS:
         SEP: -0.1
     JOINT: False

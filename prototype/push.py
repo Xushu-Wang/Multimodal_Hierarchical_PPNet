@@ -137,28 +137,42 @@ def push_image(model, dataloader, preprocessor, stride):
             )
 
     for node in model.classifier_nodes:
-        prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
-        node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+        prototype_update = np.reshape(node.global_min_fmap_patches, node.prototype.shape)
+        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
 def push_multimodal(model, dataloader, preprocessor, stride): 
     for push_iter, ((genetics, image), (label, _)) in enumerate(dataloader):
         image = preprocessor(image) if preprocessor else image 
-        input = (genetics.cuda(), image.cuda())
+        gen_input = genetics.cuda()
+        img_input = image.cuda()
 
         with torch.no_grad(): 
-            conv_features = model.conv_features(input) 
-
+            gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
+        
+        # for each node, find the prototype that it should project to
         for node in model.classifier_nodes:  
             find_closest_conv_feature(
-                node=node,
-                conv_features=conv_features,
+                node=node.gen_node,
+                conv_features=gen_conv_features,
+                label=label,
+                stride=stride
+            )
+            find_closest_conv_feature(
+                node=node.img_node,
+                conv_features=img_conv_features,
                 label=label,
                 stride=stride
             )
 
     for node in model.classifier_nodes: 
-        # project the prototypes in each node to prototype_update
-        prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
-        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
+        # project the prototypes in each node to prototype_update 
+
+        # genetic prototypes projection 
+        gen_prototype_update = np.reshape(node.gen_node.global_min_fmap_patches, node.gen_node.prototype.shape)
+        node.gen_node.prototype.data.copy_(torch.tensor(gen_prototype_update, dtype=torch.float32).cuda())
+
+        # img prototypes projection 
+        img_prototype_update = np.reshape(node.img_node.global_min_fmap_patches, node.img_node.prototype.shape)
+        node.img_node.prototype.data.copy_(torch.tensor(img_prototype_update, dtype=torch.float32).cuda())
 
 

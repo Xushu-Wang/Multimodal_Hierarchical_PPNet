@@ -1,24 +1,35 @@
 import torch
 from model.hierarchical import ProtoNode
 from model.multimodal import CombinerProtoNode
+from dataio.dataset import Mode
 from typing import Union
 
 class Objective: 
     """
     Wrapper class around different loss values 
     """
-    def __init__(self, cfg, mode = "train"): 
-        self.mode = mode
+    def __init__(self, cfg, epoch = "train"): 
+        self.mode = Mode(cfg.DATASET.MODE)
+        self.epoch = epoch
+
         self.cross_entropy = torch.zeros(1).cuda()
         self.cluster = torch.zeros(1).cuda()
         self.separation = torch.zeros(1).cuda()
         self.lasso = torch.zeros(1).cuda()
-        self.orthogonality = torch.zeros(1).cuda()
 
         self.coef_ce = cfg.OPTIM.COEFS.CRS_ENT
         self.coef_clst = cfg.OPTIM.COEFS.CLST
         self.coef_sep = cfg.OPTIM.COEFS.SEP
         self.coef_l1 = cfg.OPTIM.COEFS.L1
+
+        if self.mode == Mode.MULTIMODAL:
+            self.gen_orthogonality = torch.zeros(1).cuda()
+            self.img_orthogonality = torch.zeros(1).cuda()
+            self.correspondence = torch.zeros(1).cuda()
+
+            self.coef_gen_ortho = cfg.OPTIM.COEFS.ORTHOGONALITY.GENETIC
+            self.coef_img_ortho = cfg.OPTIM.COEFS.ORTHOGONALITY.IMAGE
+            self.coef_corr = cfg.OPTIM.COEFS.CORRESPONDENCE
 
     def total(self): 
         """
@@ -28,7 +39,14 @@ class Objective:
         clst = self.coef_clst * self.cluster 
         sep = self.coef_sep * self.separation
         lasso = self.coef_l1 * self.lasso 
-        return ce + clst + sep + lasso 
+
+        if self.mode == Mode.MULTIMODAL: 
+            gen_ortho = self.coef_gen_ortho * self.gen_orthogonality
+            img_ortho = self.coef_img_ortho * self.img_orthogonality
+            corr = self.coef_corr * self.correspondence
+            return ce + clst + sep + lasso + gen_ortho + img_ortho + corr
+
+        return ce + clst + sep + lasso
 
     def __iadd__(self, other): 
         # TODO: gradients should be turned off for this
@@ -36,7 +54,10 @@ class Objective:
         self.cluster += other.cluster
         self.separation += other.separation 
         self.lasso += other.lasso 
-        self.orthogonality += other.orthogonality
+        if self.mode == Mode.MULTIMODAL and other.mode == Mode.MULTIMODAL: 
+            self.gen_orthogonality += other.gen_orthogonality
+            self.img_orthogonality += other.img_orthogonality
+            self.correspondence += other.correspondence
         return self 
 
     def __itruediv__(self, const: int): 
@@ -47,24 +68,35 @@ class Objective:
         self.cluster /= const
         self.separation /= const
         self.lasso /= const
-        self.orthogonality /= const
+        if self.mode == Mode.MULTIMODAL: 
+            self.gen_orthogonality /= const
+            self.img_orthogonality /= const
+            self.correspondence /= const
         return self
 
     def to_dict(self): 
         out = {
-            f"{self.mode}-cross_ent": self.cross_entropy, 
-            f"{self.mode}-cluster": self.cluster, 
-            f"{self.mode}-separation": self.separation,
-            f"{self.mode}-l1": self.lasso
+            f"{self.epoch}-cross_ent": self.cross_entropy, 
+            f"{self.epoch}-cluster": self.cluster, 
+            f"{self.epoch}-separation": self.separation,
+            f"{self.epoch}-l1": self.lasso
         }
+        if self.mode == Mode.MULTIMODAL: 
+            out[f"{self.epoch}-gen_ortho"] = self.gen_orthogonality 
+            out[f"{self.epoch}-img_ortho"] = self.img_orthogonality 
+            out[f"{self.epoch}-corr"] = self.correspondence
         return out 
 
     def __str__(self): 
         out = "" 
-        out += f"{self.mode}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
-        out += f"{self.mode}-separation: {float(self.separation.item()):.5f}\n"
-        out += f"{self.mode}-cluster: {float(self.cluster.item()):.5f}\n"
-        out += f"{self.mode}-lasso: {float(self.lasso.item()):.5f}\n"
+        out += f"{self.epoch}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
+        out += f"{self.epoch}-separation: {float(self.separation.item()):.5f}\n"
+        out += f"{self.epoch}-cluster: {float(self.cluster.item()):.5f}\n"
+        out += f"{self.epoch}-lasso: {float(self.lasso.item()):.5f}\n"
+        if self.mode == Mode.MULTIMODAL: 
+            out += f"{self.epoch}-gen_ortho: {float(self.gen_orthogonality.item()):.5f}\n"
+            out += f"{self.epoch}-img_ortho: {float(self.img_orthogonality.item()):.5f}\n"
+            out += f"{self.epoch}-corr: {float(self.correspondence.item()):.5f}\n"
         return out
     
     def __repr__(self): 
@@ -104,31 +136,24 @@ def get_l1_cost(node: ProtoNode):
     l1 = torch.linalg.vector_norm(masked_weights, ord=1)
     return l1
 
-def get_multi_last_layer_l1_cost(node: CombinerProtoNode):
-    l1_mask = (1 - node.match).t().to("cuda")
-    masked_weights = node.multi_last_layer.weight.detach().clone() * l1_mask
-    l1 = torch.linalg.vector_norm(masked_weights, ord=1)
-    return l1
-
-def get_orthogonality_cost(node: ProtoNode):
-    P = node.prototype_vectors.squeeze(-1).squeeze(-1)
+def get_ortho_cost(node: ProtoNode):
+    P = node.prototype.squeeze(-1).squeeze(-1)  # type: ignore
     P = P / torch.linalg.norm(P, dim=1).unsqueeze(-1)
     return torch.sum(P@P.T-torch.eye(P.size(0)).cuda())
 
 def get_correspondence_loss_batched(
-    genetic_min_distances,
-    image_min_distances,
-    mask,
+    gen_min_dist,
+    img_min_dist,
     node
 ):
-    if len(node.named_location) and node.named_location[-1] == "Diptera":
-        # node.correlation_table += get_correlation_matrix(genetic_min_distances[mask], image_min_distances[mask])
-        node.correlation_count += len(genetic_min_distances[mask])
+    if node.taxonomy == "Diptera":
+        # node.correlation_table += get_correlation_matrix(gen_min_dist, img_min_dist)
+        node.correlation_count += len(gen_min_dist)
 
-    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
-        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    wrapped_genetic_min_distances = gen_min_dist.view(
+        -1, gen_min_dist.shape[1] // node.prototype_ratio, node.prototype_ratio
     )
-    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
+    repeated_image_min_distances_along_the_third_axis = img_min_dist.unsqueeze(2).expand(-1, -1, node.prototype_ratio)
 
     # Calculate the dot product of the normalized distances along the batch dimension (gross)
     l2_distance = (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2
@@ -156,15 +181,15 @@ def get_correspondence_loss_batched(
     return correspondence_cost_summed, correspondence_cost_count
 
 def get_correspondence_loss_single(
-    genetic_min_distances,
-    image_min_distances,
+    gen_min_dist,
+    img_min_dist,
     mask,
     node
 ):
-    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
-        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    wrapped_genetic_min_distances = gen_min_dist[mask].view(
+        -1, gen_min_dist.shape[1] // node.prototype_ratio, node.prototype_ratio
     )
-    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
+    repeated_image_min_distances_along_the_third_axis = img_min_dist[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
     # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
     correspondence_cost_count = len(wrapped_genetic_min_distances)

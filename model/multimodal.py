@@ -14,20 +14,25 @@ class CombinerProtoNode(nn.Module):
         # it is already checked that both nodes have same indexing
         self.gen_node = gen_node
         self.img_node = img_node  
-        self.mode = Mode.MULTIMODAL
-        self.max_tracker = ([], [])
+        self.taxonomy = gen_node.taxonomy 
+        self.idx = gen_node.idx 
+        self.flat_idx = gen_node.flat_idx 
+        self.depth = gen_node.depth
+        self.childs = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
+        self.mode = Mode.MULTIMODAL 
         self.correlation_count = 0
         self.correlation_table = torch.zeros((40,10)).cuda()
 
-        self.childs = nn.ModuleList() # Note this will be initialized by Multi_Hierarchical_PPNet
-
-        self.match = self.init_match()
-        
-        # Create the correspondence map 
-        if self.gen_node.nprotos % self.img_node.nprotos == 0: 
-            self.prototype_ratio = self.gen_node.nprotos // self.img_node.nprotos
-        else: 
-            raise ValueError("Number of genetic prototypes must be an integral multiple of image prototypes.")
+        if self.gen_node.childs: 
+            self.nclass = self.gen_node.nclass
+            self.match = self.init_match()
+            self.max_tracker = ([], [])
+            
+            # Create the correspondence map 
+            if self.gen_node.nprotos % self.img_node.nprotos == 0: 
+                self.prototype_ratio = self.gen_node.nprotos // self.img_node.nprotos
+            else: 
+                raise ValueError("Number of genetic prototypes must be an integral multiple of image prototypes.")
 
     def init_match(self): 
         """
@@ -64,9 +69,9 @@ class MultiHierProtoPNet(nn.Module):
         self.gen_net = gen_net
         self.img_net = img_net
 
-        # self.levels = self.gen_net.levels
         self.mode = Mode.MULTIMODAL
-        self.root = self.build_combiner_proto_tree()
+        self.classifier_nodes = [] 
+        self.root = self.build_combiner_proto_tree(self.gen_net.root, self.img_net.root)
         self.add_on_layers = nn.ModuleList([self.gen_net.add_on_layers, self.img_net.add_on_layers])
         self.nodes_with_children = self.get_nodes_with_children()
 
@@ -79,43 +84,40 @@ class MultiHierProtoPNet(nn.Module):
         get_nodes_with_children_recursive(self.root)
         return nodes_with_children
 
-    def build_combiner_proto_tree(self):
+    def build_combiner_proto_tree(self, gen_node: ProtoNode, img_node: ProtoNode):
         """
         Makes a tree, mirroring the genetic and image trees, but with a combiner node instead of a tree node.
         """
-        def build_combiner_proto_tree_rec(gen_node: ProtoNode, img_node: ProtoNode):
-            # Check if genetic_node is an instance of LeafNode 
-            if gen_node.prototype is None: 
-                return gen_node
-            
-            if len(gen_node.childs) != len(img_node.childs):
-                raise ValueError("Genetic and Image nodes must have the same number of children")
-            if len(gen_node.childs) == 0:
-                return CombinerProtoNode(gen_node, img_node)
-            else:
-                node = CombinerProtoNode(gen_node, img_node)
-                childs = [] 
-                for name in gen_node.childs: 
-                    gen_child_node = gen_node.childs[name] 
-                    img_child_node = img_node.childs[name] 
-                    childs.append(build_combiner_proto_tree_rec(gen_child_node, img_child_node))
-                node.childs = nn.ModuleList(childs)
+        # if gen_node.prototype is None: 
+        #     return gen_node
+        
+        if len(gen_node.childs) != len(img_node.childs):
+            raise ValueError("Genetic and Image nodes must have the same number of children")
+        if len(gen_node.childs) == 0:
+            node = CombinerProtoNode(gen_node, img_node)
+        else:
+            node = CombinerProtoNode(gen_node, img_node)
+            self.classifier_nodes.append(node)
+            childs = [] 
+            for name in gen_node.childs: 
+                gen_child_node = gen_node.childs[name] 
+                img_child_node = img_node.childs[name] 
+                childs.append(self.build_combiner_proto_tree(gen_child_node, img_child_node))
+            node.childs = nn.ModuleList(childs)
 
-                return node
-
-        return build_combiner_proto_tree_rec(self.gen_net.root, self.img_net.root)
+        return node
 
     def cuda(self, device = None):
         self.gen_net.cuda(device)
         self.img_net.cuda(device)
         return super().cuda()
 
-    def conv_features(self, x):
-        return (self.gen_net.conv_features(x[0]), self.img_net.conv_features(x[1]))
+    def conv_features(self, genetic, image):
+        return self.gen_net.conv_features(genetic), self.img_net.conv_features(image)
 
-    def forward(self, x):
-        genetic_conv_features, image_conv_features = self.conv_features(x) 
-        return self.root((genetic_conv_features, image_conv_features))
+    def forward(self, genetic, image):
+        genetic_conv_features, image_conv_features = self.conv_features(genetic, image) 
+        return self.root(genetic_conv_features, image_conv_features)
     
     def get_last_layer_parameters(self):
         return nn.ParameterList([

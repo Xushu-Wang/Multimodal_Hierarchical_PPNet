@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_image"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false
@@ -10,7 +10,7 @@ DATASET:
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
 
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -25,9 +25,9 @@ DATASET:
         # PPNET_PATH: "../output/image_only/150_Lite_ImageFullTest_003/15_push0.8515.pth"
 
 OPTIM:
-    NUM_WARM_EPOCHS: 5
+    NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 20
-    PUSH_EPOCHS: [0,10,15,20]
+    PUSH_EPOCHS: [10,20]
     COEFS:
         SEP: -0.1
     JOINT: False

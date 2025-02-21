@@ -12,7 +12,10 @@ import prototype.push as push
 
 from typing import Callable
 
-run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"}
+run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
+
+# bottleneck in push for image
+# add orthogonality for gen/img ppnet loss?
 
 def main(cfg: CfgNode, log: Callable):
     
@@ -47,7 +50,7 @@ def main(cfg: CfgNode, log: Callable):
 
             # need to implement pruning here
 
-            for _ in range(20): 
+            for _ in range(1):
                 tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)  
                 tnt.test(model, val_loader, cfg, log)
 
@@ -64,9 +67,9 @@ def main(cfg: CfgNode, log: Callable):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/image.yaml')
+    parser.add_argument('--configs', type=str, default='configs/parallel.yaml')
     parser.add_argument('--validate', action='store_true')
+    parser.add_argument('--gpuid', type=str, default='0') 
     args = parser.parse_args()
     
     cfg = get_cfg_defaults()

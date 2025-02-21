@@ -13,7 +13,7 @@ DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
     MODE: 3 # For parallel mode, always set to 3
 
@@ -31,9 +31,9 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_WARM_EPOCHS: 5
-    NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: [15, 20, 25, 30, 35]
+    NUM_WARM_EPOCHS: 3
+    NUM_TRAIN_EPOCHS: 20
+    PUSH_EPOCHS: [10,20]
     COEFS:
         SEP: -0.1
         CORRESPONDENCE: 1000.0
