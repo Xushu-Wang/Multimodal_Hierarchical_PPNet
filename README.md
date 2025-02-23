@@ -32,9 +32,10 @@ The next step is to look for the CNN backbone architecture for your ProtoPNet. F
 
 Let's consider a uni-modal hierarchical protopnet (hppnet), labeled $h$. It should consist of the backbone layer we just described, plus a set of prototypes for each node in our `Hierarchy` tree. This is exactly the two arguments that we pass when instantiating a `HierProtoPNet` object. It stores a reference to the backbone, and as for the prototypes, it constructs a *new* tree of `ProtoNode`s (Prototype Nodes) $\mathcal{P}$ with the same indexing as $\mathcal{T}$. The structure of this tree is the same as that of `Hierarchy`, but it contains prototypes and supports other attributes/methods for `nn.Module`s. Therefore, we can consider 
 $$
-    h = (CNN, \mathcal{P}), \qquad h(x) = (\mathcal{P}_\alpha (CNN(x))_\alpha$ 
+    h = (CNN, \mathcal{P}), \qquad h(x) = (\mathcal{P}_\alpha (CNN(x))_\alpha 
 $$
-        as the forward pass of the network. 
+
+as the forward pass of the network. 
 
 A multi-modal hierarchical protopnet (mhppnet) is a wrapper class around two hppnets. The difference is that we want to use both the genetics and image prototypes to predict the taxonomy of a sample. Therefore, we can consider the joint model as 
 
@@ -42,5 +43,5 @@ $$
     m = (h_{gen}, h_{img}) = ((CNN_{gen}, \mathcal{P}_{gen}), (CNN_{img}, \mathcal{P}_{img})), \qquad m(x) = (h_{gen} (x), h_{img}(x))
 $$  
 
-This is really just two hppnets fitting to the data independently, and once we get the logits from the forward pass of each we sum them together before softmaxing. (This approach should be improved. This might be too naive). The linkage between these models is the correspondence loss, which requires that the activations are good. 
+This is really just two hppnets fitting to the data independently. While training our loss includes a term enforcing that image and genetic prototypes activate together. Besides that, the models are trained and evaluated independently.
 
