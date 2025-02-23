@@ -1,0 +1,30 @@
+MODEL:
+  MULTI:
+    MULTI_PPNET_PATH: "../output/joint/reasonable_dataset_1000.0_0_0/15push0.1655.pth"
+
+DATASET:
+  DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected. Never change.
+  TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
+  TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
+  TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
+  
+  MODE: 3 # For parallel mode, always set to 3
+  PARALLEL_MODE: True # I doubt "False" works any more. This will use the combined predictions to predict. We don't want that any more
+
+  # Uncomment these once datasets have already been generated and you want to reuse them
+  CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+  # CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+
+  IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
+
+  IMAGE: 
+      PROTOTYPE_SHAPE: (2048, 1, 1) 
+      TRAIN_BATCH_SIZE: 80
+      TRANSFORM_MEAN: (0.485, 0.456, 0.406)
+      TRANSFORM_STD: (0.229, 0.224, 0.225)
+      NUM_PROTOTYPES_PER_CLASS: 10
+      # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth" # Path to pretrained image ppnet. This can be used in multimodal mode.
+  GENETIC:
+      PROTOTYPE_SHAPE: (64, 1, 1)
+      NUM_PROTOTYPES_PER_CLASS: 40
+      # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.

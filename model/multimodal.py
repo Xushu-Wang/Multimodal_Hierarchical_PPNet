@@ -26,7 +26,6 @@ class CombinerProtoNode(nn.Module):
         if self.gen_node.childs: 
             self.nclass = self.gen_node.nclass
             self.match = self.init_match()
-            self.max_tracker = ([], [])
             
             # Create the correspondence map 
             if self.gen_node.nprotos % self.img_node.nprotos == 0: 

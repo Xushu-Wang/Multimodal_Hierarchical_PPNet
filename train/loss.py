@@ -147,7 +147,6 @@ def get_correspondence_loss_batched(
     node
 ):
     if node.taxonomy == "Diptera":
-        # node.correlation_table += get_correlation_matrix(gen_min_dist, img_min_dist)
         node.correlation_count += len(gen_min_dist)
 
     wrapped_genetic_min_distances = gen_min_dist.view(
@@ -164,14 +163,6 @@ def get_correspondence_loss_batched(
 
     # Get the maximum dot product for each image prototype
     min_correspondence_costs, min_correspondence_cost_indicies = torch.min(total_dist, dim=1)
-
-    individual_min_indicies = torch.min(
-        l2_distance,
-        dim=2
-    )[1]
-
-    node.max_tracker[0].append(min_correspondence_cost_indicies)
-    node.max_tracker[1].append(individual_min_indicies)
 
     correspondence_cost_count = len(min_correspondence_costs)
     correspondence_cost_summed = torch.sum(min_correspondence_costs)

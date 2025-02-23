@@ -11,6 +11,13 @@ ln -s /usr/project/xtmp/cjb131/cs474/logs logs
 
 The following subsections describes the entire process in training a ProtoPNet. 
 
+## TODO
+- Check that Proto RF Info is used correctly for Image PPNet
+- Combine train and test functions into one
+- Checkout what's going on with enable grad. Maybe remove with statement, switch to calling it directly.
+- Look at dividing by `n_classified`
+- Add orthogonality to non-multimodal
+
 ## Dataset 
 
 The BIOSCAN-1M dataset consists over 1 million samples of data on different insects (stored in `../datasets/`). More specifically, each sample consists of the following. 

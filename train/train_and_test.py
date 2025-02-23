@@ -237,9 +237,6 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
         total_corr_count = 0
 
         for node in model.classifier_nodes:  
-            # first clear out the max_tracker (whatever this ais? )  
-            node.max_tracker = ([], [])
-
             # filter out the irrelevant samples in batch 
             mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
             n_classified += torch.sum(mask)
@@ -288,6 +285,8 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
 
         # add batch objective values to total objective values for logging
         total_obj += batch_obj
+
+        # Free scoped variables
 
     # normalize the losses after running through entire dataset
     total_obj /= len(dataloader)
@@ -401,7 +400,6 @@ def test_multimodal(model, dataloader, cfg, log):
     total_obj = Objective(cfg)
 
     for (genetics, image), (label, _) in tqdm(dataloader): 
-
         gen_input = genetics.cuda()
         img_input = image.cuda()
         label = label.cuda()
@@ -416,9 +414,6 @@ def test_multimodal(model, dataloader, cfg, log):
         total_corr_count = 0
 
         for node in model.classifier_nodes:  
-            # first clear out the max_tracker (whatever this ais? )  
-            node.max_tracker = ([], [])
-
             # filter out the irrelevant samples in batch 
             mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
             n_classified += torch.sum(mask)
@@ -455,6 +450,9 @@ def test_multimodal(model, dataloader, cfg, log):
             batch_obj.gen_orthogonality = get_ortho_cost(node.gen_node)
             batch_obj.img_orthogonality = get_ortho_cost(node.img_node)
 
+            # Free everything up for this node
+            del m_gen_conv_features, m_img_conv_features, m_gen_logits, m_img_logits, m_gen_min_dist, m_img_min_dist
+
         batch_obj.correspondence /= total_corr_count
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
@@ -463,6 +461,9 @@ def test_multimodal(model, dataloader, cfg, log):
 
         # add batch objective values to total objective values for logging
         total_obj += batch_obj
+
+        # Free everything up for this batch
+        del gen_conv_features, img_conv_features
 
     # normalize the losses after running through entire dataset
     total_obj /= len(dataloader)

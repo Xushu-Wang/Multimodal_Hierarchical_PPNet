@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_parallel"
-# WANDB_MODE: "disabled" 
+WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
