@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_genetics"
-# WANDB_MODE: "disabled" 
+WANDB_MODE: "disabled" 
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
@@ -30,8 +30,8 @@ DATASET:
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
     NUM_WARM_EPOCHS: 3
-    NUM_TRAIN_EPOCHS: 20
-    PUSH_EPOCHS: [10, 20]
+    NUM_TRAIN_EPOCHS: 500
+    PUSH_EPOCHS: []
     COEFS:
         SEP: -0.1
     JOINT: False

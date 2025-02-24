@@ -4,18 +4,46 @@ from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
 from typing import Union
 
+class CorrectCount: 
+    """
+    Data Structure that keeps track of total correct classifications at each level. 
+    Attributes: 
+        N - length of dataset 
+    """
+    def __init__(self, N: int): 
+        # Order, Family, Genus, Species classifications 
+        self.counts = [0, 0, 0, 0] 
+        self.N = N
+
+    def __getitem__(self, depth): 
+        return self.counts[depth]
+
+    def __setitem__(self, depth, count): 
+        self.counts[depth] = count 
+
+    def __iadd__(self, other): 
+        for i in range(len(self.counts)): 
+            self.counts[i] += other.counts[i]
+        return self
+
+    def acc(self): 
+        return [x / self.N for x in self.counts] 
+
 class Objective: 
     """
     Wrapper class around different loss values 
     """
-    def __init__(self, cfg, epoch = "train"): 
+    def __init__(self, cfg, N: int, epoch = "train"): 
         self.mode = Mode(cfg.DATASET.MODE)
         self.epoch = epoch
+        self.N = N 
 
         self.cross_entropy = torch.zeros(1).cuda()
         self.cluster = torch.zeros(1).cuda()
         self.separation = torch.zeros(1).cuda()
         self.lasso = torch.zeros(1).cuda()
+        self.n_next_correct = CorrectCount(N)
+        self.n_cond_correct = CorrectCount(N)
 
         self.coef_ce = cfg.OPTIM.COEFS.CRS_ENT
         self.coef_clst = cfg.OPTIM.COEFS.CLST
@@ -49,11 +77,16 @@ class Objective:
         return ce + clst + sep + lasso
 
     def __iadd__(self, other): 
+        """
+        Adds only loss terms together  
+        """
         # TODO: gradients should be turned off for this
         self.cross_entropy += other.cross_entropy
         self.cluster += other.cluster
         self.separation += other.separation 
         self.lasso += other.lasso 
+        self.n_next_correct += other.n_next_correct
+        self.n_cond_correct += other.n_cond_correct
         if self.mode == Mode.MULTIMODAL and other.mode == Mode.MULTIMODAL: 
             self.gen_orthogonality += other.gen_orthogonality
             self.img_orthogonality += other.img_orthogonality
@@ -62,7 +95,7 @@ class Objective:
 
     def __itruediv__(self, const: int): 
         """
-        Used to scale everything down. Usually when we take the mean. 
+        Used to scale every loss term down. Usually when we take the mean. 
         """
         self.cross_entropy /= const
         self.cluster /= const
@@ -75,11 +108,21 @@ class Objective:
         return self
 
     def to_dict(self): 
+        next_accs = self.n_next_correct.acc()
+        cond_accs = self.n_cond_correct.acc()
         out = {
             f"{self.epoch}-cross_ent": self.cross_entropy, 
             f"{self.epoch}-cluster": self.cluster, 
             f"{self.epoch}-separation": self.separation,
-            f"{self.epoch}-l1": self.lasso
+            f"{self.epoch}-l1": self.lasso, 
+            f"{self.epoch}-next_acc_order": next_accs[0], 
+            f"{self.epoch}-next_acc_family": next_accs[1], 
+            f"{self.epoch}-next_acc_genus": next_accs[2], 
+            f"{self.epoch}-next_acc_species": next_accs[3],
+            f"{self.epoch}-cond_acc_order": cond_accs[0], 
+            f"{self.epoch}-cond_acc_family": cond_accs[1], 
+            f"{self.epoch}-cond_acc_genus": cond_accs[2], 
+            f"{self.epoch}-cond_acc_species": cond_accs[3]
         }
         if self.mode == Mode.MULTIMODAL: 
             out[f"{self.epoch}-gen_ortho"] = self.gen_orthogonality 
@@ -88,11 +131,15 @@ class Objective:
         return out 
 
     def __str__(self): 
+        next_accs = self.n_next_correct.acc()
+        cond_accs = self.n_cond_correct.acc()
         out = "" 
         out += f"{self.epoch}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
         out += f"{self.epoch}-separation: {float(self.separation.item()):.5f}\n"
         out += f"{self.epoch}-cluster: {float(self.cluster.item()):.5f}\n"
         out += f"{self.epoch}-lasso: {float(self.lasso.item()):.5f}\n"
+        out += f"{self.epoch}-next_acc: {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
+        out += f"{self.epoch}-cond_acc: {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
         if self.mode == Mode.MULTIMODAL: 
             out += f"{self.epoch}-gen_ortho: {float(self.gen_orthogonality.item()):.5f}\n"
             out += f"{self.epoch}-img_ortho: {float(self.img_orthogonality.item()):.5f}\n"
@@ -100,24 +147,38 @@ class Objective:
         return out
     
     def __repr__(self): 
-        return self.__str__()
+        return self.__str__() 
 
-def make_one_hot(target, target_one_hot):
+    def clear(self): 
+        self.cross_entropy = torch.zeros(1).cuda()
+        self.cluster = torch.zeros(1).cuda()
+        self.separation = torch.zeros(1).cuda()
+        self.lasso = torch.zeros(1).cuda()
+        self.n_next_correct = CorrectCount(self.N)
+        self.n_cond_correct = CorrectCount(self.N)
+        if self.mode == Mode.MULTIMODAL:
+            self.gen_orthogonality = torch.zeros(1).cuda()
+            self.img_orthogonality = torch.zeros(1).cuda()
+            self.correspondence = torch.zeros(1).cuda()
+
+        torch.cuda.empty_cache()
+
+def make_one_hot(target, target_one_hot): 
     target_copy = torch.LongTensor(len(target))
     target_copy.copy_(target)
     target_copy = target_copy.view(-1,1).to("cuda")
     target_one_hot.zero_()
     target_one_hot.scatter_(dim=1, index=target_copy, value=1.)
 
-def get_cluster_and_sep_cost(min_dist, target, num_classes): 
+def get_cluster_and_sep_cost(min_dist, target, num_classes):  
     if len(target) == 0: 
-        return torch.zeros(1, device=target.device), torch.zeros(1, device=target.device)
-    
+        return torch.zeros(1, device=target.device), torch.zeros(1, device=target.device) 
+
     # Create one-hot encoding
     target_one_hot = torch.zeros(target.size(0), num_classes, device=target.device)
     target_one_hot.scatter_(1, target.unsqueeze(1), 1)
 
-    make_one_hot(target, target_one_hot)
+    # make_one_hot(target + 1, target_one_hot)
     num_prototypes_per_class = min_dist.size(1) // num_classes
     one_hot_repeat = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
                         view(target_one_hot.size(0),-1)
@@ -255,12 +316,10 @@ def get_loss_multi(
     # Update correct and total counts
     _, predicted = torch.max(logits, dim=1) 
 
-    node.npredictions += len(predicted)
-    node.correct += (predicted == target[:, node.taxnode.depth] - 1).sum() 
 
     n_classifications = 1
     # Now recurse on the new ones 
-    for _, c_node in node.childs.items():
+    for c_node in node.childs:
 
         c_cross_entropy, c_cluster_cost, c_separation_cost, c_l1_cost, c_n_classifications = get_loss(
             conv_features,

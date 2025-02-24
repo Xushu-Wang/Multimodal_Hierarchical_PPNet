@@ -65,9 +65,11 @@ def main(cfg: CfgNode, log: Callable):
     wandb.finish()
     logclose()
 
-if __name__ == '__main__':
+from dataio.dataset import Hierarchy
+
+if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', type=str, default='configs/parallel.yaml')
+    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--gpuid', type=str, default='0') 
     args = parser.parse_args()
