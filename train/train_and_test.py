@@ -14,13 +14,13 @@ from enum import Enum
 Model = Union[HierProtoPNet, MultiHierProtoPNet, torch.nn.DataParallel]
 
 class OptimMode(Enum): 
-  """
-  Enumeration object to specify which parameters to train. 
-  """
-  WARM = 1 
-  MULTI_LAST = 2 
-  JOINT = 3 
-  LAST = 4 
+    """
+    Enumeration object to specify which parameters to train. 
+    """
+    WARM = 1 
+    MULTI_LAST = 2 
+    JOINT = 3 
+    LAST = 4 
 
 def warm_only(model: Model):
     if isinstance(model, torch.nn.DataParallel): 
@@ -120,7 +120,8 @@ def train(
             return train_multimodal(model, dataloader, optimizer, cfg, log) 
 
 
-def train_genetic(model, dataloader, optimizer, cfg, log): 
+def train_genetic(model, dataloader, optimizer, cfg, log):  
+    # compute the losses 
     total_obj = Objective(cfg)
 
     for (genetics, _), (label, _) in tqdm(dataloader): 
@@ -138,20 +139,25 @@ def train_genetic(model, dataloader, optimizer, cfg, log):
 
         for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            logits, min_dist = node.forward(conv_features)
+
             n_classified += torch.sum(mask)
 
             # masked input and output
-            m_conv_features = conv_features[mask]
             m_label = label[mask][:, node.depth] - 1
-            m_logits, m_min_dist = node.forward(m_conv_features) 
+            m_logits, m_min_dist = logits[mask], min_dist[mask]
             if len(m_logits) != 0: 
                 batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label)  
 
             cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
             batch_obj.cluster += cluster
             batch_obj.separation = separation
-            batch_obj.lasso += get_l1_cost(node)
+            batch_obj.lasso += get_l1_cost(node) 
+
+        # calculate cross entropy with unmasked logits 
+        # softmax node.logits for each node to compute node.prob 
+        model.conditional_normalize() 
 
         total_loss = batch_obj.total()  
         total_loss.backward()
@@ -309,8 +315,8 @@ def test(
         case Mode.MULTIMODAL: 
             return test_multimodal(model, dataloader, cfg, log) 
 
-
 def test_genetic(model, dataloader, cfg, log): 
+    # compute the loss? 
     total_obj = Objective(cfg, "test")
 
     for (genetics, _), (label, _) in tqdm(dataloader): 

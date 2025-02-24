@@ -57,6 +57,7 @@ class ProtoNode(nn.Module):
 
             # outputs of forward pass will be stored here 
             self.logits = None
+            self.probs = None
             self.min_dist = None
 
             if self.mode == Mode.GENETIC: 
@@ -229,10 +230,19 @@ class ProtoNode(nn.Module):
         return distances
 
     def forward(self, conv_features):
+        """
+        Forward pass on this node. Used for training when conv_features 
+        are masked
+        """
         logits, min_dist = self.get_logits(conv_features) 
         self.logits = logits 
         self.min_dist = min_dist
         return logits, min_dist
+
+    def softmax(self): 
+        if self.logits is None: 
+            raise ValueError("You must do a forward pass so that logits are set.") 
+        self.probs = F.softmax(self.logits, dim=1)
 
 class HierProtoPNet(nn.Module): 
     def __init__(
@@ -301,13 +311,8 @@ class HierProtoPNet(nn.Module):
         x = self.add_on_layers(x) 
         return x
 
-    def forward(self, x): 
-        """
-        Calls forward on every prototype node 
-        """
-        conv_features = self.conv_features(x) 
-        for node in self.classifier_nodes: 
-            node.forward(conv_features)
+    def conditional_normalize(self): 
+        pass
 
     def _initialize_weights(self):
         for m in self.add_on_layers.modules():

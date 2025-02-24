@@ -69,19 +69,9 @@ class MultiHierProtoPNet(nn.Module):
         self.img_net = img_net
 
         self.mode = Mode.MULTIMODAL
-        self.classifier_nodes = [] 
+        self.classifier_nodes = nn.ModuleList()
         self.root = self.build_combiner_proto_tree(self.gen_net.root, self.img_net.root)
         self.add_on_layers = nn.ModuleList([self.gen_net.add_on_layers, self.img_net.add_on_layers])
-        self.nodes_with_children = self.get_nodes_with_children()
-
-    def get_nodes_with_children(self):
-        nodes_with_children = nn.ModuleList()
-        def get_nodes_with_children_recursive(node):
-            nodes_with_children.append(node)
-            for child in node.childs:
-                get_nodes_with_children_recursive(child)
-        get_nodes_with_children_recursive(self.root)
-        return nodes_with_children
 
     def build_combiner_proto_tree(self, gen_node: ProtoNode, img_node: ProtoNode):
         """
@@ -114,10 +104,6 @@ class MultiHierProtoPNet(nn.Module):
     def conv_features(self, genetic, image):
         return self.gen_net.conv_features(genetic), self.img_net.conv_features(image)
 
-    def forward(self, genetic, image):
-        genetic_conv_features, image_conv_features = self.conv_features(genetic, image) 
-        return self.root(genetic_conv_features, image_conv_features)
-    
     def get_last_layer_parameters(self):
         return nn.ParameterList([
             *self.gen_net.get_last_layer_parameters(), 
