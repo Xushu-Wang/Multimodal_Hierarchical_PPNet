@@ -541,7 +541,7 @@ def test_image(model, dataloader, cfg, log):
     total_obj.clear()
 
 def test_multimodal(model, dataloader, cfg, log): 
-    total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
+    total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
 
@@ -549,7 +549,7 @@ def test_multimodal(model, dataloader, cfg, log):
         img_input = image.cuda()
         label = label.cuda()
         flat_label = flat_label.cuda()
-        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "train")
+        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "test")
 
         with torch.no_grad(): 
             # can't forward the entire model here since it 
