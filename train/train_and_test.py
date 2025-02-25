@@ -97,6 +97,7 @@ def train(
     It first sets specific parameter gradients = True depending on optim_mode 
     Then depending on the model mode, it calls the specific train functions
     """
+    print("Trainin'")
     mode = Mode(model.mode) 
 
     match optim_mode: 
@@ -227,7 +228,7 @@ def train_image(model, dataloader, optimizer, cfg, log):
 def train_multimodal(model, dataloader, optimizer, cfg, log): 
     total_obj = Objective(cfg)
 
-    for (genetics, image), (label, _) in tqdm(dataloader): 
+    for (genetics, image), (label, _) in tqdm(dataloader):
 
         gen_input = genetics.cuda()
         img_input = image.cuda()
@@ -238,9 +239,10 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
             # can't forward the entire model here since it 
             gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
 
-        # track number of classifications across all nodes in this batch
+        # # track number of classifications across all nodes in this batch
         n_classified = 0 
         total_corr_count = 0
+
 
         for node in model.classifier_nodes:  
             # filter out the irrelevant samples in batch 
@@ -248,51 +250,66 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
             n_classified += torch.sum(mask)
 
             # masked input and output
-            m_gen_conv_features = gen_conv_features[mask]
-            m_img_conv_features = img_conv_features[mask]
-            m_label = label[mask][:, node.depth] - 1
+            # m_label = label[mask][:, node.depth] - 1
 
             # forward pass through the node 
-            (m_gen_logits, m_img_logits), (m_gen_min_dist, m_img_min_dist) = node.forward(m_gen_conv_features, m_img_conv_features) 
+            (gen_logits, img_logits), (gen_min_dist, img_min_dist) = node.forward(gen_conv_features, img_conv_features) 
+            del gen_logits, img_logits, gen_min_dist, img_min_dist
 
-            # cross entropy loss 
-            if len(m_gen_logits) != 0: 
-                gen_ce = F.cross_entropy(m_gen_logits, m_label)  
-                img_ce = F.cross_entropy(m_img_logits, m_label)
-                batch_obj.cross_entropy += gen_ce + img_ce
+        #     m_gen_logits = gen_logits[mask]
+        #     m_img_logits = img_logits[mask]
 
-            # cluster and separation loss 
-            gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
-            img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
-            batch_obj.cluster += gen_cluster + img_cluster
-            batch_obj.separation = gen_separation + img_separation
+        #     m_gen_min_dist = gen_min_dist[mask]
+        #     m_img_min_dist = img_min_dist[mask]
 
-            # lasso loss
-            batch_obj.lasso += get_l1_cost(node.gen_node) + get_l1_cost(node.img_node) 
+        #     # cross entropy loss 
+        #     if len(m_gen_logits) != 0: 
+        #         gen_ce = F.cross_entropy(m_gen_logits, m_label)  
+        #         img_ce = F.cross_entropy(m_img_logits, m_label)
+        #         batch_obj.cross_entropy += gen_ce + img_ce
 
-            # correspondence loss 
-            corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
-            batch_obj.correspondence += corr_sum
-            total_corr_count += corr_count
+        #     # cluster and separation loss 
+        #     gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
+        #     img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
+        #     batch_obj.cluster += gen_cluster + img_cluster
+        #     batch_obj.separation = gen_separation + img_separation
 
-            # orthogonality loss 
-            batch_obj.gen_orthogonality = get_ortho_cost(node.gen_node)
-            batch_obj.img_orthogonality = get_ortho_cost(node.img_node)
+        #     # lasso loss
+        #     batch_obj.lasso += get_l1_cost(node.gen_node) + get_l1_cost(node.img_node) 
 
-        batch_obj.correspondence /= total_corr_count
-        total_loss = batch_obj.total()  
-        total_loss.backward()
-        optimizer.step()
+        #     # correspondence loss 
+        #     corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
+        #     batch_obj.correspondence += corr_sum
+        #     total_corr_count += corr_count
+
+        #     # orthogonality loss 
+        #     batch_obj.gen_orthogonality = get_ortho_cost(node.gen_node)
+        #     batch_obj.img_orthogonality = get_ortho_cost(node.img_node)
+
+        #     del gen_logits, img_logits, m_gen_logits, m_img_logits, gen_min_dist, img_min_dist, m_gen_min_dist, m_img_min_dist
+
+        # batch_obj.correspondence /= total_corr_count
+        # total_loss = batch_obj.total()  
+        # total_loss.backward()
+        # optimizer.step()
         optimizer.zero_grad() 
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified 
+        # batch_obj.cluster /= n_classified
+        # batch_obj.separation /= n_classified 
 
         # add batch objective values to total objective values for logging
-        total_obj += batch_obj
+        # total_obj += batch_obj
 
-        # Free scoped variables
+        # Free scoped tensors
+        del gen_conv_features, img_conv_features
+        # for node in model.classifier_nodes:
+        #     node.clear_cache()
+
+        # Print torch memory usage
+        print(f"Memory allocated: {torch.cuda.memory_allocated() / 1e9} GB")
+        print(f"Memory reserved: {torch.cuda.memory_reserved() / 1e9} GB")
+        torch.cuda.empty_cache()
 
     # normalize the losses after running through entire dataset
     total_obj /= len(dataloader)
@@ -305,6 +322,7 @@ def test(
     cfg: CfgNode, 
     log = print
 ): 
+    print("Validatin'")
     mode = Mode(model.mode) 
     model.eval()
     match mode: 
@@ -397,12 +415,19 @@ def test_image(model, dataloader, cfg, log):
         batch_obj.separation /= n_classified
         total_obj += batch_obj
 
+        # Free scoped tensors
+        del gen_conv_features, img_conv_features, m_gen_logits, m_img_logits, m_gen_min_dist, m_img_min_dist
+
+        # Print torch memory usage
+        print(f"Memory allocated: {torch.cuda.memory_allocated() / 1e9} GB")
+
     # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
 
 def test_multimodal(model, dataloader, cfg, log): 
+    return
     total_obj = Objective(cfg)
 
     for (genetics, image), (label, _) in tqdm(dataloader): 

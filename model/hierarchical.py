@@ -237,12 +237,25 @@ class ProtoNode(nn.Module):
         logits, min_dist = self.get_logits(conv_features) 
         self.logits = logits 
         self.min_dist = min_dist
+
         return logits, min_dist
 
     def softmax(self): 
         if self.logits is None: 
             raise ValueError("You must do a forward pass so that logits are set.") 
         self.probs = F.softmax(self.logits, dim=1)
+
+    def clear_cache(self): 
+        if self.logits != None:
+            del self.logits
+            self.logits = None
+        if self.probs != None:
+            del self.probs
+            self.probs = None
+        if self.min_dist != None:
+            del self.min_dist
+            self.min_dist = None
+
 
 class HierProtoPNet(nn.Module): 
     def __init__(

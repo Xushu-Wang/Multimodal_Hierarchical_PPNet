@@ -43,13 +43,18 @@ class CombinerProtoNode(nn.Module):
         return match
 
     def get_logits(self, gen_conv_features, img_conv_features): 
-        genetic_logit, genetic_dist = self.gen_node.get_logits(gen_conv_features)
-        image_logit, image_dist = self.img_node.get_logits(img_conv_features)
+        genetic_logit, genetic_dist = self.gen_node.forward(gen_conv_features)
+        image_logit, image_dist = self.img_node.forward(img_conv_features)
 
         return (genetic_logit, image_logit), (genetic_dist, image_dist)
     
     def forward(self, gen_conv_features, img_conv_features): 
         return self.get_logits(gen_conv_features, img_conv_features) 
+
+    def clear_cache(self): 
+        # Deletes cached tensors
+        self.gen_node.clear_cache()
+        self.img_node.clear_cache()
 
 class MultiHierProtoPNet(nn.Module):
     """
