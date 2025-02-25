@@ -30,7 +30,7 @@ def main(cfg: CfgNode, log: Callable):
     model = construct_ppnet(cfg).cuda()
     log("ProtoPNet constructed")
 
-    joint_optim, joint_lr_scheduler, warm_optim, last_layer_optim = get_optimizers(model)
+    warm_optim, joint_optim, last_layer_optim = get_optimizers(model, cfg)
 
     for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS): 
 
@@ -43,7 +43,6 @@ def main(cfg: CfgNode, log: Callable):
         elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             tnt.train(model, train_loader, joint_optim, cfg, OptimMode.JOINT, log) 
-            joint_lr_scheduler.step()
             tnt.test(model, val_loader, cfg, log)
 
             push.push(model, train_push_loader, image_normalizer, stride = 1)
@@ -57,7 +56,6 @@ def main(cfg: CfgNode, log: Callable):
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             tnt.train(model, train_loader, joint_optim, cfg, OptimMode.JOINT, log) 
-            joint_lr_scheduler.step()
             tnt.test(model, val_loader, cfg, log)
 
             # need to implement saving models
@@ -67,7 +65,7 @@ def main(cfg: CfgNode, log: Callable):
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', type=str, default='configs/image.yaml')
+    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--gpuid', type=str, default='0') 
     args = parser.parse_args()
