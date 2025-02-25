@@ -51,10 +51,9 @@ class CombinerProtoNode(nn.Module):
     def forward(self, gen_conv_features, img_conv_features): 
         return self.get_logits(gen_conv_features, img_conv_features) 
 
-    def clear_cache(self): 
-        # Deletes cached tensors
-        self.gen_node.clear_cache()
-        self.img_node.clear_cache()
+    def softmax(self): 
+       self.gen_node.softmax()
+       self.img_node.softmax()
 
 class MultiHierProtoPNet(nn.Module):
     """
@@ -93,10 +92,8 @@ class MultiHierProtoPNet(nn.Module):
             node = CombinerProtoNode(gen_node, img_node)
             self.classifier_nodes.append(node)
             childs = [] 
-            for name in gen_node.childs: 
-                gen_child_node = gen_node.childs[name] 
-                img_child_node = img_node.childs[name] 
-                childs.append(self.build_combiner_proto_tree(gen_child_node, img_child_node))
+            for gen_child, img_child in zip(gen_node.childs, img_node.childs): 
+                childs.append(self.build_combiner_proto_tree(gen_child, img_child))
             node.childs = nn.ModuleList(childs)
 
         return node
@@ -120,6 +117,14 @@ class MultiHierProtoPNet(nn.Module):
             *self.gen_net.get_prototype_parameters(), 
             *self.img_net.get_prototype_parameters()
         ])
+
+    def zero_pred(self): 
+        """
+        Wipe out the logits, probs, min_dist, and prediction statistics. 
+        Should be called at the end of every epoch. 
+        """
+        self.gen_net.zero_pred()
+        self.img_net.zero_pred()
     
 def construct_ppnet(cfg: CfgNode):
     mode = Mode(cfg.DATASET.MODE) 

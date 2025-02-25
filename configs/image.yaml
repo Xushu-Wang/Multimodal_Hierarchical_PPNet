@@ -16,6 +16,8 @@ DATASET:
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
     TRAIN_BATCH_SIZE: 40
+    TEST_BATCH_SIZE: 40
+    TRAIN_PUSH_BATCH_SIZE: 40
 
     IMAGE:
         PROTOTYPE_SHAPE: (2048, 1, 1)
@@ -26,11 +28,16 @@ DATASET:
 
 OPTIM:
     NUM_WARM_EPOCHS: 3
-    NUM_TRAIN_EPOCHS: 20
-    PUSH_EPOCHS: [10,20]
-    COEFS:
-        SEP: -0.1
-    JOINT: False
+    NUM_TRAIN_EPOCHS: 50
+    PUSH_EPOCHS: []
+    PUSH_EPOCHS: []
+    COEFS: 
+        IMAGE: 
+            CRS_ENT: 20.
+            CLST: 0.001
+            SEP: -0.1
+            L1: 5e-3
+            ORTHOGONALITY: 1e-3
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"

@@ -7,9 +7,10 @@ from yacs.config import CfgNode
 from model.hierarchical import Mode, HierProtoPNet
 from model.multimodal import MultiHierProtoPNet
 from typing import Union
-from train.loss import Objective, get_cluster_and_sep_cost, get_l1_cost, get_ortho_cost, get_correspondence_loss_batched
+from train.loss import Objective, MultiObjective, get_cluster_and_sep_cost, get_l1_cost, get_ortho_cost, get_correspondence_loss_batched
 from tqdm import tqdm
 from enum import Enum
+from pprint import pprint
 
 Model = Union[HierProtoPNet, MultiHierProtoPNet, torch.nn.DataParallel]
 
@@ -114,22 +115,22 @@ def train(
 
     match mode: 
         case Mode.GENETIC: 
-            return train_genetic(model, dataloader, optimizer, cfg, log) 
+            train_genetic(model, dataloader, optimizer, cfg, log) 
         case Mode.IMAGE: 
-            return train_image(model, dataloader, optimizer, cfg, log) 
+            train_image(model, dataloader, optimizer, cfg, log) 
         case Mode.MULTIMODAL: 
-            return train_multimodal(model, dataloader, optimizer, cfg, log) 
+            train_multimodal(model, dataloader, optimizer, cfg, log) 
 
 
 def train_genetic(model, dataloader, optimizer, cfg, log):  
-    # compute the losses 
-    total_obj = Objective(cfg)
+    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
-    for (genetics, _), (label, _) in tqdm(dataloader): 
+    for (genetics, _), (label, flat_label) in tqdm(dataloader): 
 
         input = genetics.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg)
+        flat_label = flat_label.cuda()
+        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "train")
 
         with torch.enable_grad(): 
             # can't forward the entire model here since it 
@@ -142,23 +143,41 @@ def train_genetic(model, dataloader, optimizer, cfg, log):
             # filter out the irrelevant samples in batch 
             mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
             logits, min_dist = node.forward(conv_features)
+            
+            # softmax the nodes to initialize node.probs
+            node.softmax() 
 
+            node.npredictions += torch.sum(mask) 
             n_classified += torch.sum(mask)
 
             # masked input and output
-            m_label = label[mask][:, node.depth] - 1
+            m_label = label[mask][:, node.depth]
             m_logits, m_min_dist = logits[mask], min_dist[mask]
-            if len(m_logits) != 0: 
-                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label)  
+            if len(m_label) != 0: 
+                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
+                predictions = torch.argmax(m_logits, dim=1)
+                node.n_next_correct += torch.sum(predictions == m_label) 
+                batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
             cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
             batch_obj.cluster += cluster
             batch_obj.separation = separation
             batch_obj.lasso += get_l1_cost(node) 
 
-        # calculate cross entropy with unmasked logits 
-        # softmax node.logits for each node to compute node.prob 
-        model.conditional_normalize() 
+        model.conditional_normalize(model.root)  
+
+        # calculate species predictions over this batch, which is done above
+        last_classifiers = [node for node in model.classifier_nodes if node.depth == 3] 
+        last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
+
+        for node in model.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         total_loss = batch_obj.total()  
         total_loss.backward()
@@ -167,23 +186,25 @@ def train_genetic(model, dataloader, optimizer, cfg, log):
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
         batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified
+        batch_obj.separation /= n_classified 
         total_obj += batch_obj
 
-
+    model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 
 def train_image(model, dataloader, optimizer, cfg, log): 
-    total_obj = Objective(cfg)
+    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
-    for (_, image), (label, _) in tqdm(dataloader): 
+    for (_, image), (label, flat_label) in tqdm(dataloader): 
 
         input = image.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg)
+        flat_label = flat_label.cuda()
+        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "train")
 
         with torch.enable_grad(): 
             # can't forward the entire model here since it 
@@ -194,20 +215,43 @@ def train_image(model, dataloader, optimizer, cfg, log):
 
         for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            logits, min_dist = node.forward(conv_features)
+            
+            # softmax the nodes to initialize node.probs
+            node.softmax() 
+
+            node.npredictions += torch.sum(mask) 
             n_classified += torch.sum(mask)
 
             # masked input and output
-            m_conv_features = conv_features[mask]
-            m_label = label[mask][:, node.depth] - 1
-            m_logits, m_min_dist = node.forward(m_conv_features) 
+            m_label = label[mask][:, node.depth]
+            m_logits, m_min_dist = logits[mask], min_dist[mask]
             if len(m_logits) != 0: 
-                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label)  
+                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
+                predictions = torch.argmax(m_logits, dim=1)
+                node.n_next_correct += torch.sum(predictions == m_label) 
+                batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
             cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
             batch_obj.cluster += cluster
-            batch_obj.separation = separation
-            batch_obj.lasso += get_l1_cost(node)
+            batch_obj.separation += separation
+            batch_obj.lasso += get_l1_cost(node) 
+
+        model.conditional_normalize(model.root)  
+
+        # calculate species predictions over this batch, which is done above
+        last_classifiers = [node for node in model.classifier_nodes if node.depth == 3] 
+        last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
+
+        for node in model.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         total_loss = batch_obj.total()  
         total_loss.backward()
@@ -216,24 +260,26 @@ def train_image(model, dataloader, optimizer, cfg, log):
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
         batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified
+        batch_obj.separation /= n_classified 
         total_obj += batch_obj
 
-
+    model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 
 def train_multimodal(model, dataloader, optimizer, cfg, log): 
-    total_obj = Objective(cfg)
+    total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
-    for (genetics, image), (label, _) in tqdm(dataloader):
+    for (genetics, image), (label, flat_label) in tqdm(dataloader): 
 
         gen_input = genetics.cuda()
         img_input = image.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg)
+        flat_label = flat_label.cuda()
+        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "train")
 
         with torch.enable_grad(): 
             # can't forward the entire model here since it 
@@ -244,77 +290,103 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
         total_corr_count = 0
 
 
-        for node in model.classifier_nodes:  
+        for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            gen_logits, gen_min_dist = node.gen_node.forward(gen_conv_features) 
+            img_logits, img_min_dist = node.img_node.forward(img_conv_features) 
+            node.gen_node.softmax()
+            node.img_node.softmax() 
+
+            node.gen_node.npredictions += torch.sum(mask)
+            node.img_node.npredictions += torch.sum(mask)
             n_classified += torch.sum(mask)
 
             # masked input and output
-            # m_label = label[mask][:, node.depth] - 1
+            m_label = label[mask][:, node.depth]
+            m_gen_logits, m_gen_min_dist = gen_logits[mask], gen_min_dist[mask]
+            m_img_logits, m_img_min_dist = img_logits[mask], img_min_dist[mask]
+            if len(m_label) != 0: 
+                batch_obj.gen_obj.cross_entropy += F.cross_entropy(m_gen_logits, m_label)  
+                batch_obj.img_obj.cross_entropy += F.cross_entropy(m_img_logits, m_label)  
 
-            # forward pass through the node 
-            (gen_logits, img_logits), (gen_min_dist, img_min_dist) = node.forward(gen_conv_features, img_conv_features) 
-            del gen_logits, img_logits, gen_min_dist, img_min_dist
+                gen_predictions = torch.argmax(m_gen_logits, dim=1) 
+                img_predictions = torch.argmax(m_img_logits, dim=1) 
+                node.gen_node.n_next_correct += torch.sum(gen_predictions == m_label)
+                node.img_node.n_next_correct += torch.sum(img_predictions == m_label)
+                batch_obj.gen_obj.n_next_correct[node.depth] += torch.sum(gen_predictions == m_label) 
+                batch_obj.img_obj.n_next_correct[node.depth] += torch.sum(img_predictions == m_label) 
 
-        #     m_gen_logits = gen_logits[mask]
-        #     m_img_logits = img_logits[mask]
+            # cluster and separation loss 
+            gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
+            img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
+            batch_obj.gen_obj.cluster += gen_cluster 
+            batch_obj.gen_obj.separation += gen_separation 
+            batch_obj.img_obj.cluster += img_cluster 
+            batch_obj.img_obj.separation += img_separation 
 
-        #     m_gen_min_dist = gen_min_dist[mask]
-        #     m_img_min_dist = img_min_dist[mask]
+            # lasso loss
+            batch_obj.gen_obj.lasso += get_l1_cost(node.gen_node)
+            batch_obj.img_obj.lasso += get_l1_cost(node.img_node)
+            
+            # correspondence loss 
+            corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
+            batch_obj.correspondence += corr_sum
+            total_corr_count += corr_count
 
-        #     # cross entropy loss 
-        #     if len(m_gen_logits) != 0: 
-        #         gen_ce = F.cross_entropy(m_gen_logits, m_label)  
-        #         img_ce = F.cross_entropy(m_img_logits, m_label)
-        #         batch_obj.cross_entropy += gen_ce + img_ce
+            # orthogonality loss 
+            batch_obj.gen_obj.orthogonality += get_ortho_cost(node.gen_node)
+            batch_obj.img_obj.orthogonality += get_ortho_cost(node.img_node)
 
-        #     # cluster and separation loss 
-        #     gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
-        #     img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
-        #     batch_obj.cluster += gen_cluster + img_cluster
-        #     batch_obj.separation = gen_separation + img_separation
+        batch_obj.correspondence /= total_corr_count
 
-        #     # lasso loss
-        #     batch_obj.lasso += get_l1_cost(node.gen_node) + get_l1_cost(node.img_node) 
+        model.gen_net.conditional_normalize(model.root)  
+        model.img_net.conditional_normalize(model.root)  
 
-        #     # correspondence loss 
-        #     corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
-        #     batch_obj.correspondence += corr_sum
-        #     total_corr_count += corr_count
+        # calculate genetic accuracies
+        gen_last_classifiers = [node for node in model.gen_net.classifier_nodes if node.depth == 3] 
+        gen_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        gen_logits = torch.concat([node.probs for node in gen_last_classifiers], dim=1) # 80x113
 
-        #     # orthogonality loss 
-        #     batch_obj.gen_orthogonality = get_ortho_cost(node.gen_node)
-        #     batch_obj.img_orthogonality = get_ortho_cost(node.img_node)
+        for node in model.gen_net.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = gen_logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.gen_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        #     del gen_logits, img_logits, m_gen_logits, m_img_logits, gen_min_dist, img_min_dist, m_gen_min_dist, m_img_min_dist
+        # calculate image accuracies
+        img_last_classifiers = [node for node in model.img_net.classifier_nodes if node.depth == 3] 
+        img_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        img_logits = torch.concat([node.probs for node in img_last_classifiers], dim=1) # 80x113
 
-        # batch_obj.correspondence /= total_corr_count
-        # total_loss = batch_obj.total()  
-        # total_loss.backward()
-        # optimizer.step()
+        for node in model.img_net.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = img_logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
+
+        total_loss = batch_obj.total()
+        total_loss.backward()
+        optimizer.step()
         optimizer.zero_grad() 
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
-        # batch_obj.cluster /= n_classified
-        # batch_obj.separation /= n_classified 
+        batch_obj.gen_obj.cluster /= n_classified
+        batch_obj.gen_obj.separation /= n_classified 
+        batch_obj.img_obj.cluster /= n_classified
+        batch_obj.img_obj.separation /= n_classified 
+        total_obj += batch_obj
 
-        # add batch objective values to total objective values for logging
-        # total_obj += batch_obj
-
-        # Free scoped tensors
-        del gen_conv_features, img_conv_features
-        # for node in model.classifier_nodes:
-        #     node.clear_cache()
-
-        # Print torch memory usage
-        print(f"Memory allocated: {torch.cuda.memory_allocated() / 1e9} GB")
-        print(f"Memory reserved: {torch.cuda.memory_reserved() / 1e9} GB")
-        torch.cuda.empty_cache()
-
-    # normalize the losses after running through entire dataset
+    model.zero_pred()
+    # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 
 def test(
     model: Model, 
@@ -334,14 +406,14 @@ def test(
             return test_multimodal(model, dataloader, cfg, log) 
 
 def test_genetic(model, dataloader, cfg, log): 
-    # compute the loss? 
-    total_obj = Objective(cfg, "test")
+    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
-    for (genetics, _), (label, _) in tqdm(dataloader): 
+    for (genetics, _), (label, flat_label) in tqdm(dataloader): 
 
         input = genetics.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg, "test")
+        flat_label = flat_label.cuda()
+        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "test")
 
         with torch.no_grad(): 
             # can't forward the entire model here since it 
@@ -352,39 +424,65 @@ def test_genetic(model, dataloader, cfg, log):
 
         for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
-            n_classified += len(mask)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            logits, min_dist = node.forward(conv_features)
+            
+            # softmax the nodes to initialize node.probs
+            node.softmax() 
+
+            node.npredictions += torch.sum(mask) 
+            n_classified += torch.sum(mask)
 
             # masked input and output
-            m_conv_features = conv_features[mask]
-            m_label = label[mask][:, node.depth] - 1
-            m_logits, m_min_dist = node.forward(m_conv_features) 
+            m_label = label[mask][:, node.depth]
+            m_logits, m_min_dist = logits[mask], min_dist[mask]
             if len(m_logits) != 0: 
-                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label)  
+                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
+                predictions = torch.argmax(m_logits, dim=1)
+                node.n_next_correct += torch.sum(predictions == m_label) 
+                batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
             cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
             batch_obj.cluster += cluster
             batch_obj.separation = separation
-            batch_obj.lasso += get_l1_cost(node)
+            batch_obj.lasso += get_l1_cost(node) 
+
+        model.conditional_normalize(model.root) 
+
+        # calculate species predictions over this batch, which is done above
+        last_classifiers = [node for node in model.classifier_nodes if node.depth == 3] 
+        last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
+
+        for node in model.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
         batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified
+        batch_obj.separation /= n_classified 
         total_obj += batch_obj
 
-    # normalize the losses
+    model.zero_pred()
+
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 
 def test_image(model, dataloader, cfg, log): 
-    total_obj = Objective(cfg, "test")
+    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
-    for (_, image), (label, _) in tqdm(dataloader): 
+    for (_, image), (label, flat_label) in tqdm(dataloader): 
 
         input = image.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg, "test")
+        flat_label = flat_label.cuda()
+        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "test")
 
         with torch.no_grad(): 
             # can't forward the entire model here since it 
@@ -395,48 +493,68 @@ def test_image(model, dataloader, cfg, log):
 
         for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
-            n_classified += len(mask)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            logits, min_dist = node.forward(conv_features)
+            
+            # softmax the nodes to initialize node.probs
+            node.softmax() 
+
+            node.npredictions += torch.sum(mask) 
+            n_classified += torch.sum(mask)
 
             # masked input and output
-            m_conv_features = conv_features[mask]
-            m_label = label[mask][:, node.depth] - 1
-            m_logits, m_min_dist = node.forward(m_conv_features) 
+            m_label = label[mask][:, node.depth]
+            m_logits, m_min_dist = logits[mask], min_dist[mask]
             if len(m_logits) != 0: 
-                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label)  
+                batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
+                predictions = torch.argmax(m_logits, dim=1)
+                node.n_next_correct += torch.sum(predictions == m_label) 
+                batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
             cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
             batch_obj.cluster += cluster
-            batch_obj.separation = separation
-            batch_obj.lasso += get_l1_cost(node)
+            batch_obj.separation += separation
+            batch_obj.lasso += get_l1_cost(node) 
+
+        model.conditional_normalize(model.root)  
+
+        # calculate species predictions over this batch, which is done above
+        last_classifiers = [node for node in model.classifier_nodes if node.depth == 3] 
+        last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
+
+        for node in model.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
         batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified
+        batch_obj.separation /= n_classified 
         total_obj += batch_obj
 
-        # Free scoped tensors
-        del gen_conv_features, img_conv_features, m_gen_logits, m_img_logits, m_gen_min_dist, m_img_min_dist
-
-        # Print torch memory usage
-        print(f"Memory allocated: {torch.cuda.memory_allocated() / 1e9} GB")
-
+    model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 
 def test_multimodal(model, dataloader, cfg, log): 
-    return
-    total_obj = Objective(cfg)
+    total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
-    for (genetics, image), (label, _) in tqdm(dataloader): 
+    for (genetics, image), (label, flat_label) in tqdm(dataloader): 
+
         gen_input = genetics.cuda()
         img_input = image.cuda()
         label = label.cuda()
-        batch_obj = Objective(cfg)
+        flat_label = flat_label.cuda()
+        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, "test")
 
-        with torch.enable_grad(): 
+        with torch.no_grad(): 
             # can't forward the entire model here since it 
             gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
 
@@ -444,60 +562,96 @@ def test_multimodal(model, dataloader, cfg, log):
         n_classified = 0 
         total_corr_count = 0
 
-        for node in model.classifier_nodes:  
+        for node in model.classifier_nodes: 
             # filter out the irrelevant samples in batch 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1)
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            gen_logits, gen_min_dist = node.gen_node.forward(gen_conv_features) 
+            img_logits, img_min_dist = node.img_node.forward(img_conv_features) 
+            node.gen_node.softmax()
+            node.img_node.softmax() 
+
+            node.gen_node.npredictions += torch.sum(mask)
+            node.img_node.npredictions += torch.sum(mask)
             n_classified += torch.sum(mask)
 
             # masked input and output
-            m_gen_conv_features = gen_conv_features[mask]
-            m_img_conv_features = img_conv_features[mask]
-            m_label = label[mask][:, node.depth] - 1
+            m_label = label[mask][:, node.depth]
+            m_gen_logits, m_gen_min_dist = gen_logits[mask], gen_min_dist[mask]
+            m_img_logits, m_img_min_dist = img_logits[mask], img_min_dist[mask]
+            if len(m_label) != 0: 
+                batch_obj.gen_obj.cross_entropy += F.cross_entropy(m_gen_logits, m_label)  
+                batch_obj.img_obj.cross_entropy += F.cross_entropy(m_img_logits, m_label)  
 
-            # forward pass through the node 
-            (m_gen_logits, m_img_logits), (m_gen_min_dist, m_img_min_dist) = node.forward(m_gen_conv_features, m_img_conv_features) 
-
-            # cross entropy loss 
-            if len(m_gen_logits) != 0: 
-                gen_ce = F.cross_entropy(m_gen_logits, m_label)  
-                img_ce = F.cross_entropy(m_img_logits, m_label)
-                batch_obj.cross_entropy += gen_ce + img_ce
+                gen_predictions = torch.argmax(m_gen_logits, dim=1) 
+                img_predictions = torch.argmax(m_img_logits, dim=1) 
+                node.gen_node.n_next_correct += torch.sum(gen_predictions == m_label)
+                node.img_node.n_next_correct += torch.sum(img_predictions == m_label)
+                batch_obj.gen_obj.n_next_correct[node.depth] += torch.sum(gen_predictions == m_label) 
+                batch_obj.img_obj.n_next_correct[node.depth] += torch.sum(img_predictions == m_label) 
 
             # cluster and separation loss 
             gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
             img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
-            batch_obj.cluster += gen_cluster + img_cluster
-            batch_obj.separation = gen_separation + img_separation
+            batch_obj.gen_obj.cluster += gen_cluster 
+            batch_obj.gen_obj.separation += gen_separation 
+            batch_obj.img_obj.cluster += img_cluster 
+            batch_obj.img_obj.separation += img_separation 
 
             # lasso loss
-            batch_obj.lasso += get_l1_cost(node.gen_node) + get_l1_cost(node.img_node) 
-
+            batch_obj.gen_obj.lasso += get_l1_cost(node.gen_node)
+            batch_obj.img_obj.lasso += get_l1_cost(node.img_node)
+            
             # correspondence loss 
             corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
             batch_obj.correspondence += corr_sum
             total_corr_count += corr_count
 
             # orthogonality loss 
-            batch_obj.gen_orthogonality = get_ortho_cost(node.gen_node)
-            batch_obj.img_orthogonality = get_ortho_cost(node.img_node)
-
-            # Free everything up for this node
-            del m_gen_conv_features, m_img_conv_features, m_gen_logits, m_img_logits, m_gen_min_dist, m_img_min_dist
+            batch_obj.gen_obj.orthogonality += get_ortho_cost(node.gen_node)
+            batch_obj.img_obj.orthogonality += get_ortho_cost(node.img_node)
 
         batch_obj.correspondence /= total_corr_count
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified 
+        model.gen_net.conditional_normalize(model.root)  
+        model.img_net.conditional_normalize(model.root)  
 
-        # add batch objective values to total objective values for logging
+        # calculate genetic accuracies
+        gen_last_classifiers = [node for node in model.gen_net.classifier_nodes if node.depth == 3] 
+        gen_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        gen_logits = torch.concat([node.probs for node in gen_last_classifiers], dim=1) # 80x113
+
+        for node in model.gen_net.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = gen_logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.gen_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
+
+        # calculate image accuracies
+        img_last_classifiers = [node for node in model.img_net.classifier_nodes if node.depth == 3] 
+        img_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
+        img_logits = torch.concat([node.probs for node in img_last_classifiers], dim=1) # 80x113
+
+        for node in model.img_net.classifier_nodes: 
+            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            m_flat_label = flat_label[mask][:, -1]
+            cond_m_logits = img_logits[mask][:, node.min_species_idx:node.max_species_idx]
+            cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
+            node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
+            batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
+
+        # Divide the cls/sep costs before (?) adding to total objective cost 
+        batch_obj.gen_obj.cluster /= n_classified
+        batch_obj.gen_obj.separation /= n_classified 
+        batch_obj.img_obj.cluster /= n_classified
+        batch_obj.img_obj.separation /= n_classified 
         total_obj += batch_obj
 
-        # Free everything up for this batch
-        del gen_conv_features, img_conv_features
-
-    # normalize the losses after running through entire dataset
+    model.zero_pred()
+    # normalize the losses
     total_obj /= len(dataloader)
     wandb.log(total_obj.to_dict())
     log(str(total_obj))
+    total_obj.clear()
 

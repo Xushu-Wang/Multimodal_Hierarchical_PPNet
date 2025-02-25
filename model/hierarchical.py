@@ -36,13 +36,15 @@ class ProtoNode(nn.Module):
         self.idx = taxnode.idx 
         self.flat_idx = taxnode.flat_idx 
         self.depth = taxnode.depth
-        self.childs = dict() 
+        self.childs = []
         self.prototype = None
         self.mode = mode 
 
         if taxnode.childs: 
             # only protonodes corresponding to genus need prototypes to classify species
             self.nclass = len(self.taxnode.childs)
+            self.min_species_idx = self.taxnode.min_species_idx
+            self.max_species_idx = self.taxnode.max_species_idx
             self.nprotos = nprotos # prototypes PER CLASS
             self.pshape = pshape 
             self.nprotos_total = self.nprotos * self.nclass
@@ -64,7 +66,8 @@ class ProtoNode(nn.Module):
                 self.register_buffer('offset_tensor', self.init_offset_tensor())
 
             self.npredictions = 0 
-            self.correct = 0 
+            self.n_next_correct = 0 
+            self.n_species_correct = 0
 
             # all attributes regarding to push stage 
             # saves the closest distance seen so far 
@@ -93,7 +96,7 @@ class ProtoNode(nn.Module):
         """
         match = torch.zeros(self.nprotos_total, self.nclass)
         for j in range(self.nprotos_total):
-            match [j, j // self.nprotos] = 1 
+            match[j, j // self.nprotos] = 1 
         return match
 
     def init_last_layer(self, inc_str = -0.5): 
@@ -124,12 +127,12 @@ class ProtoNode(nn.Module):
         return arange4
     
     def cuda(self, device = None):
-        for _, child in self.childs.items():
+        for child in self.childs:
             child.cuda(device)
         return super().cuda(device)
 
     def to(self, *args, **kwargs):
-        for _, child in self.childs.items():
+        for child in self.childs:
             child.to(*args, **kwargs)
         return super().to(*args, **kwargs)
 
@@ -142,7 +145,7 @@ class ProtoNode(nn.Module):
             return []
 
         params = [self.prototype] 
-        for _, child in self.childs.items(): 
+        for child in self.childs:
             for param in child.get_prototype_parameters(): 
                 params.append(param)
         return params
@@ -156,7 +159,7 @@ class ProtoNode(nn.Module):
             return []
 
         params = [p for p in self.last_layer.parameters()]
-        for _, child in self.childs.items(): 
+        for child in self.childs:
             for param in child.get_last_layer_parameters(): 
                 params.append(param)
         return params
@@ -219,6 +222,8 @@ class ProtoNode(nn.Module):
         # convert distance to similarity
         prototype_activations = -min_distances
         logits = self.last_layer(prototype_activations)
+        self.logits = logits
+        self.min_dist = min_distances
 
         return logits, min_distances
 
@@ -234,11 +239,7 @@ class ProtoNode(nn.Module):
         Forward pass on this node. Used for training when conv_features 
         are masked
         """
-        logits, min_dist = self.get_logits(conv_features) 
-        self.logits = logits 
-        self.min_dist = min_dist
-
-        return logits, min_dist
+        return self.get_logits(conv_features) 
 
     def softmax(self): 
         if self.logits is None: 
@@ -298,9 +299,9 @@ class HierProtoPNet(nn.Module):
         node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode) 
         if taxnode.childs: 
             self.classifier_nodes.append(node)
-        node.childs = dict() 
-        for k, v in taxnode.childs.items(): 
-            node.childs[k] = self.build_proto_tree(v)
+        node.childs = []
+        for c_node in taxnode.childs:
+            node.childs.append(self.build_proto_tree(c_node))
 
         return node
 
@@ -324,8 +325,24 @@ class HierProtoPNet(nn.Module):
         x = self.add_on_layers(x) 
         return x
 
-    def conditional_normalize(self): 
-        pass
+    def conditional_normalize(self, node: ProtoNode, scale = torch.ones(1).cuda()): 
+        """
+        Once node.probs is instantiated, scale the children's probabilities 
+        by the conditional probability of the parent's prediction
+        """ 
+        # base case when nod ehas no childs
+        if not hasattr(node, "probs"): 
+            # leaf node
+            return 
+        elif node.probs is None: 
+            raise ValueError("The probabilities for the nodes should be instantiated.")
+        else: 
+            # node.probs = (B, nclass) 
+            # scale = (B) -> unsqueeze it to (B, 1) to broadcast properly
+            node.probs *= scale.unsqueeze(1)
+            for child in node.childs:
+                child_idx = child.idx[-1]
+                self.conditional_normalize(child, node.probs[:,child_idx]) 
 
     def _initialize_weights(self):
         for m in self.add_on_layers.modules():
@@ -336,6 +353,19 @@ class HierProtoPNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+    def zero_pred(self): 
+        """
+        Wipe out the logits, probs, min_dist, and prediction statistics. 
+        Should be called at the end of every epoch. 
+        """
+        self.logits = None 
+        self.probs = None 
+        self.min_dist = None 
+        self.npredictions = 0 
+        self.n_next_correct = 0 
+        self.n_species_correct = 0
+        torch.cuda.empty_cache()
 
 def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet: 
     hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)

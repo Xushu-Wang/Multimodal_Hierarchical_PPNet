@@ -30,14 +30,20 @@ class TaxNode():
     """
     def __init__(self, taxonomy, idx, flat_idx): 
         self.taxonomy = taxonomy 
-        self.childs = dict()
+        self.childs = []    # integer indexing of children
+        self.child_map = {} # string indexing of children needed for Hierarchy.traverse()
         self.idx = idx
         self.flat_idx = flat_idx
         self.depth = len(idx)
         self.min_species_idx = -1
+        self.max_species_idx = -1
 
     def __repr__(self): 
-        return f"TaxNode({self.taxonomy}, {self.idx}, {self.flat_idx}, {self.min_species_idx})"
+        # return f"TaxNode({self.taxonomy}, {self.min_species_idx}, {self.max_species_idx})"
+        if self.min_species_idx == -1 and self.max_species_idx == -1: 
+            return f"TaxNode({self.taxonomy}, {self.idx.tolist()}, {self.flat_idx.tolist()})"
+        else: 
+            return f"TaxNode({self.taxonomy}, {self.idx.tolist()}, {self.flat_idx.tolist()}, {self.min_species_idx}, {self.max_species_idx})"
 
 class Level(): 
     """
@@ -98,34 +104,40 @@ class Hierarchy():
 
         self.root = self._dict_to_trie(TaxNode("Insect", [], []), self.tree_dict)
 
-    def _dict_to_trie(self, node: TaxNode, d) -> TaxNode: 
+    def _dict_to_trie(self, node: TaxNode, d: dict) -> TaxNode: 
         """
         Convert dictionary loaded from json file to actual tree of TaxNodes. Traversed using DFS. 
         flat_idx another form of indexing, where every node of a certain depth D
-        is enumerated from 1...N_D
+        is enumerated from 0...N_D - 1
         """ 
 
-        for i, (k, v) in enumerate(d.items(), 1): 
+        for i, (k, v) in enumerate(d.items()): 
             if isinstance(v, dict): 
                 child = self._dict_to_trie(TaxNode(
                     k, 
                     node.idx + [i], 
                     node.flat_idx + [self.levels.count(node.depth)]
                 ), v) 
-                if i == 1: 
-                    node.min_species_idx = child.min_species_idx
+                if i == 0: 
+                    node.min_species_idx = child.min_species_idx 
+                if i == len(d) - 1: 
+                    node.max_species_idx = child.max_species_idx
             else: 
+                # this is a leaf node
                 child = TaxNode(
                     k, 
                     torch.tensor(node.idx + [i]).long(), 
                     torch.tensor(node.flat_idx + [self.levels.count(node.depth)]).long()
                 ) 
-                if i == 1: 
+                if i == 0: 
                     node.min_species_idx = int(child.flat_idx[-1]) 
+                if i == len(d) - 1: 
+                    node.max_species_idx = int(child.flat_idx[-1] + 1) 
 
             self.levels.increment(node.depth)
 
-            node.childs[k] = child 
+            node.childs.append(child)
+            node.child_map[k] = child 
         node.idx = torch.tensor(node.idx).long()
         node.flat_idx = torch.tensor(node.flat_idx).long()
         return node 
@@ -137,24 +149,25 @@ class Hierarchy():
         """
         node = self.root 
         for next in path: 
-            if next not in node.childs: 
+            if next not in node.child_map: 
                 return False, node
-            node = node.childs[next] 
+            node = node.child_map[next] 
         return True, node
 
     def __repr__(self): 
         """
         Hacky way to print tree for debugging. Hard-coded for 4 levels. 
+        Should really be implemented with DFS.  
         """
         out = self.root.__repr__() + "\n"
-        for _, c1 in self.root.childs.items(): 
+        for c1 in self.root.childs: 
             out += f"  {c1.__repr__()}\n"
-            for _, c2 in c1.childs.items(): 
+            for c2 in c1.childs: 
                 out += f"    {c2.__repr__()}\n"
-                for _, c3 in c2.childs.items(): 
+                for c3 in c2.childs: 
                     out += f"      {c3.__repr__()}\n"
-                    for _, c4 in c3.childs.items(): 
-                        out += f"      {c4.__repr__()}\n"
+                    for c4 in c3.childs: 
+                        out += f"        {c4.__repr__()}\n"
 
         return out
 
@@ -208,14 +221,10 @@ class TreeDataset(Dataset):
             image = self.img_trans(image) if self.img_trans else image 
 
         # get label index from hierarchy
-        found, node = self.hierarchy.traverse(path) 
-        if found: 
-            label = node.idx
-        else: 
-            padding = [0] * (4 - len(node.idx))
-            label = node.idx + padding
+        _, node = self.hierarchy.traverse(path) 
+        assert len(node.idx) == 4
 
-        return (genetics, image), (label, node.flat_idx)
+        return (genetics, image), (node.idx, node.flat_idx)
 
 class Split():  
     """
