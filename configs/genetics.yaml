@@ -32,9 +32,13 @@ OPTIM:
     NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 500
     PUSH_EPOCHS: []
-    COEFS:
-        SEP: -0.1
-    JOINT: False
+    COEFS: 
+        GENETIC: 
+            CRS_ENT: 20.
+            CLST: 0.001
+            SEP: -0.1
+            L1: 5e-3
+            ORTHOGONALITY: 1e-3
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"

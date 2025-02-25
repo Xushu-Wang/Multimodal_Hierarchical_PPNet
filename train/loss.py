@@ -1,8 +1,11 @@
 import torch
+from yacs.config import CfgNode
 from model.hierarchical import ProtoNode
 from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
 from typing import Union
+
+run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
 class CorrectCount: 
     """
@@ -32,9 +35,19 @@ class CorrectCount:
 class Objective: 
     """
     Wrapper class around different loss values 
+    Attributes: 
+        mode: the model mode 
+        epoch - either "train" or "test"
+        N - number of samples in dataset
     """
-    def __init__(self, cfg, N: int, epoch = "train"): 
-        self.mode = Mode(cfg.DATASET.MODE)
+    def __init__(self, mode: Mode, cfg_coef: CfgNode, N: int, epoch = "train"): 
+        self.mode = mode
+        if self.mode == Mode.GENETIC: 
+            cfg_coef = cfg_coef.GENETIC
+        elif self.mode == Mode.IMAGE: 
+            cfg_coef = cfg_coef.IMAGE 
+        else: 
+            raise ValueError("Not the correct mode for objective.")
         self.epoch = epoch
         self.N = N 
 
@@ -42,22 +55,14 @@ class Objective:
         self.cluster = torch.zeros(1).cuda()
         self.separation = torch.zeros(1).cuda()
         self.lasso = torch.zeros(1).cuda()
+        self.orthogonality = torch.zeros(1).cuda()
         self.n_next_correct = CorrectCount(N)
         self.n_cond_correct = CorrectCount(N)
 
-        self.coef_ce = cfg.OPTIM.COEFS.CRS_ENT
-        self.coef_clst = cfg.OPTIM.COEFS.CLST
-        self.coef_sep = cfg.OPTIM.COEFS.SEP
-        self.coef_l1 = cfg.OPTIM.COEFS.L1
-
-        if self.mode == Mode.MULTIMODAL:
-            self.gen_orthogonality = torch.zeros(1).cuda()
-            self.img_orthogonality = torch.zeros(1).cuda()
-            self.correspondence = torch.zeros(1).cuda()
-
-            self.coef_gen_ortho = cfg.OPTIM.COEFS.ORTHOGONALITY.GENETIC
-            self.coef_img_ortho = cfg.OPTIM.COEFS.ORTHOGONALITY.IMAGE
-            self.coef_corr = cfg.OPTIM.COEFS.CORRESPONDENCE
+        self.coef_ce = cfg_coef.CRS_ENT
+        self.coef_clst = cfg_coef.CLST
+        self.coef_sep = cfg_coef.SEP
+        self.coef_l1 = cfg_coef.L1
 
     def total(self): 
         """
@@ -67,13 +72,6 @@ class Objective:
         clst = self.coef_clst * self.cluster 
         sep = self.coef_sep * self.separation
         lasso = self.coef_l1 * self.lasso 
-
-        if self.mode == Mode.MULTIMODAL: 
-            gen_ortho = self.coef_gen_ortho * self.gen_orthogonality
-            img_ortho = self.coef_img_ortho * self.img_orthogonality
-            corr = self.coef_corr * self.correspondence
-            return ce + clst + sep + lasso + gen_ortho + img_ortho + corr
-
         return ce + clst + sep + lasso
 
     def __iadd__(self, other): 
@@ -87,10 +85,6 @@ class Objective:
         self.lasso += other.lasso 
         self.n_next_correct += other.n_next_correct
         self.n_cond_correct += other.n_cond_correct
-        if self.mode == Mode.MULTIMODAL and other.mode == Mode.MULTIMODAL: 
-            self.gen_orthogonality += other.gen_orthogonality
-            self.img_orthogonality += other.img_orthogonality
-            self.correspondence += other.correspondence
         return self 
 
     def __itruediv__(self, const: int): 
@@ -101,49 +95,37 @@ class Objective:
         self.cluster /= const
         self.separation /= const
         self.lasso /= const
-        if self.mode == Mode.MULTIMODAL: 
-            self.gen_orthogonality /= const
-            self.img_orthogonality /= const
-            self.correspondence /= const
         return self
 
     def to_dict(self): 
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = {
-            f"{self.epoch}-cross_ent": self.cross_entropy, 
-            f"{self.epoch}-cluster": self.cluster, 
-            f"{self.epoch}-separation": self.separation,
-            f"{self.epoch}-l1": self.lasso, 
-            f"{self.epoch}-next_acc_order": next_accs[0], 
-            f"{self.epoch}-next_acc_family": next_accs[1], 
-            f"{self.epoch}-next_acc_genus": next_accs[2], 
-            f"{self.epoch}-next_acc_species": next_accs[3],
-            f"{self.epoch}-cond_acc_order": cond_accs[0], 
-            f"{self.epoch}-cond_acc_family": cond_accs[1], 
-            f"{self.epoch}-cond_acc_genus": cond_accs[2], 
-            f"{self.epoch}-cond_acc_species": cond_accs[3]
+            f"{run_mode[self.mode.value]}-{self.epoch}-cross_ent": self.cross_entropy, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cluster": self.cluster, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-separation": self.separation,
+            f"{run_mode[self.mode.value]}-{self.epoch}-l1": self.lasso, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_order": next_accs[0], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_family": next_accs[1], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_genus": next_accs[2], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_species": next_accs[3],
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_order": cond_accs[0], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_family": cond_accs[1], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_genus": cond_accs[2], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_species": cond_accs[3]
         }
-        if self.mode == Mode.MULTIMODAL: 
-            out[f"{self.epoch}-gen_ortho"] = self.gen_orthogonality 
-            out[f"{self.epoch}-img_ortho"] = self.img_orthogonality 
-            out[f"{self.epoch}-corr"] = self.correspondence
         return out 
 
     def __str__(self): 
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = "" 
-        out += f"{self.epoch}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
-        out += f"{self.epoch}-separation: {float(self.separation.item()):.5f}\n"
-        out += f"{self.epoch}-cluster: {float(self.cluster.item()):.5f}\n"
-        out += f"{self.epoch}-lasso: {float(self.lasso.item()):.5f}\n"
-        out += f"{self.epoch}-next_acc: {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
-        out += f"{self.epoch}-cond_acc: {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
-        if self.mode == Mode.MULTIMODAL: 
-            out += f"{self.epoch}-gen_ortho: {float(self.gen_orthogonality.item()):.5f}\n"
-            out += f"{self.epoch}-img_ortho: {float(self.img_orthogonality.item()):.5f}\n"
-            out += f"{self.epoch}-corr: {float(self.correspondence.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-separation: {float(self.separation.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cluster: {float(self.cluster.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-lasso: {float(self.lasso.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-next_acc: {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc: {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
         return out
     
     def __repr__(self): 
@@ -156,19 +138,61 @@ class Objective:
         self.lasso = torch.zeros(1).cuda()
         self.n_next_correct = CorrectCount(self.N)
         self.n_cond_correct = CorrectCount(self.N)
-        if self.mode == Mode.MULTIMODAL:
-            self.gen_orthogonality = torch.zeros(1).cuda()
-            self.img_orthogonality = torch.zeros(1).cuda()
-            self.correspondence = torch.zeros(1).cuda()
-
         torch.cuda.empty_cache()
 
-def make_one_hot(target, target_one_hot): 
-    target_copy = torch.LongTensor(len(target))
-    target_copy.copy_(target)
-    target_copy = target_copy.view(-1,1).to("cuda")
-    target_one_hot.zero_()
-    target_one_hot.scatter_(dim=1, index=target_copy, value=1.)
+class MultiObjective: 
+    """
+    Wrapper class of two Objective objects used to calculuate loss of 
+    Multimodal ProtoPNet
+    """
+
+    def __init__(self, mode, cfg_coef: CfgNode, N: int, epoch = "train"): 
+        self.mode = mode
+        assert self.mode == Mode.MULTIMODAL
+        self.N = N 
+        self.epoch = epoch 
+        self.gen_obj = Objective(Mode.GENETIC, cfg_coef, N, epoch)
+        self.img_obj = Objective(Mode.IMAGE, cfg_coef, N, epoch)
+        self.correspondence = torch.zeros(1).cuda()
+        self.coef_corr = cfg_coef.CORRESPONDENCE
+
+    def total(self): 
+        corr = self.coef_corr * self.correspondence 
+        return self.gen_obj.total() + self.img_obj.total() + corr
+
+    def __iadd__(self, other): 
+        self.gen_obj += other.gen_obj 
+        self.img_obj += other.img_obj 
+        self.correspondence += other.correspondence
+        return self
+
+    def __itruediv__(self, const: int): 
+        self.gen_obj /= const 
+        self.img_obj /= const 
+        return self 
+
+    def to_dict(self): 
+        out = {} 
+        out.update(self.gen_obj.to_dict())
+        out.update(self.img_obj.to_dict()) 
+        out[f"{run_mode[self.mode.value]}-{self.epoch}-correspondence"] = self.correspondence
+        return out
+
+    def __str__(self): 
+        out = "" 
+        out += str(self.gen_obj)
+        out += str(self.img_obj)
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-correspondence: {float(self.correspondence.item()):.5f}"
+        return out
+
+    def __repr__(self): 
+        return self.__str__()
+
+    def clear(self): 
+        self.gen_obj.clear()
+        self.img_obj.clear() 
+        self.correspondence = torch.zeros(1).cuda()
+        torch.cuda.empty_cache()
 
 def get_cluster_and_sep_cost(min_dist, target, num_classes):  
     if len(target) == 0: 

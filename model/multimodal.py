@@ -117,6 +117,14 @@ class MultiHierProtoPNet(nn.Module):
             *self.gen_net.get_prototype_parameters(), 
             *self.img_net.get_prototype_parameters()
         ])
+
+    def zero_pred(self): 
+        """
+        Wipe out the logits, probs, min_dist, and prediction statistics. 
+        Should be called at the end of every epoch. 
+        """
+        self.gen_net.zero_pred()
+        self.img_net.zero_pred()
     
 def construct_ppnet(cfg: CfgNode):
     mode = Mode(cfg.DATASET.MODE) 

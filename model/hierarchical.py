@@ -222,6 +222,8 @@ class ProtoNode(nn.Module):
         # convert distance to similarity
         prototype_activations = -min_distances
         logits = self.last_layer(prototype_activations)
+        self.logits = logits
+        self.min_dist = min_distances
 
         return logits, min_distances
 
@@ -237,10 +239,7 @@ class ProtoNode(nn.Module):
         Forward pass on this node. Used for training when conv_features 
         are masked
         """
-        logits, min_dist = self.get_logits(conv_features) 
-        self.logits = logits 
-        self.min_dist = min_dist
-        return logits, min_dist
+        return self.get_logits(conv_features) 
 
     def softmax(self): 
         if self.logits is None: 
