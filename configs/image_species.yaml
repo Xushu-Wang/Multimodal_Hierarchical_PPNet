@@ -17,10 +17,10 @@ DATASET:
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
     # CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/parallel_new_backbone_10epoch_init_012"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
-    AUGMENTED_IMAGE_PATH: "../datasets/augmented_images/" # Path to which augmented images will be saved
 
     TRAIN_BATCH_SIZE: 40
 

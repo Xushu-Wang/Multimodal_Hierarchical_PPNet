@@ -4,6 +4,7 @@ _C = CN()
 
 _C.RUN_NAME = "" # Name of the run. If "", will be set to the current time.
 _C.SEED = 2024
+_C.WANDB_MODE = "online"
 
 # Model
 _C.MODEL = CN()
@@ -26,7 +27,6 @@ _C.MODEL.GENETIC_MODE = False
 _C.DATASET = CN()
 _C.DATASET.DATA_FILE = "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
 _C.DATASET.IMAGE_PATH = "../datasets/full_bioscan_images/" # Path to image directory
-_C.DATASET.AUGMENTED_IMAGE_PATH = "../datasets/augmented_images/" # Path to which augmented images will be saved
 _C.DATASET.TREE_SPECIFICATION_FILE = "NA" # Path to JSON file that specifies tree structure
 _C.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS = [0,0,.25,.5] # Proportions of samples at each level that are unclassified [order, family, genus, species]. Note: Lower levels counts do not consider higher level counts, so for this default, > 50% of species are unclassified (50% + 25% of genus)
 _C.DATASET.FLAT_CLASS = True # If true, the dataset will be flattened to only include species. If false, the dataset will include all levels.
@@ -64,7 +64,6 @@ _C.DATASET.IMAGE.TRAIN_BATCH_SIZE = 0
 _C.DATASET.IMAGE.TRANSFORM_MEAN = ()
 _C.DATASET.IMAGE.TRANSFORM_STD = ()
 
-
 # Genetic Dataset 
 _C.DATASET.GENETIC = CN()
 _C.DATASET.GENETIC.PROTOTYPE_SHAPE = (0, 0, 0)
@@ -75,6 +74,7 @@ _C.DATASET.GENETIC.PPNET_PATH = "NA"
 
 # Training
 _C.OPTIM = CN()
+_C.OPTIM.CORRESPONDENCE_TYPE = "Batched" # One of ("Batched", "Single"). Batched evaluates the correspondence accross an entire batch.
 
 # Joint optimizer
 _C.OPTIM.JOINT_OPTIMIZER_LAYERS = CN() 
@@ -101,6 +101,9 @@ _C.OPTIM.COEFS.CLST = 0.001
 _C.OPTIM.COEFS.SEP = 0.06
 _C.OPTIM.COEFS.L1 = 5e-3 
 _C.OPTIM.COEFS.CORRESPONDENCE = 5e-3 
+_C.OPTIM.COEFS.ORTHOGONALITY = CN()
+_C.OPTIM.COEFS.ORTHOGONALITY.GENETIC = 1e-4 
+_C.OPTIM.COEFS.ORTHOGONALITY.IMAGE = 1e-3 
 _C.OPTIM.CEDA = False
 
 # If true, the crossentropy term will be applied to a large vector corresponding to conditional probabilities of each species (or higher level if not classified).
@@ -126,7 +129,6 @@ _C.OUTPUT.PROTOTYPE_SELF_ACT_FILENAME_PREFIX = "NA"
 _C.OUTPUT.PROTO_BOUND_BOXES_FILENAME_PREFIX = "NA" 
 _C.OUTPUT.NO_SAVE = False
 _C.OUTPUT.PREPROCESS_INPUT_FUNCTION = None
-
 
 def get_cfg_defaults(): 
     return _C.clone()

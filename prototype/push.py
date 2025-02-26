@@ -9,7 +9,7 @@ import wandb
 
 from model.model import TreeNode, Mode
 from prototype.receptive_field import compute_rf_prototype
-from utils.util import find_high_activation_crop 
+from utils.util import does_it_match, find_high_activation_crop 
 from configs.io import makedir
 from typing import Optional, Callable
 
@@ -89,6 +89,7 @@ def nodal_update_prototypes_on_batch(
     start_index_of_search_batch,
     model,
     full_search_y,
+    run,
     preprocess_input_function,
     prototype_layer_stride,
     prototype_img_filename_prefix,
@@ -144,6 +145,15 @@ def nodal_update_prototypes_on_batch(
 
     if mode == Mode.GENETIC or mode == Mode.MULTIMODAL:
         patch_df_list = []
+
+    add_to_arr = does_it_match(
+        ["Diptera", "Chironomidae", "Tanytarsus"],
+        node.named_location
+    )
+    add_to_arr = False
+    location_name = ">".join(node.named_location) if len(node.named_location) else "root"
+    prototype_images = []
+    overlayed_images = []
 
     for j in range(n_prototypes):
         # We assume class_specifc is true
@@ -297,6 +307,11 @@ def nodal_update_prototypes_on_batch(
                         log.log({f"prototype_original_with_self_act_{j}": wandb.Image(overlayed_original_img_j)})
 
                         
+                        # Send this image to wandb if it matches the criteria (we don't want to send every image, don't be absurd)
+                        if add_to_arr:
+                            prototype_images.append(proto_img_j)
+                            overlayed_images.append(overlayed_original_img_j)
+
                         # if different from the original (whole) image, save the prototype receptive field as png
                         if rf_img_j.shape[0] != original_img_size or rf_img_j.shape[1] != original_img_size:
                             plt.imsave(os.path.join(dir_for_saving_prototypes,
@@ -317,15 +332,21 @@ def nodal_update_prototypes_on_batch(
 
                         
                         # save the prototype image (highly activated region of the whole image)
-                        # plt.imsave(os.path.join(dir_for_saving_prototypes,
-                        #                         prototype_img_filename_prefix + str(j) + '.png'),
-                        #         proto_img_j,
-                        #         vmin=0.0,
-                        #         vmax=1.0)
-                        
-                        log.log({f"prototype_original_with_self_act_{j}": wandb.Image(overlayed_original_img_j)})
 
+                        plt.imsave(os.path.join(dir_for_saving_prototypes,
+                                                prototype_img_filename_prefix + str(j) + '.png'),
+                                proto_img_j,
+                                vmin=0.0,
+                                vmax=1.0)
                         
+    if add_to_arr:
+        run.log({
+            f"prototypes-{location_name}": [wandb.Image(image) for image in prototype_images[:10]],
+            f"overlayed-images-{location_name}": [wandb.Image(image) for image in overlayed_images[:10]]
+        }
+        # commit=False
+        )
+
     # If we're saving genetic patches. Save 'em here.
     if mode == Mode.GENETIC and patch_df_list is not None and len(patch_df_list):
         patch_df = pd.DataFrame(patch_df_list, columns=["key", "class_index", "prototype_index", "patch"])
@@ -352,6 +373,7 @@ def nodal_update_prototypes_on_batch(
 # push each prototype to the nearest patch in the training set
 def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0,1])
                     prototype_network_parallel, # pytorch network with prototype_vectors, basically our Hierarchical PPnet
+                    run,
                     preprocess_input_function=None, # normalize if needed
                     prototype_layer_stride=1,       # might be the stride of the prototype (?) Find out what this is
                     root_dir_for_saving_prototypes=None, # if not None, prototypes will be saved here
@@ -364,7 +386,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     no_save=False,
 ):
     prototype_network_parallel.eval()
-    log.log({'\tpush'})
+    log('\tpush')
 
     start = time.time()
 
@@ -379,11 +401,12 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
         for node in prototype_network_parallel.module.nodes_with_children:
             init_nodal_push_prototypes(node, root_dir_for_saving_prototypes, epoch_number, log)
 
-    for push_iter, ((genetics, image), search_y) in enumerate(dataloader):
+    for push_iter, ((genetics, image), (search_y, search_y_flat)) in enumerate(dataloader):
         '''
         start_index_of_search keeps track of the index of the image
         assigned to serve as prototype
         '''
+        print("iter")
         start_index_of_search_batch = push_iter * search_batch_size
 
         if prototype_network_parallel.module.mode == Mode.GENETIC:
@@ -423,6 +446,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.genetic_hierarchical_ppnet,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -439,6 +463,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module.image_hierarchical_ppnet,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -456,6 +481,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     start_index_of_search_batch=start_index_of_search_batch,
                     model=prototype_network_parallel.module,
                     full_search_y=search_y,
+                    run=run,
                     preprocess_input_function=preprocess_input_function,
                     prototype_layer_stride=prototype_layer_stride,
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
@@ -467,7 +493,7 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
 
     # TODO - Implement bounding box saving
 
-    log.log({'\tExecuting push ...'})
+    log('\tExecuting push ...')
     if prototype_network_parallel.module.mode == Mode.MULTIMODAL:
         for node in prototype_network_parallel.module.genetic_hierarchical_ppnet.nodes_with_children:
             prototype_update = np.reshape(node.global_min_fmap_patches, tuple(node.full_prototype_shape))
@@ -483,4 +509,4 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
             node.prototype_vectors.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
     end = time.time()
-    log.log({'\tpush time: \t{0}'.format(end -  start)})
+    log('\tpush time: \t{0}'.format(end -  start))

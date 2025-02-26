@@ -86,7 +86,6 @@ class TreeDataset(Dataset):
         image_transforms: transforms.Compose, 
         genetic_transforms: Optional[GeneticMutationTransform], 
         mode: Mode, 
-        flat_class: bool = False
     ):
         self.df = source_df
         self.image_root_dir = image_root_dir
@@ -138,13 +137,9 @@ class TreeDataset(Dataset):
         self.image_transforms = image_transforms
         self.genetic_transforms = genetic_transforms
 
-        # If flat_class is true, the label will be an integer, with each species having a unique integer.
-        self.flat_class = flat_class
-
-        if flat_class:
-            self.level_species_map = [{}, {}, {}]
-            self.leaf_indicies, idx = generate_leaf_indicies(self.tree, [0,0,0,0]) 
-            self.class_count = idx[3]
+        self.level_species_map = [{}, {}, {}]
+        self.leaf_indicies, idx = generate_leaf_indicies(self.tree, [0,0,0,0]) 
+        self.class_count = idx[3]
 
     def get_species_mask(self, level_indicies:Tensor, level:int) -> Tensor:
         """
@@ -167,49 +162,45 @@ class TreeDataset(Dataset):
 
         return mask
 
+    def get_label_flat(self, row:pd.Series) -> Optional[Tensor]:
+        tree = self.leaf_indicies
+        out = [0,0,0,0]
+
+        for i, level in enumerate(self.levels):
+            if row[level] == "not_classified" or row[level] not in tree:
+                raise ValueError("Somehow you got not classified's up in here. That's not supported in this mode.")
+            
+            out[i] = tree[row[level]]["idx"]
+            if i == len(self.levels) - 1:
+                return torch.tensor(out).long()
+            
+            tree = tree[row[level]]
+
     def get_label(self, row:pd.Series) -> Optional[Tensor]:
         """
         Label is a tensor of indicies for each level of the tree.
         0 represents not_classified (or ignored, like in cases with only one class)
         """
-        # NOTE: To future Charlie/Muchang.
-        # Previous behavior: 
-        # If flat_class is true, this returns a single integer corresponding to the class index.
-        # New behavior:
-        # it returns [species index, genus index, family index, order index] because I'm goofy like that.
-        if self.flat_class:
-            tree = self.leaf_indicies
-            out = [0,0,0,0]
+        tensor = torch.zeros(len(self.levels))
+        tree = self.indexed_tree
 
-            for i, level in enumerate(self.levels):
-                if row[level] == "not_classified" or row[level] not in tree:
-                    raise ValueError("Somehow you got not classified's up in here. That's not supported in this mode.")
-                
-                out[i] = tree[row[level]]["idx"]
-                if i == len(self.levels)-1:
-                    return torch.tensor(out).long()
-                
+        for i, level in enumerate(self.levels):
+            if row[level] == "not_classified" or row[level] not in tree:
+                tensor[i:] = 0
+                break
+            else:
+                tensor[i] = tree[row[level]]["idx"] + 1
                 tree = tree[row[level]]
-        else:
-            tensor = torch.zeros(len(self.levels))
-            tree = self.indexed_tree
+        
+        # Convert float tensor to int tensor
+        tensor = tensor.long()
 
-            for i, level in enumerate(self.levels):
-                if row[level] == "not_classified" or row[level] not in tree:
-                    tensor[i:] = 0
-                    break
-                else:
-                    tensor[i] = tree[row[level]]["idx"] + 1
-                    tree = tree[row[level]]
-            
-            # Convert float tensor to int tensor
-            tensor = tensor.long()
-
-            return tensor
+        return tensor
 
     def __getitem__(
         self, 
-        idx: int) -> Tuple[Tuple[Optional[Tensor], Optional[np.ndarray]], Optional[Tensor]]:
+        idx: int
+    ) -> Tuple[Tuple[Optional[Tensor], Optional[np.ndarray]], Optional[Tensor]]:
         row = self.df.iloc[idx]
         image_path = os.path.join(
             self.image_root_dir, 
@@ -229,11 +220,11 @@ class TreeDataset(Dataset):
             genetics = None
        
         image = self.image_transforms(io.imread(image_path)) \
-          if self.mode.value >> 1 else None
+          if self.mode.value & 2 else None
 
-        label = self.get_label(row)
+        flat_label, label = self.get_label_flat(row), self.get_label(row)
 
-        return (genetics, image), label
+        return (genetics, image), (label,flat_label)
 
     def __len__(self):
         return len(self.df)
@@ -263,7 +254,8 @@ def balanced_sample(
         train_not_classified_proportion, 
         seed:int = 2024, 
         parent_name: Optional[str] = None, 
-        log=print) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Shortage, dict[str, Tuple[int, int, int]]]:
+        log=print
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Shortage, dict[str, Tuple[int, int, int]]]:
         train_output = []
         val_output = []
         test_output = []
@@ -395,7 +387,6 @@ def create_datasets(
     image_root_dir: str,
     gen_aug_params:CfgNode,
     train_val_test_split:Split,
-    oversampling_rate:int,
     train_not_classified_proportions: List[float],
     tree_specification_file:str,
     cached_dataset_folder:str,
@@ -405,7 +396,6 @@ def create_datasets(
     transform_std:tuple,
     mode:Mode,
     seed: int = 2024,
-    flat_class: bool = False,
     log: Callable = print
 ) -> Tuple[TreeDataset, TreeDataset, TreeDataset, TreeDataset, transforms.Normalize]:
     """
@@ -415,13 +405,12 @@ def create_datasets(
     image_root_dir - root directory for the images.
     gen_aug_params - object genetic augmentation parameters to apply to the genetic data. (found in cfg.py)
     image_augmentations - list of image augmentations to apply to the image data.
-    train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species. NOTE: This does not include oversampling of train samples.
+    train_val_test_split - 3-tuple of integers representing the number of true train, validation, and test samples for each leaf node of the tree. In most cases, it's the desired # of samples per species.
     train_end_count - The number of train_end_countsamples to end with in the training set.
     train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
     tree_specification_file - path to json file tree of valid classes.
     mode - Mode enumerate object
     seed - random seed for splitting, shuffling, transformations, etc.
-    oversampling_rate - how much we argument the train dataloader, but for images is deprecated since we always agument on the fly. Should always be 1 (and removed later). On genetics, this is not online. Stored in the dataframe and in the cached dataset folder. 
     """
     np.random.seed(seed) 
 
@@ -473,13 +462,11 @@ def create_datasets(
     # create the datasets
     train_dataset = TreeDataset(
         source_df=train_df,
-        # image_cache_dir if oversampling_rate != 1 else image_root_dir,
         image_root_dir=image_root_dir,
         class_specification=class_specification,
         image_transforms=augmented_img_transforms,
         genetic_transforms=augmented_genetic_transforms,
         mode=mode,
-        flat_class=flat_class
     )
     train_push_dataset = TreeDataset(
         source_df=train_push_df,
@@ -488,7 +475,6 @@ def create_datasets(
         image_transforms=push_img_transforms,
         genetic_transforms=None,
         mode=mode,
-        flat_class=flat_class
     )
 
     val_dataset = TreeDataset(
@@ -498,7 +484,6 @@ def create_datasets(
         image_transforms=img_transforms,
         genetic_transforms=None,
         mode=mode,
-        flat_class=flat_class
     )
     test_dataset = TreeDataset(
         source_df=test_df,
@@ -507,12 +492,11 @@ def create_datasets(
         image_transforms=img_transforms,
         genetic_transforms=None,
         mode=mode,
-        flat_class=flat_class
     )
 
     return train_dataset, train_push_dataset, val_dataset, test_dataset, normalize
 
-def get_datasets(cfg: CfgNode, log: Callable, flat_class=False
+def get_datasets(cfg: CfgNode, log: Callable
 ) -> Tuple[TreeDataset, TreeDataset, TreeDataset, TreeDataset, transforms.Normalize]:
     log("Getting Datasets")
 
@@ -521,7 +505,6 @@ def get_datasets(cfg: CfgNode, log: Callable, flat_class=False
         image_root_dir=cfg.DATASET.IMAGE_PATH,
         gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
         train_val_test_split = Split(*cfg.DATASET.TRAIN_VAL_TEST_SPLIT),
-        oversampling_rate=cfg.DATASET.OVERSAMPLING_RATE,
         train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
         tree_specification_file=cfg.DATASET.TREE_SPECIFICATION_FILE,
         cached_dataset_folder=cfg.DATASET.CACHED_DATASET_FOLDER,
@@ -532,6 +515,5 @@ def get_datasets(cfg: CfgNode, log: Callable, flat_class=False
         mode=Mode(cfg.DATASET.MODE),
         seed=cfg.SEED,
         log=log,
-        flat_class=flat_class
     )
 
