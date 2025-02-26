@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_image"
-# WANDB_MODE: "disabled" 
+WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false
@@ -15,9 +15,9 @@ DATASET:
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
-    TRAIN_BATCH_SIZE: 40
-    TEST_BATCH_SIZE: 40
-    TRAIN_PUSH_BATCH_SIZE: 40
+    TRAIN_BATCH_SIZE: 160
+    TEST_BATCH_SIZE: 160
+    TRAIN_PUSH_BATCH_SIZE: 160
 
     IMAGE:
         PROTOTYPE_SHAPE: (2048, 1, 1)
@@ -30,7 +30,6 @@ OPTIM:
     NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 50
     PUSH_EPOCHS: []
-    PUSH_EPOCHS: []
     COEFS: 
         IMAGE: 
             CRS_ENT: 20.
@@ -38,6 +37,26 @@ OPTIM:
             SEP: -0.1
             L1: 5e-3
             ORTHOGONALITY: 1e-3
+
+    # Optimizer Learning Rates (LR) and Weight Decays (WD) 
+    WARM: 
+        ADD_ON_LAYERS_LR: 3e-3 
+        ADD_ON_LAYERS_WD: 1e-3
+        PROTOTYPE_LR: 3e-3 
+        PROTOTYPE_WD: 1e-3 
+    JOINT: 
+        FEATURES_LR: 1e-5 
+        FEATURES_WD: 1e-3
+        ADD_ON_LAYERS_LR: 3e-3
+        ADD_ON_LAYERS_WD: 1e-3
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_WD: 1e-3 
+        PROTOTYPE_LR: 3e-4
+        PROTOTYPE_WD: 1e-3
+    LAST_LAYER: 
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_MOM: 0.9
+        
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"

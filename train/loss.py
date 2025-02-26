@@ -252,9 +252,11 @@ def get_correspondence_loss_batched(
     correspondence_cost_count = len(min_correspondence_costs)
     correspondence_cost_summed = torch.sum(min_correspondence_costs)
 
-    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis, l2_distance, total_dist
+    result = correspondence_cost_summed, correspondence_cost_count
+    del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis, l2_distance, total_dist, min_correspondence_costs, min_correspondence_cost_indicies
 
-    return correspondence_cost_summed, correspondence_cost_count
+    torch.cuda.empty_cache()
+    return result
 
 def get_correspondence_loss_single(
     gen_min_dist,
