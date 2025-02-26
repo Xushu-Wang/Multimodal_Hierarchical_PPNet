@@ -69,28 +69,7 @@ class ProtoNode(nn.Module):
             self.n_next_correct = 0 
             self.n_species_correct = 0
 
-            # all attributes regarding to push stage 
-            # saves the closest distance seen so far 
-            # add a new attribute and initialize it to be infinity
-            self.global_min_proto_dist = np.full(self.nprotos_total, np.inf)
-
-            # saves the patch representation that gives the current smallest distance
-            self.global_min_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
-
-            # 
-
-            # We assume save_prototype_class_identity is true
-            '''
-            proto_rf_boxes and proto_bound_boxes column:
-            0: image index in the entire dataset
-            1: height start index
-            2: height end index
-            3: width start index
-            4: width end index
-            5: (optional) class identity
-            '''
-            self.proto_rf_boxes = np.full([self.nprotos, 6], fill_value=-1)
-            self.proto_bound_boxes = np.full([self.nprotos, 6], fill_value=-1)
+            self.init_push()
 
     def init_match(self): 
         """
@@ -100,6 +79,31 @@ class ProtoNode(nn.Module):
         for j in range(self.nprotos_total):
             match[j, j // self.nprotos] = 1 
         return match
+
+    def init_push(self):
+        # all attributes regarding to push stage 
+        # saves the closest distance seen so far 
+        # add a new attribute and initialize it to be infinity
+        self.global_min_proto_dist = np.full(self.nprotos_total, np.inf)
+
+        # saves the patch representation that gives the current smallest distance
+        self.global_min_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
+
+        # 
+
+        # We assume save_prototype_class_identity is true
+        '''
+        proto_rf_boxes and proto_bound_boxes column:
+        0: image index in the entire dataset
+        1: height start index
+        2: height end index
+        3: width start index
+        4: width end index
+        5: (optional) class identity
+        '''
+        self.proto_rf_boxes = np.full([self.nprotos, 6], fill_value=-1)
+        self.proto_bound_boxes = np.full([self.nprotos, 6], fill_value=-1)
+
 
     def init_last_layer(self, inc_str = -0.5): 
         """
@@ -403,7 +407,8 @@ def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet:
             features = backbone, 
             nprotos = cfg.DATASET.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.DATASET.GENETIC.PROTOTYPE_SHAPE, 
-            mode = Mode.GENETIC
+            mode = Mode.GENETIC,
+            proto_layer_rf_info=proto_layer_rf_info
         ) 
 
     return genetic_ppnet

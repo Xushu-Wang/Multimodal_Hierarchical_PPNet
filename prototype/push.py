@@ -30,7 +30,7 @@ def decode_onehot(onehot, three_dim=True):
     onehot[0] = 1 - onehot[1:].sum(0)
     return "".join([list(nucleotides.keys())[list(nucleotides.values()).index(i)] for i in onehot.argmax(0)])
 
-def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tensor, label: Tensor, stride: int, epoch:int, cfg):
+def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tensor, input: Tensor, label: Tensor, stride: int, epoch:int, cfg):
     """
     For each prototype, find its best patch in the backbone outputs and calculate 
     minimum distance batch. But not projecting yet. 
@@ -55,22 +55,20 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
     protoL_input_ = np.copy(conv_features.detach().cpu().numpy())
     proto_dist_ = np.copy(proto_dist_torch.detach().cpu().numpy())
 
-    del conv_features, proto_dist_torch
+    del proto_dist_torch
 
     # class idx -> sample idx (in filtered batch)
-    class_to_img_idx = {key+1: [] for key in range(num_classes)}
+    class_to_img_idx = {key: [] for key in range(num_classes)}
     for img_index, img_y in enumerate(label):
         img_label = int(img_y[level].item())
-        if img_label > 0:
-            class_to_img_idx[img_label].append(img_index)
+        class_to_img_idx[img_label].append(img_index)
 
     proto_h, proto_w = node.pshape[1], node.pshape[2] 
 
     # Create a list of dictionaries to store the patch for saving
     patch_df_list = []
     node_file_dir = os.path.join(cfg.OUTPUT.IMG_DIR,
-                            f'epoch-{epoch}',*node.named_location, "prototypes")
-
+                            f'epoch-{epoch}',*node.taxnode.full_taxonomy, "prototypes")
     for j in range(node.nprotos):
         # We assume class_specifc is true
         # target_class is the class of the class_specific prototype
@@ -120,8 +118,8 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                 protoL_rf_info = model.proto_layer_rf_info
 
                 # get the whole image
-                original_img_j = conv_features[batch_argmin_proto_dist_j[0]]
-                original_img_j = original_img_j.numpy()
+                original_img_j = input[batch_argmin_proto_dist_j[0]]
+                original_img_j = original_img_j.cpu().numpy()
 
                 # crop out the receptive field
                 rf_img_j = original_img_j[:, 0, (j % (node.nprotos // node.nclass)) * protoL_rf_info[1]: (j % (node.nprotos // node.nclass) + 1) * protoL_rf_info[1]]
@@ -141,11 +139,11 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                 # Get the receptive field boundary of the image patch
                 # that generates the representation
                 protoL_rf_info = model.proto_layer_rf_info
-                rf_prototype_j = compute_rf_prototype(conv_features.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
+                rf_prototype_j = compute_rf_prototype(input.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
 
                 # Get the whole image
-                original_img_j = conv_features[rf_prototype_j[0]]
-                original_img_j = original_img_j.numpy()
+                original_img_j = input[rf_prototype_j[0]]
+                original_img_j = original_img_j.cpu().numpy()
                 original_img_j = np.transpose(original_img_j, (1, 2, 0))
                 original_img_size = original_img_j.shape[0]
 
@@ -182,8 +180,10 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                     heatmap = cv2.applyColorMap(np.uint8(255*rescaled_act_img_j), cv2.COLORMAP_JET)
                     heatmap = np.float32(heatmap) / 255
                     heatmap = heatmap[...,::-1]
-                    # Clamp heatmap to [0,1]
+                    # Clamp heatmap to 0-1
+                    heatmap = np.clip(heatmap, 0.0, 1.0)
                     overlayed_original_img_j = 0.5 * original_img_j + 0.3 * heatmap
+
                     plt.imsave(os.path.join(node_file_dir,
                                             cfg.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX + '-original_with_self_act' + str(j) + '.png'),
                             overlayed_original_img_j,
@@ -212,6 +212,8 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                             vmin=0.0,
                             vmax=1.0)
 
+    del conv_features
+
     # Save the genetic prototypes
     # Get the directory for saving prototypes for this node for this epcoh
     if len(patch_df_list) and cfg.OUTPUT.SAVE:
@@ -227,6 +229,9 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
             existing_df = pd.concat([existing_df,patch_df])
 
             patch_df = existing_df.reset_index()
+        # Create the parent directory if it does not exist
+        os.makedirs(node_file_dir, exist_ok=True)
+        # Save the patch information
         patch_df.to_csv(os.path.join(node_file_dir, cfg.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX + ".csv"), index=False)
 
 def push(
@@ -239,13 +244,17 @@ def push(
 ):
     model.eval() 
     mode = Mode(model.mode) 
+
+    for node in model.classifier_nodes:
+        node.init_push()
+
     match mode: 
         case Mode.GENETIC: 
             return push_genetic(model, dataloader, None, stride, epoch, cfg) 
         case Mode.IMAGE: 
             return push_image(model, dataloader, preprocessor, stride, epoch, cfg) 
         case Mode.MULTIMODAL: 
-            return push_multimodal(model, dataloader, cfg, preprocessor, stride, epoch, cfg) 
+            return push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg) 
 
 
 def push_genetic(model, dataloader, _, stride, epoch, cfg): 
@@ -259,6 +268,7 @@ def push_genetic(model, dataloader, _, stride, epoch, cfg):
             find_closest_conv_feature(
                 model=model,
                 node=node,
+                input=input,
                 conv_features=conv_features,
                 label=label,
                 stride=stride,
@@ -271,9 +281,10 @@ def push_genetic(model, dataloader, _, stride, epoch, cfg):
         node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
 def push_image(model, dataloader, preprocessor, stride, epoch, cfg): 
-    for push_iter, ((_, image), (label, _)) in enumerate(dataloader): 
-        image = preprocessor(image) if preprocessor else image
+    for push_iter, ((_, raw_image), (label, _)) in enumerate(dataloader): 
+        image = preprocessor(raw_image) if preprocessor else raw_image
         input = image.cuda()
+        raw_image = raw_image.cuda()
 
         with torch.no_grad(): 
             conv_features = model.conv_features(input) 
@@ -282,6 +293,7 @@ def push_image(model, dataloader, preprocessor, stride, epoch, cfg):
             find_closest_conv_feature(
                 model=model,
                 node=node,
+                input=raw_image,
                 conv_features=conv_features,
                 label=label,
                 stride=stride,
@@ -294,10 +306,11 @@ def push_image(model, dataloader, preprocessor, stride, epoch, cfg):
         node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
 def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg): 
-    for ((genetics, image), (label, _)) in tqdm(dataloader):
-        image = preprocessor(image) if preprocessor else image 
+    for ((genetics, raw_image), (label, _)) in tqdm(dataloader):
+        image = preprocessor(raw_image) if preprocessor else raw_image 
         gen_input = genetics.cuda()
         img_input = image.cuda()
+        raw_image = raw_image.cuda()
 
         with torch.no_grad(): 
             gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
@@ -305,17 +318,19 @@ def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg):
         # for each node, find the prototype that it should project to
         for node in model.classifier_nodes:  
             find_closest_conv_feature(
-                model=model,
+                model=model.gen_net,
                 node=node.gen_node,
                 conv_features=gen_conv_features,
+                input=gen_input,
                 label=label,
                 stride=stride,
                 epoch=epoch,
                 cfg=cfg
             )
             find_closest_conv_feature(
-                model=model,
+                model=model.img_net,
                 node=node.img_node,
+                input=raw_image,
                 conv_features=img_conv_features,
                 label=label,
                 stride=stride,

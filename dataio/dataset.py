@@ -22,14 +22,16 @@ class TaxNode():
     Node class that store taxonomy. 
     Attributes: 
         taxonomy - the name of the order/family/genus/species 
+        full_taxonomy - array of taxonomies from root to this node 
         childs - pointers to TaxNodes in the subclass 
         idx      - Tensor([a, b, c, d]), d-th class of c-th class of b-th class ...
         flat_idx - Tensor([w, x, y, z]), ordered using indices in each depth
         depth    - int within [0, 1, 2, 3, 4] 
         min_species_idx - 
     """
-    def __init__(self, taxonomy, idx, flat_idx): 
+    def __init__(self, taxonomy, full_taxonomy, idx, flat_idx): 
         self.taxonomy = taxonomy 
+        self.full_taxonomy = full_taxonomy
         self.childs = []    # integer indexing of children
         self.child_map = {} # string indexing of children needed for Hierarchy.traverse()
         self.idx = idx
@@ -102,7 +104,7 @@ class Hierarchy():
         self.levels = Level(*meta["levels"])
         self.tree_dict = meta["tree"]
 
-        self.root = self._dict_to_trie(TaxNode("Insect", [], []), self.tree_dict)
+        self.root = self._dict_to_trie(TaxNode("Insect", [], [], []), self.tree_dict)
 
     def _dict_to_trie(self, node: TaxNode, d: dict) -> TaxNode: 
         """
@@ -114,7 +116,8 @@ class Hierarchy():
         for i, (k, v) in enumerate(d.items()): 
             if isinstance(v, dict): 
                 child = self._dict_to_trie(TaxNode(
-                    k, 
+                    k,
+                    node.full_taxonomy + [k], 
                     node.idx + [i], 
                     node.flat_idx + [self.levels.count(node.depth)]
                 ), v) 
@@ -126,6 +129,7 @@ class Hierarchy():
                 # this is a leaf node
                 child = TaxNode(
                     k, 
+                    node.full_taxonomy + [k],
                     torch.tensor(node.idx + [i]).long(), 
                     torch.tensor(node.flat_idx + [self.levels.count(node.depth)]).long()
                 ) 

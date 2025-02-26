@@ -18,10 +18,12 @@ DATASET:
     MODE: 3 # For parallel mode, always set to 3
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
+    TRAIN_BATCH_SIZE: 40
+    TEST_BATCH_SIZE: 160
+    TRAIN_PUSH_BATCH_SIZE: 40
 
     IMAGE: 
         PROTOTYPE_SHAPE: (2048, 1, 1) 
-        TRAIN_BATCH_SIZE: 80
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
@@ -31,9 +33,8 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_WARM_EPOCHS: 0
+    NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 100
-    PUSH_START: 0
     PUSH_EPOCHS: [0]
     COEFS: 
         CORRESPONDENCE: 1000.0
@@ -49,9 +50,29 @@ OPTIM:
             SEP: -0.1
             ORTHOGONALITY: 1e-3
 
+    # Optimizer Learning Rates (LR) and Weight Decays (WD) 
+    WARM: 
+        ADD_ON_LAYERS_LR: 3e-3 
+        ADD_ON_LAYERS_WD: 1e-3
+        PROTOTYPE_LR: 3e-3 
+        PROTOTYPE_WD: 1e-3 
+    JOINT: 
+        FEATURES_LR: 1e-5 
+        FEATURES_WD: 1e-3
+        ADD_ON_LAYERS_LR: 3e-3
+        ADD_ON_LAYERS_WD: 1e-3
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_WD: 1e-3 
+        PROTOTYPE_LR: 3e-4
+        PROTOTYPE_WD: 1e-3
+    LAST_LAYER: 
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_MOM: 0.9
+        
+
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    SAVE: True # If this is false, images won't be saved.
+    SAVE: False # If this is false, images won't be saved.
