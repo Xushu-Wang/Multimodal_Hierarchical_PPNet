@@ -4,6 +4,7 @@ import numpy as np
 from pympler.tracker import SummaryTracker
 from model.model import Mode
 from typing import Union, Tuple
+import torch.nn.functional as F
 
 from utils.util import format_dictionary_nicely_for_printing
 
@@ -54,15 +55,44 @@ def get_orthogonality_cost(node):
     P = P / torch.linalg.norm(P, dim=1).unsqueeze(-1)
     return torch.sum(P@P.T-torch.eye(P.size(0)).cuda())
 
+def sample_gumbel(shape, eps=1e-10):
+    """Sample from Gumbel(0,1) distribution."""
+    U = torch.rand(shape)
+    return -torch.log(-torch.log(U + eps) + eps)
+
+
+def gumbel_softmax(q, tau=0.3):
+    """
+    Compute the Gumbel-Softmax distribution.
+    
+    Args:
+        q (torch.Tensor): Logits of shape (M,)
+        tau (float): Temperature parameter
+    
+    Returns:
+        torch.Tensor: Sampled Gumbel-Softmax vector of shape (M,)
+    """
+    gumbel_noise = sample_gumbel(q.shape)
+    y = F.softmax((q + gumbel_noise) / tau, dim=-1)
+    return y
+
+def focal_similarity(z, p, epsilon):
+    
+    numerator = torch.norm(z - p, p=2, dim=-1, keepdim=True) ** 2 + 1
+    denominator = torch.norm(z - p, p=2, dim=-1, keepdim=True) ** 2 + epsilon
+    
+    return torch.log(numerator / denominator)    
+
+
 def print_accuracy_tree(accuracy_tree, log=print):
     print_accuracy_tree_rec(accuracy_tree["children"], log)
 
 def print_accuracy_tree_rec(accuracy_tree, log=print, level=0):
     for entry in accuracy_tree:
         if(entry["total"] == 0):
-            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: N/A')
+            log.log({f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: N/A'})
         else:
-            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)')
+            log.log({f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)'})
         print_accuracy_tree_rec(entry["children"], log, level + 1)
 
 def find_lowest_level_node(node, target):
@@ -104,7 +134,7 @@ def get_conditional_accuracies_flat(
 
     # Calculate the final layer outputs for the model
     out = []
-    indicies = []
+    indices = []
 
     recursive_update_probs_on_there(model.root)
 
@@ -118,6 +148,53 @@ def get_conditional_accuracies_flat(
                 location = bit["idx"]
                 out.append(node.probs[:, child.int_location[-1]-1].unsqueeze(1))
                 indicies.append(location)
+    
+
+    # print(indicies)
+    out = [x for (_, x) in sorted(zip(indicies, out))]
+    out_array = torch.stack(out, dim=1).squeeze(2)
+
+    for cond_level in range(4):
+        if cond_level == 0:
+            mask = torch.ones_like(out_array, dtype=bool).cuda()
+        else:
+            mask = dataset.get_species_mask(target[:, cond_level-1], cond_level-1).cuda()
+
+        # Accuracy
+        _, predicted = torch.max(out_array*mask, 1)
+        total[cond_level] += target.size(0)
+        # correct = (predicted == target[:,cond_level]).sum().item()
+        correct = (predicted == target[:,-1]).sum().item()
+        tot_correct[cond_level] += correct
+    
+    return torch.tensor(tot_correct), torch.tensor(total)
+
+
+
+def get_conditional_prob_accuracies(
+    conv_features,
+    model,
+    target,
+    global_ce=False,
+    parallel_mode=False
+):
+    """
+    This returns the predicted classes for each input using the conditional probability method.
+
+    If global_ce is true, the cross entropy is calculated using the conditional probabilities of each class.
+    """
+    
+    recursive_put_accuracy_probs(
+        conv_features,
+        model.root,
+        target,
+        0,
+        parallel_mode,
+        scale = (1,1) if parallel_mode else 1
+    )
+
+    out.append(node.probs[:, child.int_location[-1]-1].unsqueeze(1))
+    indicies.append(location)
     
 
     # print(indicies)
@@ -280,6 +357,27 @@ def recursive_get_loss_multi(
     genetic_orthogonality_cost = get_orthogonality_cost(node.genetic_tree_node)
     image_orthogonality_cost = get_orthogonality_cost(node.image_tree_node)
 
+    wrapped_genetic_min_distances = genetic_min_distances[mask].view(
+        -1, genetic_min_distances.shape[1] // node.prototype_ratio, node.prototype_ratio
+    )
+    repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
+    
+    # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
+    # summed_correspondence_cost = torch.sum(
+    #     torch.min(
+    #         (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
+    #         dim=2
+    #     )[0]
+    # )
+    
+    
+    # Soft Assignment on corresponding prototypes, gumble softmax attends to ensure 1 to 1 correspondence
+    node.prototype_assignment = F.gumbel_softmax(node.prototype_assignment, dim=1, tau=0.5)
+    
+    summed_correspondence_cost = wrapped_genetic_min_distances @ node.prototype_assignment @ repeated_image_min_distances_along_the_third_axis
+    
+    
+    summed_correspondence_cost_count = wrapped_genetic_min_distances.shape[0]
     orthogonality_cost = torch.tensor([genetic_orthogonality_cost, image_orthogonality_cost])
 
     if mask.sum() == 0:
@@ -476,14 +574,14 @@ def recursive_get_loss(
 
     return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
 
-def construct_accuract_tree_rec(node):
+def construct_accurate_tree_rec(node):
     return {
         "int_location": node.int_location,
         "named_location": node.named_location,
         "correct": 0,
         "total": 0,
         "children": [
-            construct_accuract_tree_rec(child) for child in node.all_child_nodes
+            construct_accurate_tree_rec(child) for child in node.all_child_nodes
         ]
     }
 
@@ -494,7 +592,7 @@ def construct_accuracy_tree(root):
     return {
         "int_location": [],
         "children": [
-            construct_accuract_tree_rec(child) for child in root.all_child_nodes
+            construct_accurate_tree_rec(child) for child in root.all_child_nodes
         ]}
 
 def get_correspondence_proportions(model, cfg):
