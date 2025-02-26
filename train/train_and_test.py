@@ -445,12 +445,10 @@ def recursive_get_loss_multi(
     # )
     
     
-    
-    
     # Soft Assignment on corresponding prototypes, gumble softmax attends to ensure 1 to 1 correspondence
     node.prototype_assignment = F.gumbel_softmax(node.prototype_assignment, dim=1, tau=0.5)
     
-    summed_correspondence_cost = torch.sum(node.prototype_assignment)
+    summed_correspondence_cost = wrapped_genetic_min_distances @ node.prototype_assignment @ repeated_image_min_distances_along_the_third_axis
     
     
     summed_correspondence_cost_count = wrapped_genetic_min_distances.shape[0]
