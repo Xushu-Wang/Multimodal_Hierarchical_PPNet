@@ -46,7 +46,7 @@ def main(cfg: CfgNode, log: Callable):
             joint_lr_scheduler.step()
             tnt.test(model, val_loader, cfg, log)
 
-            push.push(model, train_push_loader, image_normalizer, stride = 1)
+            push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
 
             # need to implement pruning here
 

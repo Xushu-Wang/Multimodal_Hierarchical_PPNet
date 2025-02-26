@@ -77,6 +77,8 @@ class ProtoNode(nn.Module):
             # saves the patch representation that gives the current smallest distance
             self.global_min_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
 
+            # 
+
             # We assume save_prototype_class_identity is true
             '''
             proto_rf_boxes and proto_bound_boxes column:
@@ -265,7 +267,8 @@ class HierProtoPNet(nn.Module):
         features: nn.Module, 
         nprotos: int,
         pshape: tuple, 
-        mode: Mode
+        mode: Mode,
+        proto_layer_rf_info=None
     ): 
         """
         Base ProtoPnet architecture for either/or Image or Genetics. 
@@ -289,6 +292,7 @@ class HierProtoPNet(nn.Module):
         self.classifier_nodes = []
         self.root = self.build_proto_tree(self.hierarchy.root) 
         self.add_on_layers = nn.Sequential() 
+        self.proto_layer_rf_info = proto_layer_rf_info
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
         """
@@ -420,7 +424,7 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
             layer_filter_sizes=layer_filter_sizes,
             layer_strides=layer_strides,
             layer_paddings=layer_paddings,
-            prototype_kernel_size=cfg.DATASET.IMAGE.PROTOTYPE_SHAPE[1]
+            prototype_kernel_size=cfg.DATASET.IMAGE.PROTOTYPE_SHAPE[1],
         )
 
         image_ppnet = HierProtoPNet(
@@ -428,7 +432,8 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
             features = backbone, 
             nprotos = cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.DATASET.IMAGE.PROTOTYPE_SHAPE,
-            mode = Mode.IMAGE
+            mode = Mode.IMAGE,
+            proto_layer_rf_info=proto_layer_rf_info
         )
 
     return image_ppnet

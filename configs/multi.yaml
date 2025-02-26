@@ -1,5 +1,5 @@
-RUN_NAME: "muchang_parallel"
-# WANDB_MODE: "disabled" 
+RUN_NAME: "push_save_test"
+WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
@@ -31,9 +31,10 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_WARM_EPOCHS: 3
+    NUM_WARM_EPOCHS: 0
     NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: []
+    PUSH_START: 0
+    PUSH_EPOCHS: [0]
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 
@@ -53,4 +54,4 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    NO_SAVE: False # If this is false, images won't be saved.
+    SAVE: True # If this is false, images won't be saved.
