@@ -422,6 +422,14 @@ class CombinerTreeNode(nn.Module):
         #                             bias=False)
         
         # Create the correspondence map
+        self.prototype_assignment = torch.zeros(self.genetic_tree_node.num_prototypes, self.image_tree_node.num_prototypes) 
+        self.prototype_assignment = nn.Parameter(self.prototype_assignment, requires_grad = True)
+        
+        nn.init.xavier_normal_(self.proto_presence, gain=1.0)
+        
+        # 
+
+        
         self.prototype_ratio = self.genetic_tree_node.num_prototypes / self.image_tree_node.num_prototypes
         assert self.prototype_ratio == int(self.prototype_ratio)
         self.prototype_ratio = int(self.prototype_ratio)

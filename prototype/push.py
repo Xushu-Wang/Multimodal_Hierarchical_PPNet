@@ -5,6 +5,7 @@ import cv2
 import os
 import time
 import pandas as pd
+import wandb
 
 from model.model import TreeNode, Mode
 from prototype.receptive_field import compute_rf_prototype
@@ -93,7 +94,8 @@ def nodal_update_prototypes_on_batch(
     prototype_img_filename_prefix,
     prototype_self_act_filename_prefix,
     prototype_activation_function_in_numpy,
-    no_save
+    no_save,
+    log
 ):
     """
     For each prototype, find its best patch in the backbone outputs and calculate 
@@ -270,9 +272,13 @@ def nodal_update_prototypes_on_batch(
                                 proto_act_img_j)
                     if prototype_img_filename_prefix is not None:
                         # save the image of the prototype
-                        cv2.imwrite(os.path.join(dir_for_saving_prototypes,
-                                                prototype_img_filename_prefix + str(j) + '.png'),
-                                    cv2.cvtColor(proto_img_j, cv2.COLOR_RGB2BGR))
+                        # cv2.imwrite(os.path.join(dir_for_saving_prototypes,
+                        #                         prototype_img_filename_prefix + str(j) + '.png'),
+                        #             cv2.cvtColor(proto_img_j, cv2.COLOR_RGB2BGR))
+                        
+                        log.log({f"prototype_{j}": wandb.Image(proto_img_j)})
+
+                        
                         # overlay (upsampled) self activation on original image and save the result
                         rescaled_act_img_j = upsampled_act_img_j - np.amin(upsampled_act_img_j)
                         rescaled_act_img_j = rescaled_act_img_j / np.amax(rescaled_act_img_j)
@@ -281,11 +287,15 @@ def nodal_update_prototypes_on_batch(
                         heatmap = heatmap[...,::-1]
                         # Clamp heatmap to [0,1]
                         overlayed_original_img_j = 0.5 * original_img_j + 0.3 * heatmap
-                        plt.imsave(os.path.join(dir_for_saving_prototypes,
-                                                prototype_img_filename_prefix + '-original_with_self_act' + str(j) + '.png'),
-                                overlayed_original_img_j,
-                                vmin=0.0,
-                                vmax=1.0)
+                        # plt.imsave(os.path.join(dir_for_saving_prototypes,
+                        #                         prototype_img_filename_prefix + '-original_with_self_act' + str(j) + '.png'),
+                        #         overlayed_original_img_j,
+                        #         vmin=0.0,
+                        #         vmax=1.0)
+                        
+                        
+                        log.log({f"prototype_original_with_self_act_{j}": wandb.Image(overlayed_original_img_j)})
+
                         
                         # if different from the original (whole) image, save the prototype receptive field as png
                         if rf_img_j.shape[0] != original_img_size or rf_img_j.shape[1] != original_img_size:
@@ -296,18 +306,26 @@ def nodal_update_prototypes_on_batch(
                                     vmax=1.0)
                             overlayed_rf_img_j = overlayed_original_img_j[rf_prototype_j[1]:rf_prototype_j[2],
                                                                         rf_prototype_j[3]:rf_prototype_j[4]]
-                            plt.imsave(os.path.join(dir_for_saving_prototypes,
-                                                    prototype_img_filename_prefix + '-receptive_field_with_self_act' + str(j) + '.png'),
-                                    overlayed_rf_img_j,
-                                    vmin=0.0,
-                                    vmax=1.0)
+                            # plt.imsave(os.path.join(dir_for_saving_prototypes,
+                            #                         prototype_img_filename_prefix + '-receptive_field_with_self_act' + str(j) + '.png'),
+                            #         overlayed_rf_img_j,
+                            #         vmin=0.0,
+                            #         vmax=1.0)
+                            
+                            
+                            log.log({f"prototype_original_with_self_act_{j}": wandb.Image(overlayed_rf_img_j)})
+
                         
                         # save the prototype image (highly activated region of the whole image)
-                        plt.imsave(os.path.join(dir_for_saving_prototypes,
-                                                prototype_img_filename_prefix + str(j) + '.png'),
-                                proto_img_j,
-                                vmin=0.0,
-                                vmax=1.0)
+                        # plt.imsave(os.path.join(dir_for_saving_prototypes,
+                        #                         prototype_img_filename_prefix + str(j) + '.png'),
+                        #         proto_img_j,
+                        #         vmin=0.0,
+                        #         vmax=1.0)
+                        
+                        log.log({f"prototype_original_with_self_act_{j}": wandb.Image(overlayed_original_img_j)})
+
+                        
     # If we're saving genetic patches. Save 'em here.
     if mode == Mode.GENETIC and patch_df_list is not None and len(patch_df_list):
         patch_df = pd.DataFrame(patch_df_list, columns=["key", "class_index", "prototype_index", "patch"])
@@ -322,7 +340,12 @@ def nodal_update_prototypes_on_batch(
             existing_df = pd.concat([existing_df,patch_df])
 
             patch_df = existing_df.reset_index()
-        patch_df.to_csv(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"), index=False)
+        # patch_df.to_csv(os.path.join(dir_for_saving_prototypes, prototype_img_filename_prefix + ".csv"), index=False)
+        
+        wandb_table = wandb.Table(dataframe=patch_df)
+
+        # Log the table to W&B
+        log.log({f"prototype_data_{prototype_img_filename_prefix}": wandb_table})
 
     del class_to_img_index_dict
 
@@ -405,7 +428,8 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
                     prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
                     prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
-                    no_save=no_save
+                    no_save=no_save,
+                    log=log
                 )
             for node in prototype_network_parallel.module.image_hierarchical_ppnet.nodes_with_children:
                 nodal_update_prototypes_on_batch(
@@ -420,7 +444,8 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
                     prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
                     prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
-                    no_save=no_save
+                    no_save=no_save,
+                    log=log
                 )
         else:
             for node in prototype_network_parallel.module.nodes_with_children:
@@ -436,7 +461,8 @@ def push_prototypes(dataloader, # pytorch dataloader (must be unnormalized in [0
                     prototype_img_filename_prefix=prototype_img_filename_prefix,
                     prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
                     prototype_activation_function_in_numpy=prototype_activation_function_in_numpy,
-                    no_save=no_save
+                    no_save=no_save,
+                    log=log
                 )
 
     # TODO - Implement bounding box saving

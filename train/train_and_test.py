@@ -4,6 +4,7 @@ import numpy as np
 from pympler.tracker import SummaryTracker
 from model.model import Mode
 from typing import Union, Tuple
+import torch.nn.functional as F
 
 tracker = SummaryTracker()
 
@@ -48,15 +49,44 @@ def get_multi_last_layer_l1_cost(node):
     return l1
 
 
+def sample_gumbel(shape, eps=1e-10):
+    """Sample from Gumbel(0,1) distribution."""
+    U = torch.rand(shape)
+    return -torch.log(-torch.log(U + eps) + eps)
+
+
+def gumbel_softmax(q, tau=0.3):
+    """
+    Compute the Gumbel-Softmax distribution.
+    
+    Args:
+        q (torch.Tensor): Logits of shape (M,)
+        tau (float): Temperature parameter
+    
+    Returns:
+        torch.Tensor: Sampled Gumbel-Softmax vector of shape (M,)
+    """
+    gumbel_noise = sample_gumbel(q.shape)
+    y = F.softmax((q + gumbel_noise) / tau, dim=-1)
+    return y
+
+def focal_similarity(z, p, epsilon):
+    
+    numerator = torch.norm(z - p, p=2, dim=-1, keepdim=True) ** 2 + 1
+    denominator = torch.norm(z - p, p=2, dim=-1, keepdim=True) ** 2 + epsilon
+    
+    return torch.log(numerator / denominator)    
+
+
 def print_accuracy_tree(accuracy_tree, log=print):
     print_accuracy_tree_rec(accuracy_tree["children"], log)
 
 def print_accuracy_tree_rec(accuracy_tree, log=print, level=0):
     for entry in accuracy_tree:
         if(entry["total"] == 0):
-            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: N/A')
+            log.log({f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: N/A'})
         else:
-            log(f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)')
+            log.log({f'\t{"-" * level * 2}{" " * (level > 0)}{entry["named_location"][-1]}: {entry["correct"] / entry["total"]:.4f} ({entry["total"]} samples)'})
         print_accuracy_tree_rec(entry["children"], log, level + 1)
 
 def find_lowest_level_node(node, target):
@@ -112,7 +142,7 @@ def get_conditional_prob_accuracies_fixed(
     recursive_throw_probs_on_there(model.root, conv_features)
 
     out = []
-    indicies = []
+    indices = []
 
     for node in model.nodes_with_children:
         if len(node.child_nodes) == 0:
@@ -123,10 +153,10 @@ def get_conditional_prob_accuracies_fixed(
                 
                 location = bit["idx"]
                 out.append(child.prob)
-                indicies.append(location)
+                indices.append(location)
 
     # Sort out by index
-    out = [x for _, x in sorted(zip(indicies, out))]
+    out = [x for _, x in sorted(zip(indices, out))]
     out_array = torch.stack(out, dim=1)
 
     # Accuracy
@@ -407,12 +437,22 @@ def recursive_get_loss_multi(
     repeated_image_min_distances_along_the_third_axis = image_min_distances[mask].unsqueeze(2).expand(-1, -1, node.prototype_ratio)
     
     # Calculate the total correspondence cost, minimum MSE between corresponding prototypes. We will later divide this by the number of comparisons made to get the average correspondence cost
-    summed_correspondence_cost = torch.sum(
-        torch.min(
-            (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
-            dim=2
-        )[0]
-    )
+    # summed_correspondence_cost = torch.sum(
+    #     torch.min(
+    #         (wrapped_genetic_min_distances - repeated_image_min_distances_along_the_third_axis) ** 2,
+    #         dim=2
+    #     )[0]
+    # )
+    
+    
+    
+    
+    # Soft Assignment on corresponding prototypes, gumble softmax attends to ensure 1 to 1 correspondence
+    node.prototype_assignment = F.gumbel_softmax(node.prototype_assignment, dim=1, tau=0.5)
+    
+    summed_correspondence_cost = torch.sum(node.prototype_assignment)
+    
+    
     summed_correspondence_cost_count = wrapped_genetic_min_distances.shape[0]
 
     del wrapped_genetic_min_distances, repeated_image_min_distances_along_the_third_axis
@@ -568,14 +608,14 @@ def recursive_get_loss(
 
     return cross_entropy, cluster_cost, separation_cost, l1_cost, num_parents_in_batch
 
-def construct_accuract_tree_rec(node):
+def construct_accurate_tree_rec(node):
     return {
         "int_location": node.int_location,
         "named_location": node.named_location,
         "correct": 0,
         "total": 0,
         "children": [
-            construct_accuract_tree_rec(child) for child in node.all_child_nodes
+            construct_accurate_tree_rec(child) for child in node.all_child_nodes
         ]
     }
 
@@ -586,7 +626,7 @@ def construct_accuracy_tree(root):
     return {
         "int_location": [],
         "children": [
-            construct_accuract_tree_rec(child) for child in root.all_child_nodes
+            construct_accurate_tree_rec(child) for child in root.all_child_nodes
         ]}
 
 def _train_or_test(
