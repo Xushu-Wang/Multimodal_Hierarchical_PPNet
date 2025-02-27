@@ -109,7 +109,7 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
             node.global_min_proto_dist[j] = batch_min_proto_dist_j
             node.global_min_fmap_patches[j] = batch_min_fmap_patch_j
 
-            if not cfg.OUTPUT.SAVE:
+            if not cfg.OUTPUT.SAVE_IMAGES:
                 continue
 
             # Add patch information to patch_df_list to allow for saving patches
@@ -216,7 +216,7 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
 
     # Save the genetic prototypes
     # Get the directory for saving prototypes for this node for this epcoh
-    if len(patch_df_list) and cfg.OUTPUT.SAVE:
+    if len(patch_df_list) and cfg.OUTPUT.SAVE_IMAGES:
         patch_df = pd.DataFrame(patch_df_list, columns=["key", "class_index", "prototype_index", "patch"])
         if os.path.isfile(os.path.join(node_file_dir, cfg.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX + ".csv")):
             # Update old file

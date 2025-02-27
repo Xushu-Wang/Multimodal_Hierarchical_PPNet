@@ -2,7 +2,6 @@ import argparse
 import torch
 import numpy as np
 from configs.cfg import get_cfg_defaults
-from model.model import Mode, construct_tree_ppnet
 from dataio.dataloader import get_dataloaders
 
 LOCATION = [1]
@@ -10,7 +9,8 @@ PROTOTYPE = 4
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', type=str, default='configs/analysis.yaml')
+    parser.add_argument("model_path", type=str)
+    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--same-class-only', action='store_true')
     args = parser.parse_args()
     cfg = get_cfg_defaults()
@@ -20,12 +20,11 @@ def main():
 
     print("Loading Model")
     # model = construct_tree_ppnet(cfg).cuda()
-    model = torch.load(cfg.MODEL.MULTI.MULTI_PPNET_PATH)
+    model = torch.load(args.model_path)
 
     print("Model Loaded")
     prototype_node = find_node(model, LOCATION)
-    print(prototype_node.genetic_tree_node.last_layer.weight)
-    print(prototype_node.image_tree_node.last_layer.weight)
+    print(prototype_node)
     samples, min_distances = find_best_samples_and_their_activations(model, val_loader, args.same_class_only, prototype_node, n=10)
 
     # Do some image visualizations with this correspondence
@@ -37,9 +36,8 @@ def main():
         # print(prototype_node.genetic_tree_node.last_layer.weight[:, top_10])
 
 def find_node(model, location):
-    for node in model.get_nodes_with_children():
-        print(node.int_location)
-        if len(node.int_location) == len(location) and all([a == b for a, b in zip(node.int_location, location)]):
+    for node in model.classifier_nodes:
+        if len(node.idx) == len(location) and all([a == b for a, b in zip(node.idx, location)]):
             return node
     return None
 
