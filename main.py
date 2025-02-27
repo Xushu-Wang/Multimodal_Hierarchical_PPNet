@@ -38,22 +38,22 @@ def main(cfg: CfgNode, log: Callable):
             tnt.train(model, train_loader, warm_optim, cfg, OptimMode.WARM, log, epoch+1) 
             tnt.test(model, val_loader, cfg, log, epoch+1)
 
-        # elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
-        #     log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
-        #     push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
-        #
-        #     # need to implement pruning here
-        #
-        #     for _ in range(19):
-        #         tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)
-        #         tnt.test(model, val_loader, cfg, log)
-        #
-        #     tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log, epoch+1)  
-        #     tnt.test(model, val_loader, cfg, log, epoch+1)
-        #
-        #     if cfg.OUTPUT.SAVE:
-        #         torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
-        #         torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
+        elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
+            log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
+            push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
+        
+            # need to implement pruning here
+        
+            for _ in range(19):
+                tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)
+                tnt.test(model, val_loader, cfg, log)
+        
+            tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log, epoch+1)  
+            tnt.test(model, val_loader, cfg, log, epoch+1)
+        
+            if cfg.OUTPUT.SAVE:
+                torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
+                torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             tnt.train(model, train_loader, joint_optim, cfg, OptimMode.JOINT, log, epoch+1) 
