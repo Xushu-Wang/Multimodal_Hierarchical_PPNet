@@ -1,3 +1,4 @@
+import torch
 import argparse, os, wandb
 from yacs.config import CfgNode
 
@@ -53,12 +54,18 @@ def main(cfg: CfgNode, log: Callable):
                 tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)  
                 tnt.test(model, val_loader, cfg, log)
 
+            if cfg.OUTPUT.SAVE:
+                torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
+                torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             tnt.train(model, train_loader, joint_optim, cfg, OptimMode.JOINT, log) 
             tnt.test(model, val_loader, cfg, log)
 
             # need to implement saving models
+            if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
+                torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))
+                torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_weights.pth"))
 
     wandb.finish()
     logclose()
