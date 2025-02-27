@@ -484,7 +484,6 @@ def test_image(model, dataloader, cfg, log, epoch):
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
-
         input = image.cuda()
         label = label.cuda()
         flat_label = flat_label.cuda()

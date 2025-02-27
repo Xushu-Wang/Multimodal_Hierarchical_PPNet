@@ -31,7 +31,6 @@ def main(cfg: CfgNode, log: Callable):
     warm_optim, joint_optim, last_layer_optim = get_optimizers(model, cfg)
 
     for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS): 
-
         # run an epoch of training
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')

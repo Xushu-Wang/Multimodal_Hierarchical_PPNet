@@ -229,20 +229,20 @@ def get_l1_cost(node: ProtoNode):
     return l1
 
 def sim_matrix(prototypes):
-  prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
-  prototypes_normed = prototypes_cur / prototypes_cur.norm(dim=-1, keepdim=True)
-  return prototypes_normed @ prototypes_normed.T
+    prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
+    prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True)+.01)
+    return prototypes_normed @ prototypes_normed.T
 
 def get_ortho_cost(node: ProtoNode, temp=0.01):
-  diff = sim_matrix(node.prototype) - torch.eye(node.prototype.shape[0]).cuda()
-  if temp is not None:
-    mask = torch.nn.functional.softmax(diff / temp, dim=-1)
-  else:
-    mask = torch.ones_like(diff)
+    diff = sim_matrix(node.prototype) - torch.eye(node.prototype.shape[0]).cuda()
+    if temp is not None:
+        mask = torch.nn.functional.softmax(diff / temp, dim=-1)
+    else:
+        mask = torch.ones_like(diff)
 
-  return torch.norm(
-      mask * diff
-  )
+    return torch.norm(
+        mask * diff
+    )
 
 def get_correspondence_loss_batched(
     gen_min_dist,
@@ -379,5 +379,4 @@ def get_loss_multi(
 
     del logits, min_distances
 
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, n_classifications
-
+    return cross_entropy, cluster_cost, separation_cost, l1_cost, n_classificat

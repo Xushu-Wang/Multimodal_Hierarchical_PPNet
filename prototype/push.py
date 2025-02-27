@@ -248,13 +248,16 @@ def push(
     for node in model.classifier_nodes:
         node.init_push()
 
-    match mode: 
-        case Mode.GENETIC: 
-            return push_genetic(model, dataloader, None, stride, epoch, cfg) 
-        case Mode.IMAGE: 
-            return push_image(model, dataloader, preprocessor, stride, epoch, cfg) 
-        case Mode.MULTIMODAL: 
-            return push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg) 
+    with torch.no_grad(): 
+        match mode: 
+            case Mode.GENETIC: 
+                return push_genetic(model, dataloader, None, stride, epoch, cfg) 
+            case Mode.IMAGE: 
+                return push_image(model, dataloader, preprocessor, stride, epoch, cfg) 
+            case Mode.MULTIMODAL: 
+                return push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg) 
+
+    model.zero_grad()
 
 
 def push_genetic(model, dataloader, _, stride, epoch, cfg): 
@@ -312,8 +315,7 @@ def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg):
         img_input = image.cuda()
         raw_image = raw_image.cuda()
 
-        with torch.no_grad(): 
-            gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
+        gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
         
         # for each node, find the prototype that it should project to
         for node in model.classifier_nodes:  
