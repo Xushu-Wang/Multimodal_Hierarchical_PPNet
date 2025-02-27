@@ -35,7 +35,7 @@ DATASET:
 OPTIM:
     NUM_WARM_EPOCHS: 0
     NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: []
+    PUSH_EPOCHS: [20, 30, 40, 50, 60, 70, 80, 90]
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 
@@ -76,4 +76,4 @@ OUTPUT:
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    SAVE: False # If this is false, images won't be saved.
+    SAVE: True 
