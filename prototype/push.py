@@ -69,7 +69,7 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
     patch_df_list = []
     node_file_dir = os.path.join(cfg.OUTPUT.IMG_DIR,
                             f'epoch-{epoch}',*node.taxnode.full_taxonomy, "prototypes")
-    for j in range(node.nprotos):
+    for j in range(node.nprotos * node.nclass):
         # We assume class_specifc is true
         # target_class is the class of the class_specific prototype
         target_class = int(torch.argmax(node.match[j]).item())
@@ -122,15 +122,15 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                 original_img_j = original_img_j.cpu().numpy()
 
                 # crop out the receptive field
-                rf_img_j = original_img_j[:, 0, (j % (node.nprotos // node.nclass)) * protoL_rf_info[1]: (j % (node.nprotos // node.nclass) + 1) * protoL_rf_info[1]]
+                rf_img_j = original_img_j[:, 0, (j % (node.nprotos)) * protoL_rf_info[1]: (j % (node.nprotos) + 1) * protoL_rf_info[1]]
 
                 string_prototype = decode_onehot(rf_img_j, False)
 
                 patch_df_list.append(
                     {
                         "key": j,
-                        "class_index": j // (node.nprotos // node.nclass),
-                        "prototype_index": j % (node.nprotos // node.nclass),
+                        "class_index": j // (node.nprotos),
+                        "prototype_index": j % (node.nprotos),
                         "patch": string_prototype
                     }
                 )
