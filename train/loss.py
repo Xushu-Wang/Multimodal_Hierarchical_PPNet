@@ -221,10 +221,21 @@ def get_l1_cost(node: ProtoNode):
     l1 = torch.linalg.vector_norm(masked_weights, ord=1)
     return l1
 
-def get_ortho_cost(node: ProtoNode):
-    P = node.prototype.squeeze(-1).squeeze(-1)  # type: ignore
-    P = P / torch.linalg.norm(P, dim=1).unsqueeze(-1)
-    return torch.sum(P@P.T-torch.eye(P.size(0)).cuda())
+def sim_matrix(prototypes):
+  prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
+  prototypes_normed = prototypes_cur / prototypes_cur.norm(dim=-1, keepdim=True)
+  return prototypes_normed @ prototypes_normed.T
+
+def get_ortho_cost(node: ProtoNode, temp=0.01):
+  diff = sim_matrix(node.prototype) - torch.eye(node.prototype.shape[0]).cuda()
+  if temp is not None:
+    mask = torch.nn.functional.softmax(diff / temp, dim=-1)
+  else:
+    mask = torch.ones_like(diff)
+
+  return torch.norm(
+      mask * diff
+  )
 
 def get_correspondence_loss_batched(
     gen_min_dist,
