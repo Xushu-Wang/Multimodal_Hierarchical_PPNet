@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_genetics"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "disabled" 
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
@@ -15,8 +15,8 @@ DATASET:
     MODE: 1
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    TRAIN_BATCH_SIZE: 20
-    TEST_BATCH_SIZE: 20
+    TRAIN_BATCH_SIZE: 80
+    TEST_BATCH_SIZE: 160
     TRAIN_PUSH_BATCH_SIZE: 20
 
     # Uncomment these once datasets have already been generated and you want to reuse them
@@ -32,7 +32,7 @@ DATASET:
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
     NUM_WARM_EPOCHS: 3
-    NUM_TRAIN_EPOCHS: 500
+    NUM_TRAIN_EPOCHS: 100
     PUSH_EPOCHS: []
     COEFS: 
         GENETIC: 
@@ -40,7 +40,7 @@ OPTIM:
             CLST: 0.001
             SEP: -0.1
             L1: 5e-3
-            ORTHOGONALITY: 1e-3
+            ORTHO: 1e-3
 
     # Optimizer Learning Rates (LR) and Weight Decays (WD) 
     WARM: 

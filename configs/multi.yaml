@@ -1,5 +1,5 @@
-RUN_NAME: "push_save_test"
-WANDB_MODE: "disabled" 
+RUN_NAME: "corr1000_ortho0"
+# WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
@@ -33,9 +33,9 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_WARM_EPOCHS: 3
+    NUM_WARM_EPOCHS: 0
     NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: [0]
+    PUSH_EPOCHS: []
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 
@@ -43,12 +43,13 @@ OPTIM:
             CLST: 0.001
             SEP: -0.1
             L1: 5e-3
-            ORTHOGONALITY: 1e-3
+            ORTHO: 0.0
         IMAGE: 
             CRS_ENT: 20.
             CLST: 0.001
             SEP: -0.1
-            ORTHOGONALITY: 1e-3
+            L1: 5e-3
+            ORTHO: 0.0
 
     # Optimizer Learning Rates (LR) and Weight Decays (WD) 
     WARM: 

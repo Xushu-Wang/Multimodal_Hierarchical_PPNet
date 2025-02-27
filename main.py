@@ -49,7 +49,7 @@ def main(cfg: CfgNode, log: Callable):
 
             # need to implement pruning here
 
-            for _ in range(1):
+            for _ in range(20):
                 tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)  
                 tnt.test(model, val_loader, cfg, log)
 
@@ -74,9 +74,9 @@ if __name__ == '__main__':
     cfg.merge_from_file(args.configs)
     run_id_accumulator(cfg)
 
-    print(cfg.RUN_NAME)
-
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
+    log(str(cfg))
+
     wandb.init(
         project=f"{run_mode[cfg.DATASET.MODE]} Hierarchical Protopnet",
         name=cfg.RUN_NAME,
