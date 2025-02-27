@@ -71,36 +71,36 @@ if __name__ == '__main__':
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--gpuid', type=str, default='0') 
 
-    # parser.add_argument('--gcrs_ent', type=float, default=20.0) 
-    # parser.add_argument('--gclst', type=float, default=0.001) 
-    # parser.add_argument('--gsep', type=float, default=-0.1) 
-    # parser.add_argument('--gl1', type=float, default=5e-3) 
-    # parser.add_argument('--gortho', type=float, default=0.0) 
-    #
-    # parser.add_argument('--icrs_ent', type=float, default=20.0) 
-    # parser.add_argument('--iclst', type=float, default=0.001) 
-    # parser.add_argument('--isep', type=float, default=-0.1) 
-    # parser.add_argument('--il1', type=float, default=5e-3) 
-    # parser.add_argument('--iortho', type=float, default=0.0) 
-    #
-    # parser.add_argument('--corr', type=float, default=0.0) 
+    parser.add_argument('--gcrs_ent', type=float, default=20.0) 
+    parser.add_argument('--gclst', type=float, default=0.001) 
+    parser.add_argument('--gsep', type=float, default=-0.1) 
+    parser.add_argument('--gl1', type=float, default=5e-3) 
+    parser.add_argument('--gortho', type=float, default=0.0) 
+    
+    parser.add_argument('--icrs_ent', type=float, default=20.0) 
+    parser.add_argument('--iclst', type=float, default=0.001) 
+    parser.add_argument('--isep', type=float, default=-0.1) 
+    parser.add_argument('--il1', type=float, default=5e-3) 
+    parser.add_argument('--iortho', type=float, default=0.0) 
+    
+    parser.add_argument('--corr', type=float, default=0.0) 
     args = parser.parse_args()
     
     cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
     run_id_accumulator(cfg) 
 
-    # cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
-    # cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
-    # cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
-    # cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
-    # cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
-    # cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
-    # cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
-    # cfg.OPTIM.COEFS.IMAGE.CLST = args.iclst
-    # cfg.OPTIM.COEFS.IMAGE.SEP = args.isep
-    # cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
-    # cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
+    cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
+    cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
+    cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
+    cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
+    cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
+    cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
+    cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
+    cfg.OPTIM.COEFS.IMAGE.CLST = args.iclst
+    cfg.OPTIM.COEFS.IMAGE.SEP = args.isep
+    cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
+    cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
 
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     log(str(cfg))

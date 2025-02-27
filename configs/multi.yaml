@@ -1,5 +1,5 @@
 RUN_NAME: "corr1000_ortho0"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
