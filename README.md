@@ -14,7 +14,7 @@ The following subsections describes the entire process in training a ProtoPNet.
 ## TODO
 - Check that Proto RF Info is used correctly for Image PPNet
 - Combine train and test functions into one
-- Checkout what's going on with enable grad. Maybe remove with statement, switch to calling it directly.
+- Checkout what's going on with enable grad. Maybe remove with statement, switch to calling it directly. DONE. 
 - Look at dividing by `n_classified`
 - Add orthogonality to non-multimodal
 

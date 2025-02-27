@@ -10,7 +10,6 @@ from typing import Union
 from train.loss import Objective, MultiObjective, get_cluster_and_sep_cost, get_l1_cost, get_ortho_cost, get_correspondence_loss_batched
 from tqdm import tqdm
 from enum import Enum
-from pprint import pprint
 
 Model = Union[HierProtoPNet, MultiHierProtoPNet, torch.nn.DataParallel]
 
@@ -340,8 +339,8 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
 
         batch_obj.correspondence /= total_corr_count
 
-        model.gen_net.conditional_normalize(model.root)  
-        model.img_net.conditional_normalize(model.root)  
+        model.gen_net.conditional_normalize(model.gen_net.root)  
+        model.img_net.conditional_normalize(model.img_net.root)  
 
         # calculate genetic accuracies
         gen_last_classifiers = [node for node in model.gen_net.classifier_nodes if node.depth == 3] 
@@ -369,7 +368,7 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        print(f"GPU : {torch.cuda.memory_allocated() / 1024 ** 2 :.2f} MB")
+        # print(f"GPU : {torch.cuda.memory_allocated() / 1024 ** 2 :.2f} MB")
 
         total_loss = batch_obj.total()
         total_loss.backward()
@@ -614,8 +613,8 @@ def test_multimodal(model, dataloader, cfg, log):
 
             batch_obj.correspondence /= total_corr_count
 
-            model.gen_net.conditional_normalize(model.root)  
-            model.img_net.conditional_normalize(model.root)  
+            model.gen_net.conditional_normalize(model.gen_net.root)  
+            model.img_net.conditional_normalize(model.img_net.root)  
 
             # calculate genetic accuracies
             gen_last_classifiers = [node for node in model.gen_net.classifier_nodes if node.depth == 3] 

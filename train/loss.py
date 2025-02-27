@@ -63,6 +63,7 @@ class Objective:
         self.coef_clst = cfg_coef.CLST
         self.coef_sep = cfg_coef.SEP
         self.coef_l1 = cfg_coef.L1
+        self.coef_ortho = cfg_coef.ORTHO
 
     def total(self): 
         """
@@ -72,7 +73,8 @@ class Objective:
         clst = self.coef_clst * self.cluster 
         sep = self.coef_sep * self.separation
         lasso = self.coef_l1 * self.lasso 
-        return ce + clst + sep + lasso
+        ortho = self.coef_ortho * self.orthogonality
+        return ce + clst + sep + lasso + ortho 
 
     def __iadd__(self, other): 
         """
@@ -83,6 +85,7 @@ class Objective:
         self.cluster += other.cluster
         self.separation += other.separation 
         self.lasso += other.lasso 
+        self.orthogonality += other.orthogonality
         self.n_next_correct += other.n_next_correct
         self.n_cond_correct += other.n_cond_correct
         return self 
@@ -95,24 +98,26 @@ class Objective:
         self.cluster /= const
         self.separation /= const
         self.lasso /= const
+        self.orthogonality /= const
         return self
 
     def to_dict(self): 
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = {
-            f"{run_mode[self.mode.value]}-{self.epoch}-cross_ent": self.cross_entropy, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent": self.cross_entropy, 
             f"{run_mode[self.mode.value]}-{self.epoch}-cluster": self.cluster, 
             f"{run_mode[self.mode.value]}-{self.epoch}-separation": self.separation,
-            f"{run_mode[self.mode.value]}-{self.epoch}-l1": self.lasso, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_order": next_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_family": next_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_genus": next_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next_acc_species": next_accs[3],
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_order": cond_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_family": cond_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_genus": cond_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc_species": cond_accs[3]
+            f"{run_mode[self.mode.value]}-{self.epoch}-lasso": self.lasso, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality": self.orthogonality, 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-base": next_accs[0], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-order": next_accs[1], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-family": next_accs[2], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-genus": next_accs[3],
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-base": cond_accs[0], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-order": cond_accs[1], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-family": cond_accs[2], 
+            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-genus": cond_accs[3]
         }
         return out 
 
@@ -120,12 +125,13 @@ class Objective:
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = "" 
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cross_ent: {float(self.cross_entropy.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-separation: {float(self.separation.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cluster: {float(self.cluster.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-lasso: {float(self.lasso.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-next_acc: {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cond_acc: {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent     : {float(self.cross_entropy.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-separation    : {float(self.separation.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cluster       : {float(self.cluster.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-lasso         : {float(self.lasso.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality : {float(self.orthogonality.item()):.5f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-next-acc      : {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
+        out += f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc      : {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
         return out
     
     def __repr__(self): 
@@ -136,6 +142,7 @@ class Objective:
         self.cluster = torch.zeros(1).cuda()
         self.separation = torch.zeros(1).cuda()
         self.lasso = torch.zeros(1).cuda()
+        self.orthogonality = torch.zeros(1).cuda()
         self.n_next_correct = CorrectCount(self.N)
         self.n_cond_correct = CorrectCount(self.N)
         torch.cuda.empty_cache()

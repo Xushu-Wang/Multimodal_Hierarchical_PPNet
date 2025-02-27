@@ -1,5 +1,5 @@
 RUN_NAME: "muchang_image"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false
@@ -15,7 +15,7 @@ DATASET:
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
-    TRAIN_BATCH_SIZE: 160
+    TRAIN_BATCH_SIZE: 80
     TEST_BATCH_SIZE: 160
     TRAIN_PUSH_BATCH_SIZE: 160
 
@@ -28,7 +28,7 @@ DATASET:
 
 OPTIM:
     NUM_WARM_EPOCHS: 3
-    NUM_TRAIN_EPOCHS: 50
+    NUM_TRAIN_EPOCHS: 100
     PUSH_EPOCHS: []
     COEFS: 
         IMAGE: 
@@ -36,7 +36,7 @@ OPTIM:
             CLST: 0.001
             SEP: -0.1
             L1: 5e-3
-            ORTHOGONALITY: 1e-3
+            ORTHO: 1e-3
 
     # Optimizer Learning Rates (LR) and Weight Decays (WD) 
     WARM: 
