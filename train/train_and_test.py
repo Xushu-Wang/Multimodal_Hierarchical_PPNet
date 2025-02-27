@@ -90,7 +90,8 @@ def train(
     optimizer: Optimizer, 
     cfg: CfgNode, 
     optim_mode: OptimMode,
-    log = print
+    log = print, 
+    record = True
 ): 
     """
     Train wrapper function for all models. 
@@ -114,14 +115,14 @@ def train(
 
     match mode: 
         case Mode.GENETIC: 
-            train_genetic(model, dataloader, optimizer, cfg, log) 
+            train_genetic(model, dataloader, optimizer, cfg, log, record) 
         case Mode.IMAGE: 
-            train_image(model, dataloader, optimizer, cfg, log) 
+            train_image(model, dataloader, optimizer, cfg, log, record) 
         case Mode.MULTIMODAL: 
-            train_multimodal(model, dataloader, optimizer, cfg, log) 
+            train_multimodal(model, dataloader, optimizer, cfg, log, record) 
 
 
-def train_genetic(model, dataloader, optimizer, cfg, log):  
+def train_genetic(model, dataloader, optimizer, cfg, log, record):  
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
@@ -190,12 +191,13 @@ def train_genetic(model, dataloader, optimizer, cfg, log):
 
     model.zero_pred()
     # normalize the losses
-    total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    total_obj /= len(dataloader) 
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
-def train_image(model, dataloader, optimizer, cfg, log): 
+def train_image(model, dataloader, optimizer, cfg, log, record): 
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
@@ -265,11 +267,12 @@ def train_image(model, dataloader, optimizer, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
-def train_multimodal(model, dataloader, optimizer, cfg, log): 
+def train_multimodal(model, dataloader, optimizer, cfg, log, record): 
     total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "train")
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
@@ -385,28 +388,30 @@ def train_multimodal(model, dataloader, optimizer, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
 def test(
     model: Model, 
     dataloader: DataLoader, 
     cfg: CfgNode, 
-    log = print
+    log = print, 
+    record = True
 ): 
     print("Validatin'")
     mode = Mode(model.mode) 
     model.eval()
     match mode: 
         case Mode.GENETIC: 
-            return test_genetic(model, dataloader, cfg, log) 
+            return test_genetic(model, dataloader, cfg, log, record) 
         case Mode.IMAGE: 
-            return test_image(model, dataloader, cfg, log) 
+            return test_image(model, dataloader, cfg, log, record) 
         case Mode.MULTIMODAL: 
-            return test_multimodal(model, dataloader, cfg, log) 
+            return test_multimodal(model, dataloader, cfg, log, record) 
 
-def test_genetic(model, dataloader, cfg, log): 
+def test_genetic(model, dataloader, cfg, log, record): 
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
@@ -471,11 +476,12 @@ def test_genetic(model, dataloader, cfg, log):
     model.zero_pred()
 
     total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
-def test_image(model, dataloader, cfg, log): 
+def test_image(model, dataloader, cfg, log, record): 
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
@@ -540,11 +546,12 @@ def test_image(model, dataloader, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
-def test_multimodal(model, dataloader, cfg, log): 
+def test_multimodal(model, dataloader, cfg, log, record): 
     total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), "test")
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
@@ -653,7 +660,8 @@ def test_multimodal(model, dataloader, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
-    wandb.log(total_obj.to_dict())
-    log(str(total_obj))
+    if record: 
+        wandb.log(total_obj.to_dict())
+        log(str(total_obj))
     total_obj.clear()
 
