@@ -51,7 +51,7 @@ cat > $TEMP_SCRIPT << EOT
 
 eval "\$(conda shell.bash hook)"
 conda activate intnn
-python3 main.py --configs configs/${MODE}.yaml --corr ${CORR} --gortho ${ORTHO} --iortho ${ORTHO}
+python3 main.py --configs configs/${MODE}.yaml --corr ${CORR} --gortho 0.0 --iortho ${ORTHO}
 EOT
 
 # Submit the temporary script and then remove it
