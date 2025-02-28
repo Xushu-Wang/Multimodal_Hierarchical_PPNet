@@ -1,8 +1,35 @@
 import torch
 from torch.nn import Module
 from yacs.config import CfgNode
+from torch.optim import Optimizer 
+from typing import Optional 
+from enum import Enum
 
-def get_optimizers(model: Module, cfg: CfgNode):
+class OptimMode(Enum): 
+    """
+    Enumeration object to specify which parameters to train. 
+    """
+    WARM = "train"
+    JOINT = "train"
+    LAST = "last"
+    TEST = "test"
+
+class Optim: 
+    """
+    Wrapper class around torch Optimizers with extra label on mode
+    """
+
+    def __init__(self, mode: OptimMode, optimizer: Optional[Optimizer]): 
+        self.optimizer = optimizer 
+        self.mode = mode 
+
+    def step(self): 
+        self.optimizer.step()  # type: ignore
+
+    def zero_grad(self): 
+        self.optimizer.zero_grad() # type: ignore
+
+def get_optimizers(model: Module, cfg: CfgNode): 
     warm = torch.optim.Adam([
         {
             'params': model.add_on_layers.parameters(), 
@@ -45,4 +72,9 @@ def get_optimizers(model: Module, cfg: CfgNode):
         momentum = cfg.OPTIM.LAST_LAYER.LAST_LAYER_MOM
     )
 
-    return warm, joint, last_layer
+    warm_optim = Optim(OptimMode.WARM, warm)
+    joint_optim = Optim(OptimMode.JOINT, joint)
+    last_layer_optim = Optim(OptimMode.LAST, last_layer) 
+    test_optim = Optim(OptimMode.TEST, None)
+
+    return warm_optim, joint_optim, last_layer_optim, test_optim

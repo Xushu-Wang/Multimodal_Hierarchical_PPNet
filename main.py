@@ -8,7 +8,6 @@ from dataio.dataloader import get_dataloaders
 from model.multimodal import construct_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
-from train.train_and_test import OptimMode
 import prototype.push as push 
 
 from typing import Callable
@@ -28,14 +27,14 @@ def main(cfg: CfgNode, log: Callable):
     model = construct_ppnet(cfg).cuda()
     log("ProtoPNet constructed")
 
-    warm_optim, joint_optim, last_layer_optim = get_optimizers(model, cfg)
+    warm_optim, joint_optim, last_optim, test_optim = get_optimizers(model, cfg)
 
     for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS): 
         # run an epoch of training
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
-            tnt.train(model, train_loader, warm_optim, cfg, OptimMode.WARM, log, epoch+1) 
-            tnt.test(model, val_loader, cfg, log, epoch+1)
+            tnt.traintest(model, train_loader, warm_optim, cfg, log) 
+            tnt.traintest(model, val_loader  , test_optim, cfg, log)
 
         elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
@@ -44,19 +43,19 @@ def main(cfg: CfgNode, log: Callable):
             # need to implement pruning here
         
             for _ in range(19):
-                tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log)
-                tnt.test(model, val_loader, cfg, log)
+                tnt.traintest(model, train_loader, last_optim, cfg, log)
+                tnt.traintest(model, val_loader, test_optim, cfg, log)
         
-            tnt.train(model, train_loader, last_layer_optim, cfg, OptimMode.LAST, log, epoch+1)  
-            tnt.test(model, val_loader, cfg, log, epoch+1)
+            tnt.traintest(model, train_loader, last_optim, cfg, log)
+            tnt.traintest(model, val_loader, test_optim, cfg, log)
         
             if cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
                 torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
-            tnt.train(model, train_loader, joint_optim, cfg, OptimMode.JOINT, log, epoch+1) 
-            tnt.test(model, val_loader, cfg, log, epoch+1)
+            tnt.traintest(model, train_loader, joint_optim, cfg, log)
+            tnt.traintest(model, val_loader, test_optim, cfg, log)
 
             if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))

@@ -153,7 +153,7 @@ class MultiObjective:
     Multimodal ProtoPNet
     """
 
-    def __init__(self, mode, cfg_coef: CfgNode, N: int, epoch = "train"): 
+    def __init__(self, mode, cfg_coef: CfgNode, N: int, epoch):
         self.mode = mode
         assert self.mode == Mode.MULTIMODAL
         self.N = N 
