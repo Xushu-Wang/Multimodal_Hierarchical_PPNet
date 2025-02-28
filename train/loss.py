@@ -230,7 +230,7 @@ def get_l1_cost(node: ProtoNode):
 
 def sim_matrix(prototypes):
     prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
-    prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True)+.01)
+    prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True) + 1e-6)
     return prototypes_normed @ prototypes_normed.T
 
 def get_ortho_cost(node: ProtoNode, temp=0.01):
