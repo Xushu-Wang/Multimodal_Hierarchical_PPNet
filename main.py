@@ -103,7 +103,6 @@ if __name__ == '__main__':
     cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
 
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
-    log(str(cfg))
 
     wandb.init(
         project=f"{run_mode[cfg.DATASET.MODE]} Hierarchical Protopnet",
@@ -111,6 +110,7 @@ if __name__ == '__main__':
         config=cfg,
         mode=cfg.WANDB_MODE
     )
+    log(str(cfg))
     try:
         main(cfg, log)
     except Exception as e: 
