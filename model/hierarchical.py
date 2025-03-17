@@ -183,47 +183,56 @@ class ProtoNode(nn.Module):
 
     def cos_sim(self, x, with_width_dim = False): 
         """
-        x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40) 
+        x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40)  
+        prototype - full prototypes in node: img=(10, 2048, 1, 1), gen=(40, 64, 1, 40)
         """
-        sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
-        x = F.normalize(x, dim=1) / sqrt_D 
+        sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 # would be 8x8 or 1x40
+        x = F.normalize(x, dim=1)
         prototype = self.prototype.to(x.device)
-        normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
+        normalized_prototypes = F.normalize(prototype, dim=1) # type:ignore
 
         if self.mode == Mode.GENETIC: 
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
             normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
             
-            if with_width_dim:
-                sim = F.conv2d(x, normalized_prototypes)
-                
-                # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
-                sim = sim.reshape((sim.shape[0], self.nclass, sim.shape[1] // self.nclass, 1))
-                # Take simto [3200, 40, 1]
-                sim = sim.reshape((sim.shape[0] * sim.shape[1], sim.shape[2], sim.shape[3]))
-                # Take simto [3200, 40, 40]
-                sim = F.pad(sim, (0, x.shape[3] - sim.shape[2], 0, 0), value=-1)
-                similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(sim)
+            # if with_width_dim:
+            #     sim = F.conv2d(x, normalized_prototypes)
+            #    
+            #     # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
+            #     sim = sim.reshape((sim.shape[0], self.nclass, sim.shape[1] // self.nclass, 1))
+            #     # Take simto [3200, 40, 1]
+            #     sim = sim.reshape((sim.shape[0] * sim.shape[1], sim.shape[2], sim.shape[3]))
+            #     # Take simto [3200, 40, 40]
+            #     sim = F.pad(sim, (0, x.shape[3] - sim.shape[2], 0, 0), value=-1)
+            #     similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(sim)
+            #
+            #     sim = torch.gather(sim, 2, similarity_offsetting_tensor)
+            #     # Take similarities to [80, 40, 40, 40]
+            #     sim = sim.reshape((sim.shape[0] // self.nclass, self.nclass, sim.shape[1], sim.shape[2]))
+            #
+            #     # Take similarities to [80, 1600, 40]
+            #     sim = sim.reshape((sim.shape[0], sim.shape[1] * sim.shape[2], sim.shape[3]))
+            #     sim = sim.unsqueeze(2)
+            #
+            #     return sim 
 
-                sim = torch.gather(sim, 2, similarity_offsetting_tensor)
-                # Take similarities to [80, 40, 40, 40]
-                sim = sim.reshape((sim.shape[0] // self.nclass, self.nclass, sim.shape[1], sim.shape[2]))
+        # IMG: (80, 2048, 8, 8) * (10 * nclass, 2048, 1, 1) -> (80, 10 * nclass, 8, 8) 
+        # GEN: (80, 64, 1, 40)  * (40 * nclass, 64, 1, 40)  -> (80, 40 * nclass, 1, 1)
+        similarities = F.conv2d(x, normalized_prototypes) 
 
-                # Take similarities to [80, 1600, 40]
-                sim = sim.reshape((sim.shape[0], sim.shape[1] * sim.shape[2], sim.shape[3]))
-                sim = sim.unsqueeze(2)
-
-                return sim 
-
-        return F.conv2d(x, normalized_prototypes)
+        return similarities
 
     def get_logits(self, conv_features):
-        sim = self.cos_sim(conv_features)
-        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))
+        # IMG: (80, 10 * nclass, 8, 8), GEN: (80, 40 * nclass, 1, 1)
+        sim = self.cos_sim(conv_features) 
+        # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1)
+        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
+
         min_distances = -1 * max_sim
 
-        # for each prototype, finds the spatial location that's closest to the prototype.
-        min_distances = min_distances.view(-1, self.nclass * self.nprotos)
+        # for each prototype, finds the spatial location that's closest to the prototype. 
+        # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
+        min_distances = min_distances.view(-1, self.nclass * self.nprotos) 
 
         # convert distance to similarity
         prototype_activations = -min_distances
