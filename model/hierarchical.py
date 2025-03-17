@@ -222,26 +222,6 @@ class ProtoNode(nn.Module):
 
         return similarities
 
-    def get_logits(self, conv_features):
-        # IMG: (80, 10 * nclass, 8, 8), GEN: (80, 40 * nclass, 1, 1)
-        sim = self.cos_sim(conv_features) 
-        # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1)
-        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
-
-        min_distances = -1 * max_sim
-
-        # for each prototype, finds the spatial location that's closest to the prototype. 
-        # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
-        min_distances = min_distances.view(-1, self.nclass * self.nprotos) 
-
-        # convert distance to similarity
-        prototype_activations = -min_distances
-        logits = self.last_layer(prototype_activations)
-        self.logits = logits
-        self.min_dist = min_distances
-
-        return logits, min_distances
-
     def push_get_dist(self, conv_features):
         with torch.no_grad(): 
             similarities = self.cos_sim(conv_features)
@@ -252,9 +232,28 @@ class ProtoNode(nn.Module):
     def forward(self, conv_features):
         """
         Forward pass on this node. Used for training when conv_features 
-        are masked
+        are masked. 
         """
-        return self.get_logits(conv_features) 
+        # IMG: (80, 10 * nclass, 8, 8), GEN: (80, 40 * nclass, 1, 1), values in [-1, 1]
+        sim = self.cos_sim(conv_features) 
+        # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1)
+        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
+
+        min_distances = -1 * max_sim 
+
+        # for each prototype, finds the spatial location that's closest to the prototype. 
+        # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
+        min_distances = min_distances.view(-1, self.nclass * self.nprotos)  
+
+        # for each of the 10 prototypes, it finds the location 
+
+        # convert distance to similarity
+        prototype_activations = -min_distances
+        logits = self.last_layer(prototype_activations)
+        self.logits = logits
+        self.min_dist = min_distances
+
+        return logits, min_distances
 
     def softmax(self): 
         if self.logits is None: 
