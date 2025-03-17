@@ -284,7 +284,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg, log):
                     batch_obj.gen_obj.n_next_correct[node.depth] += torch.sum(gen_predictions == m_label) 
                     batch_obj.img_obj.n_next_correct[node.depth] += torch.sum(img_predictions == m_label) 
 
-                # cluster and separation loss 
+                # cluster and separation loss  
                 gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
                 img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
                 batch_obj.gen_obj.cluster += gen_cluster 

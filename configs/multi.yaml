@@ -1,5 +1,5 @@
-RUN_NAME: "corr1000_ortho0"
-# WANDB_MODE: "disabled" 
+RUN_NAME: "traintest_runs"
+WANDB_MODE: "disabled" 
 
 MODEL:
     PRUNE: false # Keep disabled. This has not been updated to work with new changes.
@@ -18,7 +18,7 @@ DATASET:
     MODE: 3 # For parallel mode, always set to 3
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
-    TRAIN_BATCH_SIZE: 40
+    TRAIN_BATCH_SIZE: 80
     TEST_BATCH_SIZE: 160
     TRAIN_PUSH_BATCH_SIZE: 40
 
@@ -35,7 +35,7 @@ DATASET:
 OPTIM:
     NUM_WARM_EPOCHS: 0
     NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: [50, 60, 70, 80, 90]
+    PUSH_EPOCHS: [5, 50, 60, 70, 80, 90]
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 

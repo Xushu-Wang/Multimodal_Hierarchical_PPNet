@@ -201,7 +201,16 @@ class MultiObjective:
         self.correspondence = torch.zeros(1).cuda()
         torch.cuda.empty_cache()
 
-def get_cluster_and_sep_cost(min_dist, target, num_classes):  
+def get_cluster_and_sep_cost(min_dist, target, num_classes): 
+    """
+    Get cluster and separation cost.  
+    Before, mask the sizes should be
+        min_dist    - the minimum distance from each prototype 
+        IMG - (80, 10 * num_classes) - flattened with torch.view
+                 - GEN - (80, 40 * num_classes)
+        target   - (80, 4)  
+        num_classes - number of classes to be predicted by this node (e.g. node outputs 1...N classes)
+    """
     if len(target) == 0: 
         return torch.zeros(1, device=target.device), torch.zeros(1, device=target.device) 
 
