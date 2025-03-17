@@ -186,7 +186,7 @@ class ProtoNode(nn.Module):
         x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40)  
         prototype - full prototypes in node: img=(10, 2048, 1, 1), gen=(40, 64, 1, 40)
         """
-        sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 # would be 8x8 or 1x40
+        # sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 # would be 8x8 or 1x40
         x = F.normalize(x, dim=1)
         prototype = self.prototype.to(x.device)
         normalized_prototypes = F.normalize(prototype, dim=1) # type:ignore
