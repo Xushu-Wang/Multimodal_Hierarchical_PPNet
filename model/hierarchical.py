@@ -188,8 +188,8 @@ class ProtoNode(nn.Module):
         """
         # keep sqrt_D here 
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
-        x = F.normalize(x, dim=1)
-        prototype = self.prototype.to(x.device) / sqrt_D
+        x = F.normalize(x, dim=1) / sqrt_D
+        prototype = self.prototype.to(x.device) 
         normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
         if self.mode == Mode.GENETIC: 
