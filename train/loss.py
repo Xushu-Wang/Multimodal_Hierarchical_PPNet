@@ -224,9 +224,12 @@ def get_cluster_and_sep_cost(min_dist, target, num_classes):
     num_prototypes_per_class = min_dist.size(1) // num_classes
     prototypes_of_correct_class = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
                         view(target_one_hot.size(0),-1)  
+    
+    # one_hot_repeat = (80 & mask, num_classes * protos_per_class)  
+    # min_dist = (80 & mask, 10 * num_classes)  
+    
+    max_dist = 2  # should be 2 since distance lives in [0, 2]
 
-    # one_hot_repeat = (80 & mask, num_classes * protos_per_class) 
-    max_dist = 1 
     inverted_distances, _ = torch.max((max_dist - min_dist) * prototypes_of_correct_class, dim=1)
     cluster_cost = torch.mean(max_dist - inverted_distances)
 
