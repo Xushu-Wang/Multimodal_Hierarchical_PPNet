@@ -1,3 +1,6 @@
+# python look_at_correspondeces.py <path> <epoch> --configs <config> --same-class-only
+# python look_at_correspondences.py ../output/joint/reasonable-fx2_1.-1000.0 80 --configs "configs/multi2.yaml"
+
 import argparse
 import math
 import os
@@ -84,7 +87,9 @@ def main():
         for i in top_10:
             prototype_index = i.item() % 40
             class_index = i.item() // 40
-            print(class_index, prototype_index, full_str[prototype_index*18:(prototype_index+1)*18], md_strs[i], prototype_node.gen_node.last_layer.weight[:,i], prototype_node.gen_node.last_layer.weight.flatten().sort(descending=True)[0][:10])
+            print(class_index, prototype_index, full_str[prototype_index*18:(prototype_index+1)*18], md_strs[i]
+                #   , prototype_node.gen_node.last_layer.weight[:,i], prototype_node.gen_node.last_layer.weight.flatten().sort(descending=True)[0][:10]
+                )
         print("")
 
 def find_node(model, location):
