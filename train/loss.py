@@ -4,6 +4,7 @@ from model.hierarchical import ProtoNode
 from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
 from typing import Union
+from typing_extensions import deprecated
 
 run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
@@ -318,6 +319,8 @@ def get_correspondence_loss_single(
 
     return correspondence_cost_summed, correspondence_cost_count
 
+
+@deprecated("Use the individual functions above to calculate each loss component.")
 def get_loss_multi(
     conv_features,
     node: Union[ProtoNode, CombinerProtoNode],
