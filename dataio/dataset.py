@@ -66,7 +66,7 @@ class Level():
 
     def increment(self, level): 
         if isinstance(level, int): 
-            self.counts[level] += 1 
+            self.counts[level] += 1
         elif isinstance(level, str): 
             self.counts[self.names[level]] += 1
         else: 

@@ -16,7 +16,6 @@ from typing import Callable
 run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
 
 def main(cfg: CfgNode, log: Callable):
-    
     if not os.path.exists(cfg.OUTPUT.MODEL_DIR):
         os.mkdir(cfg.OUTPUT.MODEL_DIR)
     if not os.path.exists(cfg.OUTPUT.IMG_DIR):
@@ -81,14 +80,23 @@ if __name__ == '__main__':
     parser.add_argument('--iclst', type=float, default=0.001) 
     parser.add_argument('--isep', type=float, default=-0.1) 
     parser.add_argument('--il1', type=float, default=5e-3) 
-    parser.add_argument('--iortho', type=float, default=0.0) 
+    parser.add_argument('--iortho', type=float, default=0.0)
     
-    parser.add_argument('--corr', type=float, default=0.0) 
+    parser.add_argument('--corr', type=float, default=0.0)
+    parser.add_argument('--run-name', type=str, default=None)
+    
     args = parser.parse_args()
     
     cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
+
+    if args.run_name is not None:
+        print(args.run_name)
+        cfg.RUN_NAME = args.run_name
+        print(cfg.RUN_NAME)
+
     run_id_accumulator(cfg) 
+    print(cfg.RUN_NAME)
 
     cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
     cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
@@ -109,7 +117,8 @@ if __name__ == '__main__':
         project=f"{run_mode[cfg.DATASET.MODE]} Hierarchical Protopnet",
         name=cfg.RUN_NAME,
         config=cfg,
-        mode=cfg.WANDB_MODE
+        mode=cfg.WANDB_MODE,
+        entity="charlieberens-duke-university"
     )
     try:
         main(cfg, log)

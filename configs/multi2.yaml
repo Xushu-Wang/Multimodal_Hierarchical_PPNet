@@ -13,13 +13,14 @@ DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
+    # CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     MODE: 3 # For parallel mode, always set to 3
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
     TRAIN_BATCH_SIZE: 40
-    TEST_BATCH_SIZE: 160
+    TEST_BATCH_SIZE: 40
     TRAIN_PUSH_BATCH_SIZE: 40
 
     IMAGE: 
@@ -77,3 +78,4 @@ OUTPUT:
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
     SAVE: True 
+    SAVE_IMAGES: True
