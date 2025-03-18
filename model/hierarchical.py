@@ -195,26 +195,26 @@ class ProtoNode(nn.Module):
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
             normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
             
-            # if with_width_dim:
-            #     sim = F.conv2d(x, normalized_prototypes)
-            #    
-            #     # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
-            #     sim = sim.reshape((sim.shape[0], self.nclass, sim.shape[1] // self.nclass, 1))
-            #     # Take simto [3200, 40, 1]
-            #     sim = sim.reshape((sim.shape[0] * sim.shape[1], sim.shape[2], sim.shape[3]))
-            #     # Take simto [3200, 40, 40]
-            #     sim = F.pad(sim, (0, x.shape[3] - sim.shape[2], 0, 0), value=-1)
-            #     similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(sim)
-            #
-            #     sim = torch.gather(sim, 2, similarity_offsetting_tensor)
-            #     # Take similarities to [80, 40, 40, 40]
-            #     sim = sim.reshape((sim.shape[0] // self.nclass, self.nclass, sim.shape[1], sim.shape[2]))
-            #
-            #     # Take similarities to [80, 1600, 40]
-            #     sim = sim.reshape((sim.shape[0], sim.shape[1] * sim.shape[2], sim.shape[3]))
-            #     sim = sim.unsqueeze(2)
-            #
-            #     return sim 
+            if with_width_dim: 
+                sim = F.conv2d(x, normalized_prototypes)
+                
+                # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
+                sim = sim.reshape((sim.shape[0], self.nclass, sim.shape[1] // self.nclass, 1))
+                # Take simto [3200, 40, 1]
+                sim = sim.reshape((sim.shape[0] * sim.shape[1], sim.shape[2], sim.shape[3]))
+                # Take simto [3200, 40, 40]
+                sim = F.pad(sim, (0, x.shape[3] - sim.shape[2], 0, 0), value=-1)
+                similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(sim)
+            
+                sim = torch.gather(sim, 2, similarity_offsetting_tensor)
+                # Take similarities to [80, 40, 40, 40]
+                sim = sim.reshape((sim.shape[0] // self.nclass, self.nclass, sim.shape[1], sim.shape[2]))
+            
+                # Take similarities to [80, 1600, 40]
+                sim = sim.reshape((sim.shape[0], sim.shape[1] * sim.shape[2], sim.shape[3]))
+                sim = sim.unsqueeze(2)
+            
+                return sim 
 
         # IMG: (80, 2048, 8, 8) * (10 * nclass, 2048, 1, 1) -> (80, 10 * nclass, 8, 8) 
         # GEN: (80, 64, 1, 40)  * (40 * nclass, 64, 1, 40)  -> (80, 40 * nclass, 1, 1)
