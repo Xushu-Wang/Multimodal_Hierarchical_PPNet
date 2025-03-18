@@ -181,71 +181,55 @@ class ProtoNode(nn.Module):
 
         return eye.to(similarities.device)
 
-    def cos_sim(self, x, with_width_dim = False): 
+    def cos_sim(self, x): 
         """
-        x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40) 
+        x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40)  
+        prototype - full prototypes in node: img=(10, 2048, 1, 1), gen=(40, 64, 1, 40)
         """
+        # keep sqrt_D here 
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
-        x = F.normalize(x, dim=1) / sqrt_D 
-        prototype = self.prototype.to(x.device)
+        x = F.normalize(x, dim=1) / sqrt_D
+        prototype = self.prototype.to(x.device) 
         normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
         if self.mode == Mode.GENETIC: 
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
             normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
             
-            if with_width_dim:
-                sim = F.conv2d(x, normalized_prototypes)
-                
-                # Take similarities from [80, 1600, 1, 1] to [80, 40, 40, 1]
-                sim = sim.reshape((sim.shape[0], self.nclass, sim.shape[1] // self.nclass, 1))
-                # Take simto [3200, 40, 1]
-                sim = sim.reshape((sim.shape[0] * sim.shape[1], sim.shape[2], sim.shape[3]))
-                # Take simto [3200, 40, 40]
-                sim = F.pad(sim, (0, x.shape[3] - sim.shape[2], 0, 0), value=-1)
-                similarity_offsetting_tensor = self.find_offsetting_tensor_for_similarity(sim)
-
-                sim = torch.gather(sim, 2, similarity_offsetting_tensor)
-                # Take similarities to [80, 40, 40, 40]
-                sim = sim.reshape((sim.shape[0] // self.nclass, self.nclass, sim.shape[1], sim.shape[2]))
-
-                # Take similarities to [80, 1600, 40]
-                sim = sim.reshape((sim.shape[0], sim.shape[1] * sim.shape[2], sim.shape[3]))
-                sim = sim.unsqueeze(2)
-
-                return sim 
-
-        return F.conv2d(x, normalized_prototypes)
-
-    def get_logits(self, conv_features):
-        sim = self.cos_sim(conv_features)
-        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))
-        min_distances = -1 * max_sim
-
-        # for each prototype, finds the spatial location that's closest to the prototype.
-        min_distances = min_distances.view(-1, self.nclass * self.nprotos)
-
-        # convert distance to similarity
-        prototype_activations = -min_distances
-        logits = self.last_layer(prototype_activations)
-        self.logits = logits
-        self.min_dist = min_distances
-
-        return logits, min_distances
+        # IMG: (80, 2048, 8, 8) * (10 * nclass, 2048, 1, 1) -> (80, 10 * nclass, 8, 8) 
+        # GEN: (80, 64, 1, 40)  * (40 * nclass, 64, 1, 40)  -> (80, 40 * nclass, 1, 1)
+        similarities = F.conv2d(x, normalized_prototypes)  
+        return similarities
 
     def push_get_dist(self, conv_features):
         with torch.no_grad(): 
             similarities = self.cos_sim(conv_features)
-            distances = -1 * similarities
+            distances = 1 - similarities
 
         return distances
 
     def forward(self, conv_features):
         """
         Forward pass on this node. Used for training when conv_features 
-        are masked
+        are masked. 
         """
-        return self.get_logits(conv_features) 
+        # IMG: (80, 10 * nclass, 8, 8), GEN: (80, 40 * nclass, 1, 1), values in [-1, 1]
+        sim = self.cos_sim(conv_features) 
+        # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1), in [-1, 1]
+        max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
+
+        min_distances = 1 - max_sim # in [0, 2]
+
+        # for each prototype, finds the spatial location that's closest to the prototype. 
+        # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
+        min_distances = min_distances.view(-1, self.nclass * self.nprotos)  
+
+        # convert distance to similarity
+        logits = self.last_layer(max_sim.view(-1, self.nclass * self.nprotos))
+        self.logits = logits
+        self.min_dist = min_distances
+
+        return logits, min_distances
 
     def softmax(self): 
         if self.logits is None: 

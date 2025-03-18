@@ -108,7 +108,7 @@ def find_best_samples_and_their_activations(model, dataloader, same_class_only, 
             input = (genetics.to("cuda"), image.to("cuda"))
             conv_features = model.conv_features(input[0], input[1])
 
-            logits, min_distances = prototype_node.get_logits(conv_features[0], conv_features[1])
+            logits, min_distances = prototype_node(conv_features[0], conv_features[1])
 
             relevant_distance = min_distances[1][:, PROTOTYPE]
 

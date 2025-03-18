@@ -4,6 +4,7 @@ from model.hierarchical import ProtoNode
 from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
 from typing import Union
+from typing_extensions import deprecated
 
 run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
@@ -153,7 +154,7 @@ class MultiObjective:
     Multimodal ProtoPNet
     """
 
-    def __init__(self, mode, cfg_coef: CfgNode, N: int, epoch = "train"): 
+    def __init__(self, mode, cfg_coef: CfgNode, N: int, epoch):
         self.mode = mode
         assert self.mode == Mode.MULTIMODAL
         self.N = N 
@@ -201,9 +202,20 @@ class MultiObjective:
         self.correspondence = torch.zeros(1).cuda()
         torch.cuda.empty_cache()
 
-def get_cluster_and_sep_cost(min_dist, target, num_classes):  
+def get_cluster_and_sep_cost(min_dist, target, num_classes): 
+    """
+    Get cluster and separation cost.  
+    Before, mask the sizes should be
+        min_dist    - the minimum distance from each prototype 
+                         - IMG - (80 & mask, 10 * num_classes) - flattened with torch.view
+                         - GEN - (80 & mask, 40 * num_classes)
+        target      - the relevant samples. There are (80 & mask) of them. 
+        num_classes - number of classes to be predicted by this node (e.g. node outputs 1...N classes)
+        Note that each target (e.g. 20 targets) are in one of the num_classes class
+    """
+
     if len(target) == 0: 
-        return torch.zeros(1, device=target.device), torch.zeros(1, device=target.device) 
+        return torch.zeros(1, device=target.device), torch.zeros(1, device=target.device)  
 
     # Create one-hot encoding
     target_one_hot = torch.zeros(target.size(0), num_classes, device=target.device)
@@ -211,14 +223,21 @@ def get_cluster_and_sep_cost(min_dist, target, num_classes):
 
     # make_one_hot(target + 1, target_one_hot)
     num_prototypes_per_class = min_dist.size(1) // num_classes
-    one_hot_repeat = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
-                        view(target_one_hot.size(0),-1)
-    cluster_cost = torch.mean(torch.min(min_dist* one_hot_repeat, dim=1)[0])
+    prototypes_of_correct_class = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
+                        view(target_one_hot.size(0),-1)  
+    
+    # one_hot_repeat = (80 & mask, num_classes * protos_per_class)  
+    # min_dist = (80 & mask, 10 * num_classes)  
+    
+    max_dist = 2  # should be 2 since distance lives in [0, 2]
 
-    flipped_one_hot_repeat = 1 - one_hot_repeat
+    inverted_distances, _ = torch.max((max_dist - min_dist) * prototypes_of_correct_class, dim=1)
+    cluster_cost = torch.mean(max_dist - inverted_distances)
+
+    prototypes_of_wrong_class = 1 - prototypes_of_correct_class
     inverted_distances_to_nontarget_prototypes, _ = \
-        torch.max((0 - min_dist) * flipped_one_hot_repeat, dim=1)
-    separation_cost = torch.mean(0 - inverted_distances_to_nontarget_prototypes)
+    torch.max((max_dist - min_dist) * prototypes_of_wrong_class, dim=1)
+    separation_cost = torch.mean(max_dist - inverted_distances_to_nontarget_prototypes)
 
     return cluster_cost, separation_cost
 
@@ -230,11 +249,11 @@ def get_l1_cost(node: ProtoNode):
 
 def sim_matrix(prototypes):
     prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
-    prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True)+.01)
+    prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True) + 1e-6)
     return prototypes_normed @ prototypes_normed.T
 
 def get_ortho_cost(node: ProtoNode, temp=0.01):
-    diff = sim_matrix(node.prototype) - torch.eye(node.prototype.shape[0]).cuda()
+    diff = sim_matrix(node.prototype) - torch.eye(node.prototype.size(0)).cuda()
     if temp is not None:
         mask = torch.nn.functional.softmax(diff / temp, dim=-1)
     else:
@@ -300,6 +319,8 @@ def get_correspondence_loss_single(
 
     return correspondence_cost_summed, correspondence_cost_count
 
+
+@deprecated("Use the individual functions above to calculate each loss component.")
 def get_loss_multi(
     conv_features,
     node: Union[ProtoNode, CombinerProtoNode],
