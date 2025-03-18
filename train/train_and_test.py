@@ -351,7 +351,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg, log):
 
     model.zero_pred()
     total_obj /= len(dataloader)
-    if optimizer.mode == OptimMode.WARM or optimizer.mode == OptimMode.JOINT: 
+    if optimizer.mode in [OptimMode.WARM, OptimMode.JOINT, OptimMode.TEST]: 
         wandb.log(total_obj.to_dict())
         log(str(total_obj))
     total_obj.clear()
