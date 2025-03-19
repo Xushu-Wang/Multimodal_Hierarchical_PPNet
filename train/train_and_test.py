@@ -1,16 +1,12 @@
-import wandb
 import torch
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from torch.optim import Optimizer
 from yacs.config import CfgNode
 from model.hierarchical import Mode, HierProtoPNet
 from model.multimodal import MultiHierProtoPNet
-from typing import Union, Optional
 from train.loss import Objective, MultiObjective, get_cluster_and_sep_cost, get_l1_cost, get_ortho_cost, get_correspondence_loss_batched
 from train.optimizer import Optim, OptimMode
 from tqdm import tqdm
-from enum import Enum
+from typing import Union
 
 Model = Union[HierProtoPNet, MultiHierProtoPNet]
 
@@ -58,8 +54,7 @@ def traintest(
     model: Model, 
     dataloader, 
     optimizer: Optim, 
-    cfg: CfgNode, 
-    log = print
+    cfg: CfgNode
 ): 
     """
     Train wrapper function for all models. 
@@ -83,13 +78,13 @@ def traintest(
 
     match mode: 
         case Mode.GENETIC: 
-            _traintest_genetic   (model, dataloader, optimizer, cfg, log) 
+            return _traintest_genetic   (model, dataloader, optimizer, cfg) 
         case Mode.IMAGE: 
-            _traintest_image     (model, dataloader, optimizer, cfg, log) 
+            return _traintest_image     (model, dataloader, optimizer, cfg) 
         case Mode.MULTIMODAL: 
-            _traintest_multi(model, dataloader, optimizer, cfg, log) 
+            return _traintest_multi     (model, dataloader, optimizer, cfg) 
 
-def _traintest_genetic(model, dataloader, optimizer, cfg, log): 
+def _traintest_genetic(model, dataloader, optimizer, cfg): 
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
@@ -159,12 +154,9 @@ def _traintest_genetic(model, dataloader, optimizer, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader) 
-    if optimizer.mode == OptimMode.WARM or optimizer.mode == OptimMode.JOINT: 
-        wandb.log(total_obj.to_dict())
-        log(str(total_obj))
-    total_obj.clear()
+    return total_obj
 
-def _traintest_image(model, dataloader, optimizer, cfg, log): 
+def _traintest_image(model, dataloader, optimizer, cfg): 
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
@@ -234,12 +226,9 @@ def _traintest_image(model, dataloader, optimizer, cfg, log):
     model.zero_pred()
     # normalize the losses
     total_obj /= len(dataloader)
-    if optimizer.mode == OptimMode.WARM or optimizer.mode == OptimMode.JOINT: 
-        wandb.log(total_obj.to_dict())
-        log(str(total_obj))
-    total_obj.clear()
+    return total_obj
 
-def _traintest_multi(model, dataloader, optimizer, cfg, log): 
+def _traintest_multi(model, dataloader, optimizer, cfg): 
     total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
@@ -351,7 +340,4 @@ def _traintest_multi(model, dataloader, optimizer, cfg, log):
 
     model.zero_pred()
     total_obj /= len(dataloader)
-    if optimizer.mode in [OptimMode.WARM, OptimMode.JOINT, OptimMode.TEST]: 
-        wandb.log(total_obj.to_dict())
-        log(str(total_obj))
-    total_obj.clear()
+    return total_obj
