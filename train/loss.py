@@ -1,10 +1,7 @@
 import torch
 from yacs.config import CfgNode
 from model.hierarchical import ProtoNode
-from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
-from typing import Union
-from typing_extensions import deprecated
 
 run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
@@ -106,19 +103,19 @@ class Objective:
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = {
-            f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent": self.cross_entropy, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cluster": self.cluster, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-separation": self.separation,
-            f"{run_mode[self.mode.value]}-{self.epoch}-lasso": self.lasso, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality": self.orthogonality, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-base": next_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-order": next_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-family": next_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-genus": next_accs[3],
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-base": cond_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-order": cond_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-family": cond_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-genus": cond_accs[3]
+            f"{self.epoch}/{run_mode[self.mode.value]}-cross-ent": self.cross_entropy, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cluster": self.cluster, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-separation": self.separation,
+            f"{self.epoch}/{run_mode[self.mode.value]}-lasso": self.lasso, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-orthogonality": self.orthogonality, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-base": next_accs[0], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-order": next_accs[1], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-family": next_accs[2], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-genus": next_accs[3],
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-base": cond_accs[0], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-order": cond_accs[1], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-family": cond_accs[2], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-genus": cond_accs[3]
         }
         return out 
 
@@ -126,13 +123,13 @@ class Objective:
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = "" 
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent     : {float(self.cross_entropy.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-separation    : {float(self.separation.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cluster       : {float(self.cluster.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-lasso         : {float(self.lasso.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality : {float(self.orthogonality.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-next-acc      : {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc      : {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cross-ent     : {float(self.cross_entropy.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-separation    : {float(self.separation.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cluster       : {float(self.cluster.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-lasso         : {float(self.lasso.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-orthogonality : {float(self.orthogonality.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-next-acc      : {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc      : {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
         return out
     
     def __repr__(self): 
@@ -183,14 +180,14 @@ class MultiObjective:
         out = {} 
         out.update(self.gen_obj.to_dict())
         out.update(self.img_obj.to_dict()) 
-        out[f"{run_mode[self.mode.value]}-{self.epoch}-correspondence"] = self.correspondence
+        out[f"{self.epoch}/{run_mode[self.mode.value]}-correspondence"] = self.correspondence
         return out
 
     def __str__(self): 
         out = "" 
         out += str(self.gen_obj)
         out += str(self.img_obj)
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-correspondence: {float(self.correspondence.item()):.5f}"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-correspondence: {float(self.correspondence.item()):.5f}"
         return out
 
     def __repr__(self): 
