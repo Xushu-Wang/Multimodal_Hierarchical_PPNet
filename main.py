@@ -32,29 +32,42 @@ def main(cfg: CfgNode, log: Callable):
         # run an epoch of training
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
-            tnt.traintest(model, train_loader, warm_optim, cfg, log) 
-            tnt.traintest(model, val_loader  , test_optim, cfg, log)
+            train_loss = tnt.traintest(model, train_loader, warm_optim, cfg)  
+            wandb.log(train_loss.to_dict()) 
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader  , test_optim, cfg)
+            wandb.log(test_loss.to_dict()) 
+            log(str(test_loss))
 
-        elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
+        elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
-        
+            
             # need to implement pruning here
-        
+            
+            # run 20 epochs of last layer optim, validating logs too much data 
             for _ in range(19):
-                tnt.traintest(model, train_loader, last_optim, cfg, log)
-                tnt.traintest(model, val_loader, test_optim, cfg, log)
-        
-            tnt.traintest(model, train_loader, last_optim, cfg, log)
-            tnt.traintest(model, val_loader, test_optim, cfg, log)
-        
+                tnt.traintest(model, train_loader, last_optim, cfg)
+
+            # log the final epoch of the last layer optimizer and validation  
+            train_loss = tnt.traintest(model, train_loader, last_optim, cfg)
+            wandb.log(train_loss.to_dict()) 
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
+            wandb.log(test_loss.to_dict()) 
+            log(str(test_loss))
+            
             if cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
                 torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
-            tnt.traintest(model, train_loader, joint_optim, cfg, log)
-            tnt.traintest(model, val_loader, test_optim, cfg, log)
+            train_loss = tnt.traintest(model, train_loader, joint_optim, cfg)
+            wandb.log(train_loss.to_dict()) 
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
+            wandb.log(test_loss.to_dict()) 
+            log(str(test_loss))
 
             if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))
@@ -70,15 +83,15 @@ if __name__ == '__main__':
     parser.add_argument('--gpuid', type=str, default='0') 
 
     parser.add_argument('--gcrs_ent', type=float, default=20.0) 
-    parser.add_argument('--gclst', type=float, default=0.001) 
-    parser.add_argument('--gsep', type=float, default=-0.1) 
-    parser.add_argument('--gl1', type=float, default=5e-3) 
+    parser.add_argument('--gclst', type=float, default=0.1) 
+    parser.add_argument('--gsep', type=float, default=-0.001) 
+    parser.add_argument('--gl1', type=float, default=0.0) 
     parser.add_argument('--gortho', type=float, default=0.0) 
     
     parser.add_argument('--icrs_ent', type=float, default=20.0) 
-    parser.add_argument('--iclst', type=float, default=0.001) 
-    parser.add_argument('--isep', type=float, default=-0.1) 
-    parser.add_argument('--il1', type=float, default=5e-3) 
+    parser.add_argument('--iclst', type=float, default=0.1) 
+    parser.add_argument('--isep', type=float, default=-0.001) 
+    parser.add_argument('--il1', type=float, default=0.0) 
     parser.add_argument('--iortho', type=float, default=0.0)
     
     parser.add_argument('--corr', type=float, default=0.0)

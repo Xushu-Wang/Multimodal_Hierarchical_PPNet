@@ -1,10 +1,7 @@
 import torch
 from yacs.config import CfgNode
 from model.hierarchical import ProtoNode
-from model.multimodal import CombinerProtoNode
 from dataio.dataset import Mode
-from typing import Union
-from typing_extensions import deprecated
 
 run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
@@ -106,19 +103,19 @@ class Objective:
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = {
-            f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent": self.cross_entropy, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cluster": self.cluster, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-separation": self.separation,
-            f"{run_mode[self.mode.value]}-{self.epoch}-lasso": self.lasso, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality": self.orthogonality, 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-base": next_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-order": next_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-family": next_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-next-acc-genus": next_accs[3],
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-base": cond_accs[0], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-order": cond_accs[1], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-family": cond_accs[2], 
-            f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc-genus": cond_accs[3]
+            f"{self.epoch}/{run_mode[self.mode.value]}-cross-ent": self.cross_entropy, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cluster": self.cluster, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-separation": self.separation,
+            f"{self.epoch}/{run_mode[self.mode.value]}-lasso": self.lasso, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-orthogonality": self.orthogonality, 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-base": next_accs[0], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-order": next_accs[1], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-family": next_accs[2], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-next-acc-genus": next_accs[3],
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-base": cond_accs[0], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-order": cond_accs[1], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-family": cond_accs[2], 
+            f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc-genus": cond_accs[3]
         }
         return out 
 
@@ -126,13 +123,13 @@ class Objective:
         next_accs = self.n_next_correct.acc()
         cond_accs = self.n_cond_correct.acc()
         out = "" 
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cross-ent     : {float(self.cross_entropy.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-separation    : {float(self.separation.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cluster       : {float(self.cluster.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-lasso         : {float(self.lasso.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-orthogonality : {float(self.orthogonality.item()):.5f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-next-acc      : {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-cond-acc      : {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cross-ent     : {float(self.cross_entropy.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-separation    : {float(self.separation.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cluster       : {float(self.cluster.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-lasso         : {float(self.lasso.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-orthogonality : {float(self.orthogonality.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-next-acc      : {next_accs[0]:.4f}, {next_accs[1]:.4f}, {next_accs[2]:.4f}, {next_accs[3]:.4f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-cond-acc      : {cond_accs[0]:.4f}, {cond_accs[1]:.4f}, {cond_accs[2]:.4f}, {cond_accs[3]:.4f}\n"
         return out
     
     def __repr__(self): 
@@ -183,14 +180,14 @@ class MultiObjective:
         out = {} 
         out.update(self.gen_obj.to_dict())
         out.update(self.img_obj.to_dict()) 
-        out[f"{run_mode[self.mode.value]}-{self.epoch}-correspondence"] = self.correspondence
+        out[f"{self.epoch}/{run_mode[self.mode.value]}-correspondence"] = self.correspondence
         return out
 
     def __str__(self): 
         out = "" 
         out += str(self.gen_obj)
         out += str(self.img_obj)
-        out += f"{run_mode[self.mode.value]}-{self.epoch}-correspondence: {float(self.correspondence.item()):.5f}"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-correspondence: {float(self.correspondence.item()):.5f}"
         return out
 
     def __repr__(self): 
@@ -319,85 +316,3 @@ def get_correspondence_loss_single(
 
     return correspondence_cost_summed, correspondence_cost_count
 
-
-@deprecated("Use the individual functions above to calculate each loss component.")
-def get_loss_multi(
-    conv_features,
-    node: Union[ProtoNode, CombinerProtoNode],
-    target: torch.Tensor
-):
-    """
-    For parallel, no global ce
-    """ 
-    # create mask on target  
-    mask = node.idx
-
-
-    # Given the target of 80 labels, you only want to look at the relevant ones. 
-    # If your node idx is [2, 3], then you should be looking for all samples of 
-    # the form [2, 3, *], and you filter out only * 
-
-    depth = node.gen_node.taxnode.depth
-
-    if depth == 0: 
-        # this is root node that classifies order and you should consider everything 
-        mask = torch.ones(target.size(0), dtype=torch.bool)
-    else: 
-        # there might be irrelevant nodes and you should mask them 
-        mask = (target[:,depth-1] == node.gen_node.taxnode.idx[-1])
-
-    # TODO: actually to speed up mask the conv features first 
-    
-    (gen_logits, img_logits), (gen_min_dist, img_min_dist) = node(conv_features, True) 
-    gen_logits = gen_logits[mask] # [B, nclasses] -> [M, nclasses] for B >= M 
-    img_logits = img_logits[mask]
-    
-    target = target[mask] # [B, 4] -> [M, 4]
-    gen_min_dist = gen_min_dist[mask] # [B, nproto_total] -> [M, nproto_total]
-    img_min_dist = img_min_dist[mask] # [B, nproto_total] -> [M, nproto_total]
-    conv_features = conv_features[mask] 
-
-
-    if mask.sum() == 0: 
-        # no samples are relevant for this node since they are not in the taxonomy
-        return 0, 0, 0, 0, 0
-
-
-    if hasattr(node.gen_node, "_logits"): 
-        del node.gen_node._logits
-    if hasattr(node.img_node, "_logits"): 
-        del node.img_node._logits 
-    node.gen_node._logits = gen_logits
-    node.img_node._logits = img_logits
-
-    cross_entropy = torch.nn.functional.cross_entropy(logits, target[:, node.taxnode.depth] - 1)
-
-    cluster_cost, separation_cost = get_cluster_and_sep_cost(
-        min_distances, target[:, node.taxnode.depth], logits.size(1)
-    )
-
-    l1_cost = get_l1_cost(node) 
-
-    # Update correct and total counts
-    _, predicted = torch.max(logits, dim=1) 
-
-
-    n_classifications = 1
-    # Now recurse on the new ones 
-    for c_node in node.childs:
-
-        c_cross_entropy, c_cluster_cost, c_separation_cost, c_l1_cost, c_n_classifications = get_loss(
-            conv_features,
-            c_node,
-            target
-        )
-
-        cross_entropy += c_cross_entropy
-        cluster_cost += c_cluster_cost 
-        separation_cost += c_separation_cost
-        l1_cost += c_l1_cost
-        n_classifications += c_n_classifications
-
-    del logits, min_distances
-
-    return cross_entropy, cluster_cost, separation_cost, l1_cost, n_classificat

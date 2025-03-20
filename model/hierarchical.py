@@ -362,7 +362,7 @@ def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet:
 
     if cfg.DATASET.GENETIC.PPNET_PATH != "NA":
         # retrieve cached_ppnet 
-        genetic_ppnet = torch.load(cfg.DATASET.GENETIC.PPNET_PATH)
+        genetic_ppnet = torch.load(cfg.DATASET.GENETIC.PPNET_PATH) 
     else:
         backbone = GeneticCNN2D(720, 1, include_connected_layer=False)
 
@@ -371,7 +371,7 @@ def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet:
         for k in list(weights.keys()):
             if "conv" not in k:
                 del weights[k]
-        backbone.load_state_dict(weights)
+        backbone.load_state_dict(weights) 
 
         # NOTE - Layer_paddings is different from the padding in the image models
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
@@ -404,7 +404,9 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
         # if image_ppnet.mode == 3 or image_ppnet.mode == Mode.MULTIMODAL:
         #     image_ppnet = image_ppnet.img_net
     else:
-        backbone = base_architecture_to_features["resnetbioscan"](pretrained=True)
+        backbone = base_architecture_to_features["resnetbioscan"](pretrained=True) 
+        # delete the backbone relu layer
+        backbone.layer4[-1].relu = torch.nn.Identity() 
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
         proto_layer_rf_info = compute_proto_layer_rf_info_v2(
             img_size=cfg.DATASET.IMAGE.SIZE,

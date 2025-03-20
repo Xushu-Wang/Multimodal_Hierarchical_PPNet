@@ -40,14 +40,14 @@ OPTIM:
         CORRESPONDENCE: 1000.0
         GENETIC: 
             CRS_ENT: 20.
-            CLST: 0.001
-            SEP: -0.1
+            CLST: 0.1
+            SEP: -0.001
             L1: 5e-3
             ORTHO: 0.0
         IMAGE: 
             CRS_ENT: 20.
-            CLST: 0.001
-            SEP: -0.1
+            CLST: 0.1
+            SEP: -0.001
             L1: 5e-3
             ORTHO: 0.0
 

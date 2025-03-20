@@ -1,35 +1,43 @@
 #!/bin/bash 
 
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 0.0 --corr 10.0 &
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 1.0 --gsep -0.001 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 1.0 --isep -0.001 --il1 0.0 & 
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 0.0 --corr 100.0 &
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.1 --gsep -0.001 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.1 --isep -0.001 --il1 0.0 & 
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 0.0 --corr 1000.0 & 
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.001 --corr 10.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.001 --corr 100.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.001 --corr 1000.0 & 
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.01 --corr 10.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.01 --corr 100.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.01 --corr 1000.0 & 
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.1 --corr 10.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.1 --corr 100.0 &
-# sleep 5
-# ./train.sh --gpu a5000 --mode multi --ortho 0.1 --corr 1000.0 & 
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.01 --gsep -0.001 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.01 --isep -0.001 --il1 0.0 & 
+
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 1.0 --corr 10.0 &
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 1.0 --gsep -0.01 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 1.0 --isep -0.01 --il1 0.0 & 
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 1.0 --corr 100.0 &
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.1 --gsep -0.01 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.1 --isep -0.01 --il1 0.0 & 
 sleep 5
-./train.sh --gpu a5000 --mode multi --ortho 1.0 --corr 1000.0 & 
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.01 --gsep -0.01 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.01 --isep -0.01 --il1 0.0 & 
+
+sleep 5
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 1.0 --gsep -0.1 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 1.0 --isep -0.1 --il1 0.0 & 
+sleep 5
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.1 --gsep -0.1 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.1 --isep -0.1 --il1 0.0 & 
+sleep 5
+./train.sh --gpu a5000 --mode multi --corr 1000.0 \
+  --gortho 0.0 --gcrs_ent 20.0 --gclst 0.01 --gsep -0.1 --gl1 0.0 \
+  --iortho 0.1 --icrs_ent 20.0 --iclst 0.01 --isep -0.1 --il1 0.0 & 
 
 wait
 

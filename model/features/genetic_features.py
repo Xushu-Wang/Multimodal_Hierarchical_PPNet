@@ -29,14 +29,11 @@ class GeneticCNN2D(nn.Module):
     def forward(self, x):
         x = self.pool3(F.relu(self.conv1(x)))
         x = self.pool3(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-        # if not self.remove_last_layer:
-        #     x = F.relu(self.pool3(self.conv4(x)))
+        x = self.pool(self.conv3(x))
 
         if hasattr(self, 'fc1'):
             x = torch.flatten(x, 1)
             x = self.fc1(x)
-            # return F.log_softmax(x, dim=1)
         return x
     
     def conv_info(self):
@@ -52,21 +49,3 @@ class GeneticCNN2D(nn.Module):
         # NOTE - Layer_paddings is different from the padding in the image models
 
         return layer_filter_sizes, layer_strides, layer_paddings
-
-    def __repr__(self):
-        # rep = {
-        #     'GENETICS(\n'
-        #     '\tlength: {},\n'
-        #     '\tclass_count: {},\n'
-        #     '\tinclude_connected_layer: {},\n'
-        #     '\tremove_last_layer: {},\n'
-        #     ')'
-        # }
-        rep = 'GENETICS(\n\tlength: {},\n\tclass_count: {},\n\tinclude_connected_layer: {},\n\tremove_last_layer: {},\n)'
-
-        return rep.format(
-            self.length,
-            self.class_count,
-            self.include_connected_layer, 
-            self.remove_last_layer
-        )
