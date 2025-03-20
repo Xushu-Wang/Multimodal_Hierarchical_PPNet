@@ -304,7 +304,7 @@ def resnet_bioscan_features(pretrained=True, **kwargs):
                 
         my_dict.pop('fc.weight')
         my_dict.pop('fc.bias')
-        model.load_state_dict(my_dict, strict=False)
+        model.load_state_dict(my_dict, strict=False) 
         
         return model
     else:
