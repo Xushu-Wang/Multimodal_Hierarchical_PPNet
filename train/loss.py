@@ -52,7 +52,7 @@ class Objective:
         self.cross_entropy = torch.zeros(1).cuda()
         self.cluster = torch.zeros(4).cuda()
         self.separation = torch.zeros(4).cuda()
-        self.cluster_sep_count = torch.zeros(4).cuda()
+        self.cluster_sep_count = torch.zeros(4).cuda() + 1e-8
 
         self.lasso = torch.zeros(1).cuda()
         self.orthogonality = torch.zeros(1).cuda()
