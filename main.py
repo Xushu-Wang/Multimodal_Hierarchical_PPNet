@@ -39,7 +39,7 @@ def main(cfg: CfgNode, log: Callable):
             wandb.log(test_loss.to_dict()) 
             log(str(test_loss))
 
-        elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
+        elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
             
