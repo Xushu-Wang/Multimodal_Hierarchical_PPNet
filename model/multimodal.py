@@ -23,7 +23,9 @@ class CombinerProtoNode(nn.Module):
         self.correlation_count = 0
         self.correlation_table = torch.zeros((40,10)).cuda()
 
-        if self.gen_node.childs: 
+        self.vestigial = self.gen_node.vestigial
+
+        if self.gen_node.taxnode.childs and not self.vestigial: 
             self.nclass = self.gen_node.nclass
             self.match = self.init_match()
             
@@ -77,6 +79,7 @@ class MultiHierProtoPNet(nn.Module):
         self.img_net = img_net
 
         self.mode = Mode.MULTIMODAL
+        self.all_classifier_nodes = nn.ModuleList()
         self.classifier_nodes = nn.ModuleList()
         self.root = self.build_combiner_proto_tree(self.gen_net.root, self.img_net.root)
         self.add_on_layers = nn.ModuleList([self.gen_net.add_on_layers, self.img_net.add_on_layers])
@@ -94,7 +97,11 @@ class MultiHierProtoPNet(nn.Module):
             node = CombinerProtoNode(gen_node, img_node)
         else:
             node = CombinerProtoNode(gen_node, img_node)
-            self.classifier_nodes.append(node)
+            self.all_classifier_nodes.append(node)
+
+            if not node.vestigial: 
+                self.classifier_nodes.append(node)
+
             childs = [] 
             for gen_child, img_child in zip(gen_node.childs, img_node.childs): 
                 childs.append(self.build_combiner_proto_tree(gen_child, img_child))
@@ -124,7 +131,7 @@ class MultiHierProtoPNet(nn.Module):
 
     def zero_pred(self): 
         """
-        Wipe out the logits, probs, min_dist, and prediction statistics. 
+        Wipe out the logits, probs, max_sim, and prediction statistics. 
         Should be called at the end of every epoch. 
         """
         self.gen_net.zero_pred()

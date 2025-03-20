@@ -4,6 +4,7 @@ This trains a ResNet backbone or CNN backbone for genetic or image classificatio
 
 import argparse, os
 import torch
+from dataio.dataset import Mode
 from model.features.genetic_features import GeneticCNN2D
 from configs.io import create_logger, run_id_accumulator 
 from torchvision.models import resnet50
@@ -11,8 +12,6 @@ from torchvision.models import resnet50
 from  configs.cfg import get_cfg_defaults
 from dataio.dataloader import get_dataloaders
 
-from model.model import Mode 
-from model.model import construct_tree_ppnet
 from train.optimizer import get_optimizers
 import torch.optim as optim
 
@@ -33,33 +32,13 @@ def main():
     log(str(cfg))
     
     try:
-        train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log, flat_class=True)
-        
-        tree_ppnet = construct_tree_ppnet(cfg).cuda()
-
-        tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
-        # TODO - Handle multi models
-
-        tree_ppnet_multi = tree_ppnet_multi
-
-        class_specific = True
-
-        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
+        train_loader, train_push_loader, val_loader, test_loader, image_normalizer = get_dataloaders(cfg, log)
 
         # Construct and parallel the model
         log('start training')
         
-        # Prepare loss function
-        coefs = {
-            'crs_ent': cfg.OPTIM.COEFS.CRS_ENT,
-            'clst': cfg.OPTIM.COEFS.CLST,
-            'sep': cfg.OPTIM.COEFS.SEP,
-            'l1': cfg.OPTIM.COEFS.L1,
-            "correspondence": cfg.OPTIM.COEFS.CORRESPONDENCE,
-            'CEDA': False
-        }
-
-        class_count = train_loader.dataset.class_count
+        # class_count = train_loader.dataset.class_count
+        class_count = 113
         print(f"Number of Classes: {class_count}")
 
         if cfg.DATASET.MODE == Mode.GENETIC:
@@ -148,15 +127,15 @@ def main():
             for cond_level in range(4):
                 log(f"[{cond_level}] validation accuracy:\t{correct_guesses[cond_level] / max(1, total_guesses[cond_level]):.5f}")
 
-            # accuracy = torch.tensor([correct_guesses[i] / max(1, total_guesses[i]) for i in range(class_count)]).mean()
-            # log(f"Epoch {epoch + 1} validation accuracy:\t{accuracy:.5f}")
+            accuracy = torch.tensor([correct_guesses[i] / max(1, total_guesses[i]) for i in range(class_count)]).mean()
+            log(f"Epoch {epoch + 1} validation accuracy:\t{accuracy:.5f}")
 
-            # if accuracy > max_accuracy:
-            #     max_accuracy = accuracy
-            #     max_accuracy_epoch = epoch
-            #     if not os.path.exists(os.path.join(args.output, cfg.RUN_NAME)):
-            #         os.mkdir(os.path.join(args.output, cfg.RUN_NAME))
-            #     torch.save(model.state_dict(), os.path.join(args.output, cfg.RUN_NAME, f"{cfg.RUN_NAME}_best.pth"))
+            if accuracy > max_accuracy:
+                max_accuracy = accuracy
+                max_accuracy_epoch = epoch
+                if not os.path.exists(os.path.join(args.output, cfg.RUN_NAME)):
+                    os.mkdir(os.path.join(args.output, cfg.RUN_NAME))
+                torch.save(model.state_dict(), os.path.join(args.output, cfg.RUN_NAME, f"{cfg.RUN_NAME}_best.pth"))
             
         print(f"Best Accuracy: {max_accuracy:.4f} at epoch {max_accuracy_epoch+1}")
 

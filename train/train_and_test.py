@@ -102,7 +102,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                logits, min_dist = node.forward(conv_features)
+                logits, max_sim = node.forward(conv_features)
                 
                 # softmax the nodes to initialize node.probs
                 node.softmax() 
@@ -112,16 +112,18 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
 
                 # masked input and output
                 m_label = label[mask][:, node.depth]
-                m_logits, m_min_dist = logits[mask], min_dist[mask]
+                m_logits, m_max_sim = logits[mask], max_sim[mask]
                 if len(m_label) != 0: 
                     batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
                     predictions = torch.argmax(m_logits, dim=1)
                     node.n_next_correct += torch.sum(predictions == m_label) 
                     batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
-                cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
-                batch_obj.cluster += cluster
-                batch_obj.separation = separation
+                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass)
+                batch_obj.cluster[node.depth] += cluster
+                batch_obj.separation[node.depth] += separation
+                batch_obj.cluster_sep_count[node.depth] += len(m_label)
+
                 batch_obj.lasso += get_l1_cost(node) 
 
             if not optimizer.mode == OptimMode.TEST: 
@@ -146,8 +148,8 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified 
+        # batch_obj.cluster /= cluster_sep_count
+        # batch_obj.separation /= cluster_sep_count 
         total_obj += batch_obj
 
     model.zero_pred()
@@ -164,7 +166,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
         label = label.cuda()
         flat_label = flat_label.cuda()
         batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
-
+        
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
             conv_features = model.conv_features(input)
 
@@ -174,7 +176,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                logits, min_dist = node.forward(conv_features)
+                logits, max_sim = node.forward(conv_features)
                 
                 # softmax the nodes to initialize node.probs
                 node.softmax() 
@@ -184,19 +186,21 @@ def _traintest_image(model, dataloader, optimizer, cfg):
 
                 # masked input and output
                 m_label = label[mask][:, node.depth]
-                m_logits, m_min_dist = logits[mask], min_dist[mask]
+                m_logits, m_max_sim = logits[mask], max_sim[mask]
                 if len(m_logits) != 0: 
                     batch_obj.cross_entropy += F.cross_entropy(m_logits, m_label) 
                     predictions = torch.argmax(m_logits, dim=1)
                     node.n_next_correct += torch.sum(predictions == m_label) 
                     batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
-                cluster, separation = get_cluster_and_sep_cost(m_min_dist, m_label, node.nclass)
-                batch_obj.cluster += cluster
-                batch_obj.separation += separation
+                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass)
+                batch_obj.cluster[node.depth] += cluster
+                batch_obj.separation[node.depth] = separation
+                batch_obj.cluster_sep_count[node.depth] += len(m_label)
+
                 batch_obj.lasso += get_l1_cost(node) 
 
-            if backprop: 
+            if not optimizer.mode == OptimMode.TEST: 
                 total_loss = batch_obj.total()  
                 total_loss.backward()
                 optimizer.step()
@@ -218,8 +222,8 @@ def _traintest_image(model, dataloader, optimizer, cfg):
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= n_classified
-        batch_obj.separation /= n_classified 
+        batch_obj.cluster /= cluster_sep_count
+        batch_obj.separation /= cluster_sep_count
         total_obj += batch_obj
 
     model.zero_pred()
@@ -248,8 +252,8 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                gen_logits, gen_min_dist = node.gen_node.forward(gen_conv_features) 
-                img_logits, img_min_dist = node.img_node.forward(img_conv_features) 
+                gen_logits, gen_max_sim = node.gen_node.forward(gen_conv_features) 
+                img_logits, img_max_sim = node.img_node.forward(img_conv_features) 
                 node.gen_node.softmax()
                 node.img_node.softmax() 
 
@@ -259,8 +263,8 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
 
                 # masked input and output
                 m_label = label[mask][:, node.depth]
-                m_gen_logits, m_gen_min_dist = gen_logits[mask], gen_min_dist[mask]
-                m_img_logits, m_img_min_dist = img_logits[mask], img_min_dist[mask]
+                m_gen_logits, m_gen_max_sim = gen_logits[mask], gen_max_sim[mask]
+                m_img_logits, m_img_max_sim = img_logits[mask], img_max_sim[mask]
                 if len(m_label) != 0: 
                     batch_obj.gen_obj.cross_entropy += F.cross_entropy(m_gen_logits, m_label)  
                     batch_obj.img_obj.cross_entropy += F.cross_entropy(m_img_logits, m_label)  
@@ -273,19 +277,21 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
                     batch_obj.img_obj.n_next_correct[node.depth] += torch.sum(img_predictions == m_label) 
 
                 # cluster and separation loss  
-                gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_min_dist, m_label, node.nclass)
-                img_cluster, img_separation = get_cluster_and_sep_cost(m_img_min_dist, m_label, node.nclass)
-                batch_obj.gen_obj.cluster += gen_cluster 
-                batch_obj.gen_obj.separation += gen_separation 
-                batch_obj.img_obj.cluster += img_cluster 
-                batch_obj.img_obj.separation += img_separation 
+                gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_max_sim, m_label, node.nclass)
+                img_cluster, img_separation = get_cluster_and_sep_cost(m_img_max_sim, m_label, node.nclass)
+                batch_obj.gen_obj.cluster[node.depth] += gen_cluster.item()
+                batch_obj.gen_obj.separation[node.depth] += gen_separation.item() 
+                batch_obj.gen_obj.cluster_sep_count[node.depth] += len(m_label) 
+                batch_obj.img_obj.cluster[node.depth] += img_cluster.item() 
+                batch_obj.img_obj.separation[node.depth] += img_separation.item() 
+                batch_obj.img_obj.cluster_sep_count[node.depth] += len(m_label) 
 
                 # lasso loss
                 batch_obj.gen_obj.lasso += get_l1_cost(node.gen_node)
                 batch_obj.img_obj.lasso += get_l1_cost(node.img_node)
                 
                 # correspondence loss 
-                corr_sum, corr_count = get_correspondence_loss_batched(m_gen_min_dist, m_img_min_dist, node)
+                corr_sum, corr_count = get_correspondence_loss_batched(m_gen_max_sim, m_img_max_sim, node)
                 batch_obj.correspondence += corr_sum
                 total_corr_count += corr_count
 
@@ -305,7 +311,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
         model.img_net.conditional_normalize(model.img_net.root)  
 
         # calculate genetic accuracies
-        gen_last_classifiers = [node for node in model.gen_net.classifier_nodes if node.depth == 3] 
+        gen_last_classifiers = [node for node in model.gen_net.all_classifier_nodes if node.depth == 3] 
         gen_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
         gen_logits = torch.concat([node.probs for node in gen_last_classifiers], dim=1) # 80x113
 
@@ -318,7 +324,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
             batch_obj.gen_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # calculate image accuracies
-        img_last_classifiers = [node for node in model.img_net.classifier_nodes if node.depth == 3] 
+        img_last_classifiers = [node for node in model.img_net.all_classifier_nodes if node.depth == 3] 
         img_last_classifiers.sort(key = lambda node : node.flat_idx[-1]) 
         img_logits = torch.concat([node.probs for node in img_last_classifiers], dim=1) # 80x113
 
@@ -331,10 +337,14 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
             batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
         # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.gen_obj.cluster /= n_classified
-        batch_obj.gen_obj.separation /= n_classified 
-        batch_obj.img_obj.cluster /= n_classified
-        batch_obj.img_obj.separation /= n_classified 
+        # batch_obj.gen_obj.cluster /= n_classified
+        # batch_obj.gen_obj.separation /= n_classified 
+        # batch_obj.img_obj.cluster /= n_classified
+        # batch_obj.img_obj.separation /= n_classified 
+        batch_obj.gen_obj.cluster /= batch_obj.gen_obj.cluster_sep_count
+        batch_obj.gen_obj.separation /= batch_obj.gen_obj.cluster_sep_count
+        batch_obj.img_obj.cluster /= batch_obj.img_obj.cluster_sep_count
+        batch_obj.img_obj.separation /= batch_obj.img_obj.cluster_sep_count
         total_obj += batch_obj
 
     model.zero_pred()

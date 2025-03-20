@@ -8,7 +8,15 @@ from prototype.receptive_field import compute_proto_layer_rf_info_v2
 from model.backbones import base_architecture_to_features 
 from dataio.dataset import Mode, TaxNode, Hierarchy
 
-class ProtoNode(nn.Module): 
+# Decorator that returns immediately if self.vestigial is True
+def classifier_only(func):
+    def wrapper(self, *args, **kwargs):
+        if self.vestigial:
+            return
+        return func(self, *args, **kwargs)
+    return wrapper
+
+class ProtoNode(nn.Module):
     """
     Node class that contains the prototypes for each TaxNode in Hierarchy. 
     Equivalent to the prototype layer in ProtoPNet. It is a function that predicts 
@@ -20,10 +28,10 @@ class ProtoNode(nn.Module):
       - pshape  - pshape, e.g. [64, 1, 1] for genetics or [2048, 1, 1] for image
     """
     def __init__(
-        self, 
-        taxnode: TaxNode, 
-        nprotos: int, 
-        pshape: tuple, 
+        self,
+        taxnode: TaxNode,
+        nprotos: int,
+        pshape: tuple,
         mode: Mode
     ): 
         """
@@ -40,6 +48,9 @@ class ProtoNode(nn.Module):
         self.prototype = None
         self.mode = mode 
 
+        self.vestigial = not taxnode.childs or len(taxnode.childs) == 1
+        # self.vestigial = False
+
         if taxnode.childs: 
             # only protonodes corresponding to genus need prototypes to classify species
             self.nclass = len(self.taxnode.childs)
@@ -48,29 +59,38 @@ class ProtoNode(nn.Module):
             self.nprotos = nprotos # prototypes PER CLASS
             self.pshape = pshape 
             self.nprotos_total = self.nprotos * self.nclass
-            self.match = self.init_match().cuda()
 
-            self.prototype = nn.Parameter(
-                torch.rand((self.nprotos_total, *pshape), device="cuda"),
-                requires_grad=True
-            )
+            if self.vestigial:
+                # Vestigial nodes only have one child and thus don't have to perform any classification
+                # outputs of forward pass will be stored here 
+                self.logits = torch.tensor([0]).cuda()
+                self.probs = None
+                self.max_sim = None
+            else:
+                self.match = self.init_match().cuda()
 
-            self.last_layer = self.init_last_layer()
+                self.prototype = nn.Parameter(
+                    torch.rand((self.nprotos_total, *pshape), device="cuda"),
+                    requires_grad=True
+                )
 
-            # outputs of forward pass will be stored here 
-            self.logits = None
-            self.probs = None
-            self.max_sim = None
+                self.last_layer = self.init_last_layer()
 
-            if self.mode == Mode.GENETIC: 
-                self.register_buffer('offset_tensor', self.init_offset_tensor())
+                # outputs of forward pass will be stored here 
+                self.logits = None
+                self.probs = None
+                self.max_sim = None
 
-            self.npredictions = 0 
-            self.n_next_correct = 0 
-            self.n_species_correct = 0
+                if self.mode == Mode.GENETIC: 
+                    self.register_buffer('offset_tensor', self.init_offset_tensor())
 
-            self.init_push()
+                self.npredictions = 0 
+                self.n_next_correct = 0 
+                self.n_species_correct = 0
 
+                self.init_push()
+
+    @classifier_only
     def init_match(self): 
         """
         A 0/1 block of maps between prototype and its corresponding class label
@@ -80,14 +100,15 @@ class ProtoNode(nn.Module):
             match[j, j // self.nprotos] = 1 
         return match
 
+    @classifier_only
     def init_push(self):
         # all attributes regarding to push stage 
         # saves the closest distance seen so far 
         # add a new attribute and initialize it to be infinity
-        self.global_min_proto_dist = np.full(self.nprotos_total, np.inf)
+        self.global_max_proto_sim = np.full(self.nprotos_total, np.inf)
 
         # saves the patch representation that gives the current smallest distance
-        self.global_min_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
+        self.global_max_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
 
         # 
 
@@ -104,7 +125,7 @@ class ProtoNode(nn.Module):
         self.proto_rf_boxes = np.full([self.nprotos, 6], fill_value=-1)
         self.proto_bound_boxes = np.full([self.nprotos, 6], fill_value=-1)
 
-
+    @classifier_only
     def init_last_layer(self, inc_str = -0.5): 
         """
         initializes a matrix mapping activations to next classes in the hierarchy
@@ -115,7 +136,8 @@ class ProtoNode(nn.Module):
         param[param == 0] = inc_str
         last_layer.weight.data.copy_(param)
         return last_layer  
-
+    
+    @classifier_only
     def init_offset_tensor(self): 
         """
         This finds the tensor used to offset each prototype to a different spatial location.
@@ -150,7 +172,7 @@ class ProtoNode(nn.Module):
             # if it's a leaf node there are no params
             return []
 
-        params = [self.prototype] 
+        params = [] if self.vestigial else [self.prototype]
         for child in self.childs:
             for param in child.get_prototype_parameters(): 
                 params.append(param)
@@ -164,12 +186,13 @@ class ProtoNode(nn.Module):
             # if it's a leaf node there are no params
             return []
 
-        params = [p for p in self.last_layer.parameters()]
+        params = [] if self.vestigial else [p for p in self.last_layer.parameters()]
         for child in self.childs:
             for param in child.get_last_layer_parameters(): 
                 params.append(param)
         return params
 
+    @classifier_only
     def find_offsetting_tensor_for_similarity(self, similarities):
         """
         This finds the tensor used to offset each prototype to a different spatial location.
@@ -181,6 +204,7 @@ class ProtoNode(nn.Module):
 
         return eye.to(similarities.device)
 
+    @classifier_only
     def cos_sim(self, x): 
         """
         x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40)  
@@ -201,13 +225,7 @@ class ProtoNode(nn.Module):
         similarities = F.conv2d(x, normalized_prototypes)  
         return similarities
 
-    def push_get_dist(self, conv_features):
-        with torch.no_grad(): 
-            similarities = self.cos_sim(conv_features)
-            distances = 1 - similarities
-
-        return distances
-
+    @classifier_only
     def forward(self, conv_features):
         """
         Forward pass on this node. Used for training when conv_features 
@@ -229,11 +247,13 @@ class ProtoNode(nn.Module):
 
         return logits, max_sim
 
+    @classifier_only
     def softmax(self): 
         if self.logits is None: 
             raise ValueError("You must do a forward pass so that logits are set.") 
         self.probs = F.softmax(self.logits, dim=1)
 
+    @classifier_only
     def clear_cache(self): 
         if self.logits != None:
             del self.logits
@@ -276,6 +296,7 @@ class HierProtoPNet(nn.Module):
         self.pshape = pshape
         self.mode = mode
         self.classifier_nodes = []
+        self.all_classifier_nodes = []
         self.root = self.build_proto_tree(self.hierarchy.root) 
         self.add_on_layers = nn.Sequential() 
         self.proto_layer_rf_info = proto_layer_rf_info
@@ -288,7 +309,11 @@ class HierProtoPNet(nn.Module):
         """ 
         node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode) 
         if taxnode.childs: 
-            self.classifier_nodes.append(node)
+            self.all_classifier_nodes.append(node)
+
+            if not node.vestigial: 
+                self.classifier_nodes.append(node)
+
         node.childs = []
         for c_node in taxnode.childs:
             node.childs.append(self.build_proto_tree(c_node))
@@ -324,11 +349,14 @@ class HierProtoPNet(nn.Module):
         if not hasattr(node, "probs"): 
             # leaf node
             return 
-        elif node.probs is None: 
+        elif node.probs is None and not node.vestigial: 
             raise ValueError("The probabilities for the nodes should be instantiated.")
         else: 
             # node.probs = (B, nclass) 
             # scale = (B) -> unsqueeze it to (B, 1) to broadcast properly
+            if node.vestigial:
+                node.probs = torch.ones_like(scale.unsqueeze(1))
+
             node.probs *= scale.unsqueeze(1)
             for child in node.childs:
                 child_idx = child.idx[-1]
@@ -406,7 +434,7 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
     else:
         backbone = base_architecture_to_features["resnetbioscan"](pretrained=True) 
         # delete the backbone relu layer
-        backbone.layer4[-1].relu = torch.nn.Identity() 
+        # backbone.layer4[-1].relu = torch.nn.Identity() 
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
         proto_layer_rf_info = compute_proto_layer_rf_info_v2(
             img_size=cfg.DATASET.IMAGE.SIZE,

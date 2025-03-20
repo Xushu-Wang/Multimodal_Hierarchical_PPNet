@@ -33,7 +33,7 @@ def decode_onehot(onehot, three_dim=True):
 def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tensor, input: Tensor, label: Tensor, stride: int, epoch:int, cfg):
     """
     For each prototype, find its best patch in the backbone outputs and calculate 
-    minimum distance batch. But not projecting yet. 
+    maximum similarity batch. But not projecting yet. 
     """
     mode = node.mode 
 
@@ -50,12 +50,12 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
 
     with torch.no_grad():
         # this computation currently is not parallelized
-        proto_dist_torch = node.push_get_dist(conv_features)
+        proto_sim_torch = node.cos_sim(conv_features)
 
     protoL_input_ = np.copy(conv_features.detach().cpu().numpy())
-    proto_dist_ = np.copy(proto_dist_torch.detach().cpu().numpy())
+    proto_sim_ = np.copy(proto_sim_torch.detach().cpu().numpy())
 
-    del proto_dist_torch
+    del proto_sim_torch
 
     # class idx -> sample idx (in filtered batch)
     class_to_img_idx = {key: [] for key in range(num_classes)}
@@ -77,37 +77,37 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
         # we go on to the next prototype
         if len(class_to_img_idx[target_class]) == 0:
             continue
-        proto_dist_j = proto_dist_[class_to_img_idx[target_class]][:,j,:,:]
+        proto_sim_j = proto_sim_[class_to_img_idx[target_class]][:,j,:,:]
 
-        batch_min_proto_dist_j = np.amin(proto_dist_j)
-        if batch_min_proto_dist_j < node.global_min_proto_dist[j]:
+        batch_max_proto_sim_j = np.amax(proto_sim_j)
+        if batch_max_proto_sim_j > node.global_max_proto_sim[j]:
             if mode == Mode.GENETIC:
-                batch_argmin_proto_dist_j = [np.argmin(proto_dist_j[:,0,0]),0,(j % (node.nprotos))]
+                batch_argmax_proto_sim_j = [np.argmax(proto_sim_j[:,0,0]),0,(j % (node.nprotos))]
             else:
-                batch_argmin_proto_dist_j = \
-                    list(np.unravel_index(np.argmin(proto_dist_j, axis=None),
-                                        proto_dist_j.shape))
+                batch_argmax_proto_sim_j = \
+                    list(np.unravel_index(np.argmax(proto_sim_j, axis=None),
+                                        proto_sim_j.shape))
             '''
-            change the argmin index from the index among
+            change the argmax index from the index among
             images of the target class to the index in the entire search
             batch
             '''
-            batch_argmin_proto_dist_j[0] = class_to_img_idx[target_class][batch_argmin_proto_dist_j[0]]
+            batch_argmax_proto_sim_j[0] = class_to_img_idx[target_class][batch_argmax_proto_sim_j[0]]
 
             # retrieve the corresponding feature map patch
-            img_index_in_batch = batch_argmin_proto_dist_j[0]
-            fmap_height_start_index = batch_argmin_proto_dist_j[1] * stride
+            img_index_in_batch = batch_argmax_proto_sim_j[0]
+            fmap_height_start_index = batch_argmax_proto_sim_j[1] * stride
             fmap_height_end_index = fmap_height_start_index + proto_h
-            fmap_width_start_index = batch_argmin_proto_dist_j[2] * stride
+            fmap_width_start_index = batch_argmax_proto_sim_j[2] * stride
             fmap_width_end_index = fmap_width_start_index + proto_w
 
-            batch_min_fmap_patch_j = protoL_input_[img_index_in_batch,
+            batch_max_fmap_patch_j = protoL_input_[img_index_in_batch,
                                                 :,
                                                 fmap_height_start_index:fmap_height_end_index,
                                                 fmap_width_start_index:fmap_width_end_index]
 
-            node.global_min_proto_dist[j] = batch_min_proto_dist_j
-            node.global_min_fmap_patches[j] = batch_min_fmap_patch_j
+            node.global_max_proto_sim[j] = batch_max_proto_sim_j
+            node.global_max_fmap_patches[j] = batch_max_fmap_patch_j
 
             if not cfg.OUTPUT.SAVE_IMAGES:
                 continue
@@ -118,7 +118,7 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                 protoL_rf_info = model.proto_layer_rf_info
 
                 # get the whole image
-                original_img_j = input[batch_argmin_proto_dist_j[0]]
+                original_img_j = input[batch_argmax_proto_sim_j[0]]
                 original_img_j = original_img_j.cpu().numpy()
 
                 # crop out the receptive field
@@ -139,7 +139,7 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                 # Get the receptive field boundary of the image patch
                 # that generates the representation
                 protoL_rf_info = model.proto_layer_rf_info
-                rf_prototype_j = compute_rf_prototype(input.size(2), batch_argmin_proto_dist_j, protoL_rf_info)
+                rf_prototype_j = compute_rf_prototype(input.size(2), batch_argmax_proto_sim_j, protoL_rf_info)
 
                 # Get the whole image
                 original_img_j = input[rf_prototype_j[0]]
@@ -152,8 +152,8 @@ def find_closest_conv_feature(model:Model, node: ProtoNode, conv_features: Tenso
                                         rf_prototype_j[3]:rf_prototype_j[4], :]
                 
                 # Find the highly activated region of the original image
-                proto_dist_img_j = proto_dist_[img_index_in_batch, j, :, :]
-                proto_act_img_j = node.pshape[0] * node.pshape[1] * node.pshape[2] - proto_dist_img_j
+                proto_sim_img_j = proto_sim_[img_index_in_batch, j, :, :]
+                proto_act_img_j = node.pshape[0] * node.pshape[1] * node.pshape[2] - proto_sim_img_j
                 
                 upsampled_act_img_j = cv2.resize(proto_act_img_j, dsize=(original_img_size, original_img_size),
                                                 interpolation=cv2.INTER_CUBIC)
@@ -280,7 +280,7 @@ def push_genetic(model, dataloader, _, stride, epoch, cfg):
             )
 
     for node in model.classifier_nodes:
-        prototype_update = np.reshape(node.global_min_fmap_patches, node.prototype.shape)
+        prototype_update = np.reshape(node.global_max_fmap_patches, node.prototype.shape)
         node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
 def push_image(model, dataloader, preprocessor, stride, epoch, cfg): 
@@ -305,7 +305,7 @@ def push_image(model, dataloader, preprocessor, stride, epoch, cfg):
             )
 
     for node in model.classifier_nodes:
-        prototype_update = np.reshape(node.global_min_fmap_patches, node.prototype.shape)
+        prototype_update = np.reshape(node.global_max_fmap_patches, node.prototype.shape)
         node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).cuda())
 
 def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg): 
@@ -343,11 +343,11 @@ def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg):
     for node in model.classifier_nodes: 
         # project the prototypes in each node to prototype_update 
         # genetic prototypes projection 
-        gen_prototype_update = np.reshape(node.gen_node.global_min_fmap_patches, node.gen_node.prototype.shape)
+        gen_prototype_update = np.reshape(node.gen_node.global_max_fmap_patches, node.gen_node.prototype.shape)
         node.gen_node.prototype.data.copy_(torch.tensor(gen_prototype_update, dtype=torch.float32).cuda())
 
         # img prototypes projection 
-        img_prototype_update = np.reshape(node.img_node.global_min_fmap_patches, node.img_node.prototype.shape)
+        img_prototype_update = np.reshape(node.img_node.global_max_fmap_patches, node.img_node.prototype.shape)
         node.img_node.prototype.data.copy_(torch.tensor(img_prototype_update, dtype=torch.float32).cuda())
 
         # Save the prototype images

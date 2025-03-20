@@ -110,17 +110,17 @@ if __name__ == '__main__':
     run_id_accumulator(cfg) 
     print(cfg.RUN_NAME)
 
-    cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
-    cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
-    cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
-    cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
-    cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
-    cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
-    cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
+    # cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
+    # cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
+    # cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
+    # cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
+    # cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
+    # cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
+    # cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
     cfg.OPTIM.COEFS.IMAGE.CLST = args.iclst
     cfg.OPTIM.COEFS.IMAGE.SEP = args.isep
-    cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
-    cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
+    # cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
+    # cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
 
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
 
