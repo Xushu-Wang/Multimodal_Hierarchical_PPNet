@@ -11,7 +11,7 @@ class OptimMode(Enum):
     """
     WARM = "train"
     JOINT = "train"
-    LAST = "last"
+    LAST = "train"
     TEST = "test"
 
 class Optim: 
