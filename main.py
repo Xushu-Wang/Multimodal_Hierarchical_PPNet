@@ -83,15 +83,15 @@ if __name__ == '__main__':
     parser.add_argument('--gpuid', type=str, default='0') 
 
     parser.add_argument('--gcrs_ent', type=float, default=20.0) 
-    parser.add_argument('--gclst', type=float, default=0.001) 
-    parser.add_argument('--gsep', type=float, default=-0.1) 
-    parser.add_argument('--gl1', type=float, default=5e-3) 
+    parser.add_argument('--gclst', type=float, default=0.1) 
+    parser.add_argument('--gsep', type=float, default=-0.001) 
+    parser.add_argument('--gl1', type=float, default=0.0) 
     parser.add_argument('--gortho', type=float, default=0.0) 
     
     parser.add_argument('--icrs_ent', type=float, default=20.0) 
-    parser.add_argument('--iclst', type=float, default=0.001) 
-    parser.add_argument('--isep', type=float, default=-0.1) 
-    parser.add_argument('--il1', type=float, default=5e-3) 
+    parser.add_argument('--iclst', type=float, default=0.1) 
+    parser.add_argument('--isep', type=float, default=-0.001) 
+    parser.add_argument('--il1', type=float, default=0.0) 
     parser.add_argument('--iortho', type=float, default=0.0)
     
     parser.add_argument('--corr', type=float, default=0.0)
