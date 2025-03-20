@@ -33,11 +33,10 @@ def main(cfg: CfgNode, log: Callable):
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
             train_loss = tnt.traintest(model, train_loader, warm_optim, cfg)  
-            wandb.log(train_loss.to_dict()) 
             log(str(train_loss))
             test_loss = tnt.traintest(model, val_loader  , test_optim, cfg)
-            wandb.log(test_loss.to_dict()) 
             log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
         elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
@@ -51,11 +50,10 @@ def main(cfg: CfgNode, log: Callable):
 
             # log the final epoch of the last layer optimizer and validation  
             train_loss = tnt.traintest(model, train_loader, last_optim, cfg)
-            wandb.log(train_loss.to_dict()) 
             log(str(train_loss))
             test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
-            wandb.log(test_loss.to_dict()) 
             log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
             
             if cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
@@ -63,11 +61,10 @@ def main(cfg: CfgNode, log: Callable):
         else: 
             log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             train_loss = tnt.traintest(model, train_loader, joint_optim, cfg)
-            wandb.log(train_loss.to_dict()) 
             log(str(train_loss))
             test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
-            wandb.log(test_loss.to_dict()) 
             log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
             if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
                 torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))
