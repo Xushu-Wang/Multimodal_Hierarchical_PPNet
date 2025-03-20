@@ -222,11 +222,6 @@ class ResNet_features(nn.Module):
               + self.block.num_layers * self.layers[3]
               + 1)
 
-
-    def __repr__(self):
-        template = 'resnet{}_features'
-        return template.format(self.num_layers() + 1)
-
 def resnet18_features(pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
     Args:

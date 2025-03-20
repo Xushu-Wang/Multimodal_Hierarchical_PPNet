@@ -52,21 +52,3 @@ class GeneticCNN2D(nn.Module):
         # NOTE - Layer_paddings is different from the padding in the image models
 
         return layer_filter_sizes, layer_strides, layer_paddings
-
-    def __repr__(self):
-        # rep = {
-        #     'GENETICS(\n'
-        #     '\tlength: {},\n'
-        #     '\tclass_count: {},\n'
-        #     '\tinclude_connected_layer: {},\n'
-        #     '\tremove_last_layer: {},\n'
-        #     ')'
-        # }
-        rep = 'GENETICS(\n\tlength: {},\n\tclass_count: {},\n\tinclude_connected_layer: {},\n\tremove_last_layer: {},\n)'
-
-        return rep.format(
-            self.length,
-            self.class_count,
-            self.include_connected_layer, 
-            self.remove_last_layer
-        )
