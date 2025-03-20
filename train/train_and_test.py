@@ -93,7 +93,6 @@ def _traintest_genetic(model, dataloader, optimizer, cfg, log):
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
-
         input = genetics.cuda()
         label = label.cuda()
         flat_label = flat_label.cuda()

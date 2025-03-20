@@ -60,7 +60,7 @@ class ProtoNode(nn.Module):
             # outputs of forward pass will be stored here 
             self.logits = None
             self.probs = None
-            self.min_dist = None
+            self.max_sim = None
 
             if self.mode == Mode.GENETIC: 
                 self.register_buffer('offset_tensor', self.init_offset_tensor())
@@ -218,18 +218,16 @@ class ProtoNode(nn.Module):
         # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1), in [-1, 1]
         max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
 
-        min_distances = 1 - max_sim # in [0, 2]
-
         # for each prototype, finds the spatial location that's closest to the prototype. 
         # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
-        min_distances = min_distances.view(-1, self.nclass * self.nprotos)  
+        max_sim = max_sim.view(-1, self.nclass * self.nprotos)  
 
         # convert distance to similarity
-        logits = self.last_layer(max_sim.view(-1, self.nclass * self.nprotos))
+        logits = self.last_layer(max_sim)
         self.logits = logits
-        self.min_dist = min_distances
+        self.max_sim = max_sim
 
-        return logits, min_distances
+        return logits, max_sim
 
     def softmax(self): 
         if self.logits is None: 
@@ -243,9 +241,9 @@ class ProtoNode(nn.Module):
         if self.probs != None:
             del self.probs
             self.probs = None
-        if self.min_dist != None:
-            del self.min_dist
-            self.min_dist = None
+        if self.max_sim != None:
+            del self.max_sim
+            self.max_sim = None
 
 
 class HierProtoPNet(nn.Module): 
@@ -348,12 +346,12 @@ class HierProtoPNet(nn.Module):
 
     def zero_pred(self): 
         """
-        Wipe out the logits, probs, min_dist, and prediction statistics. 
+        Wipe out the logits, probs, max_sim, and prediction statistics. 
         Should be called at the end of every epoch. 
         """
         self.logits = None 
         self.probs = None 
-        self.min_dist = None 
+        self.max_sim = None 
         self.npredictions = 0 
         self.n_next_correct = 0 
         self.n_species_correct = 0
