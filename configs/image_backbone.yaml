@@ -4,9 +4,6 @@ MODEL:
     PRUNE: false
 
 DATASET:
-    # TREE_SPECIFICATION_FILE: "class_trees/150_5.json"
-    # TREE_SPECIFICATION_FILE: "class_trees/massive_tree.json"
-    # TREE_SPECIFICATION_FILE: "class_trees/larger.json"
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 2
