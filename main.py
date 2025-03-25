@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import argparse, os, wandb
 from yacs.config import CfgNode
 
@@ -20,7 +21,7 @@ def main(cfg: CfgNode, log: Callable):
     if not os.path.exists(cfg.OUTPUT.IMG_DIR):
         os.mkdir(cfg.OUTPUT.IMG_DIR)
 
-    train_loader, train_push_loader, val_loader, _, image_normalizer = get_dataloaders(cfg, log, validate=args.validate)
+    train_loader, push_loader, val_loader, _, image_normalizer = get_dataloaders(cfg, log)
     log("Dataloaders Constructed")
 
     model = construct_ppnet(cfg).cuda()
@@ -40,7 +41,7 @@ def main(cfg: CfgNode, log: Callable):
 
         elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
-            push.push(model, train_push_loader, cfg, epoch, image_normalizer, stride = 1)
+            push.push(model, push_loader, cfg, epoch, image_normalizer, stride = 1)
             
             # need to implement pruning here
             
@@ -77,7 +78,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--validate', action='store_true')
-    parser.add_argument('--gpuid', type=str, default='0') 
 
     parser.add_argument('--gcrs_ent', type=float, default=20.0) 
     parser.add_argument('--gclst', type=float, default=0.1) 
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--run-name', type=str, default=None)
     
     args = parser.parse_args()
-    
+
     cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
 
@@ -107,17 +107,17 @@ if __name__ == '__main__':
     run_id_accumulator(cfg) 
     print(cfg.RUN_NAME)
 
-    # cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
-    # cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
-    # cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
-    # cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
-    # cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
-    # cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
-    # cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
+    cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
+    cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
+    cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
+    cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
+    cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
+    cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
+    cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
     cfg.OPTIM.COEFS.IMAGE.CLST = args.iclst
     cfg.OPTIM.COEFS.IMAGE.SEP = args.isep
-    # cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
-    # cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
+    cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
+    cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
 
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
 
@@ -129,8 +129,10 @@ if __name__ == '__main__':
         entity="charlieberens-duke-university"
     )
     log(str(cfg))
-    try:
-        main(cfg, log)
+    try: 
+        torch.manual_seed(cfg.SEED)
+        np.random.seed(cfg.SEED)
+        main(cfg, log)  
     except Exception as e: 
         wandb.finish() 
         logclose() 
