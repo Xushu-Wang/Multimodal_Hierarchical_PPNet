@@ -4,7 +4,7 @@ _C = CN()
 
 _C.RUN_NAME = "" 
 _C.SEED = 2024
-_C.WANDB_MODE = "online"
+_C.WANDB_MODE = "disabled"
 
 # Model
 _C.MODEL = CN()
