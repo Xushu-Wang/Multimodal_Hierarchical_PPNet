@@ -137,16 +137,16 @@ class MultiHierProtoPNet(nn.Module):
         self.gen_net.zero_pred()
         self.img_net.zero_pred()
     
-def construct_ppnet(cfg: CfgNode):
+def construct_ppnet(cfg: CfgNode, log: Callable):
     mode = Mode(cfg.DATASET.MODE) 
     match mode: 
         case Mode.GENETIC: 
-            return construct_genetic_ppnet(cfg)
+            return construct_genetic_ppnet(cfg, log)
         case Mode.IMAGE: 
-            return construct_image_ppnet(cfg)
+            return construct_image_ppnet(cfg, log)
         case Mode.MULTIMODAL: 
             multi = MultiHierProtoPNet(
-                construct_genetic_ppnet(cfg), 
-                construct_image_ppnet(cfg) 
+                construct_genetic_ppnet(cfg, log), 
+                construct_image_ppnet(cfg, log) 
             )
             return multi

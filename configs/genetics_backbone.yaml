@@ -1,4 +1,4 @@
-RUN_NAME: "genetics_backbone_muchang"
+RUN_NAME: "genetics_120_reasonable"
 # WANDB_MODE: "online" 
 
 DATASET:

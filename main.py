@@ -10,8 +10,9 @@ from model.multimodal import construct_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
 import prototype.push as push 
-
 from typing import Callable
+import warnings
+warnings.filterwarnings("ignore", message="TypedStorage is deprecated")
 
 run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
 
@@ -24,7 +25,7 @@ def main(cfg: CfgNode, log: Callable):
     train_loader, push_loader, val_loader, _, image_normalizer = get_dataloaders(cfg, log)
     log("Dataloaders Constructed")
 
-    model = construct_ppnet(cfg).cuda()
+    model = construct_ppnet(cfg, log).cuda()
     log("ProtoPNet constructed")
 
     warm_optim, joint_optim, last_optim, test_optim = get_optimizers(model, cfg)

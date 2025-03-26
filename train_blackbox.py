@@ -4,6 +4,7 @@ This trains a ResNet backbone or CNN backbone for genetic or image classificatio
 
 import argparse, os, wandb
 import torch
+import numpy as np
 from yacs.config import CfgNode
 from typing import Callable
 from configs.cfg import get_cfg_defaults
@@ -15,20 +16,19 @@ from torchvision.models import resnet50
 from dataio.dataloader import get_dataloaders
 import torch.optim as optim
 
+run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
+
 def main(cfg: CfgNode, log: Callable):
     device = torch.device(cfg.MODEL.DEVICE)
     train_loader, _, val_loader, _, _ = get_dataloaders(cfg, log)  
 
     class_count = train_loader.dataset.hierarchy.levels.counts[-1] # type: ignore  
 
-    if cfg.DATASET.MODE == Mode.GENETIC:
+    if cfg.DATASET.MODE == Mode.GENETIC.value:
         model = GeneticCNN2D(720, class_count, include_connected_layer=True)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     else:
-        model = resnet50(weights='DEFAULT')  
-        # Remove last ReLU layer 
-        model.layer4[-1].relu = torch.nn.Identity()
-
+        model = resnet50(weights='DEFAULT') 
         num_ftrs = model.fc.in_features
         model.fc = torch.nn.Linear(num_ftrs, class_count)
         optimizer = torch.optim.SGD(
@@ -39,7 +39,7 @@ def main(cfg: CfgNode, log: Callable):
         )
     model.to(device)
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor = 0.1, patience=1, threshold=1e-6)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor = 0.1, patience=5, threshold=1e-6)
     criterion = torch.nn.CrossEntropyLoss().to(device) 
 
     max_accuracy = max_accuracy_epoch = 0
@@ -50,9 +50,9 @@ def main(cfg: CfgNode, log: Callable):
         correct_guesses = 0
 
         model.train() 
-        for (genetics, image), (_, flat_label) in train_loader: 
-            inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC else image.to(device)
-            labels = flat_label[:,-1].to(device)
+        for (genetics, image), (_, flat_label) in train_loader:  
+            inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC.value else image.to(device)
+            labels = flat_label[:,-1].to(device) 
 
             optimizer.zero_grad() 
 
@@ -69,7 +69,7 @@ def main(cfg: CfgNode, log: Callable):
 
         scheduler.step(total_loss / len(train_loader.dataset)) # type: ignore
         train_acc = correct_guesses / len(train_loader.dataset) # type: ignore
-        log(f"Train Acc: {train_acc:.5f}")
+        log(f"Train Loss/Acc: {total_loss:.5f}, {train_acc:.5f}")
         
         # Evaluate on test set with balanced accuracy
         model.eval()
@@ -81,7 +81,7 @@ def main(cfg: CfgNode, log: Callable):
 
         with torch.no_grad():
             for (genetics, image), (_, flat_label) in val_loader:
-                inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC else image.to(device)
+                inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC.value else image.to(device)
                 labels = flat_label[:,-1].to(device)
                 flat_label = flat_label.to(device)
                 logits = model(inputs) 
@@ -102,12 +102,11 @@ def main(cfg: CfgNode, log: Callable):
 
         if val_accuracy[-1] > max_accuracy:
             max_accuracy = val_accuracy[-1]
-            max_accuracy_epoch = epoch
-            if not os.path.exists(os.path.join(args.output, cfg.RUN_NAME)):
-                os.makedirs(os.path.join(args.output, cfg.RUN_NAME))
-            torch.save(model.state_dict(), os.path.join(args.output, cfg.RUN_NAME, f"{cfg.RUN_NAME}_best.pth")) 
+            max_accuracy_epoch = epoch 
+            torch.save(model.state_dict(), os.path.join("backbones", f"{cfg.RUN_NAME}_best.pth")) 
 
         wandb.log({
+            "train-loss" : total_loss, 
             "train-acc" : train_acc, 
             "val-acc-order" : val_accuracy[0], 
             "val-acc-family" : val_accuracy[1], 
@@ -120,16 +119,19 @@ def main(cfg: CfgNode, log: Callable):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', type=str, default='configs/image_backbone.yaml')
-    parser.add_argument('--output',  type=str, default='backbones/image_backbone')
 
     args = parser.parse_args()
     cfg = get_cfg_defaults()
-    cfg.merge_from_file(args.configs)
-    run_id_accumulator(cfg)
+    cfg.merge_from_file(args.configs) 
+
+    run_id_accumulator(cfg) 
+
+    if os.path.exists(os.path.join("backbones", f"{cfg.RUN_NAME}_best.pth")): 
+        raise Exception("You are overriding a previously saved weights. Use another name.")
 
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     wandb.init(
-        project=f"{run_mode[cfg.DATASET.MODE]} Hierarchical Protopnet",
+        project=f"{run_mode[cfg.DATASET.MODE]} Blackbox Backbone",
         name=cfg.RUN_NAME,
         config=cfg,
         mode=cfg.WANDB_MODE,

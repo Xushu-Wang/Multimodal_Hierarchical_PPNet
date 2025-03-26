@@ -1,5 +1,5 @@
-RUN_NAME: "image_backbone_muchang"
-WANDB_MODE: "online" 
+RUN_NAME: "image_120_reasonable"
+# WANDB_MODE: "online" 
 
 DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
