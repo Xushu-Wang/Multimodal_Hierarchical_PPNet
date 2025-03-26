@@ -2,9 +2,13 @@ import torch
 from typing import Callable
 from torch.utils.data import DataLoader
 from yacs.config import CfgNode
-from .dataset import get_datasets
+from .dataset import get_datasets, TreeDataset
+from typing import Any, Tuple 
 
-def get_dataloaders(cfg: CfgNode, log: Callable):
+TreeDL = DataLoader[TreeDataset]
+
+def get_dataloaders(cfg: CfgNode, log: Callable) \
+-> Tuple[TreeDL, TreeDL, TreeDL, TreeDL, Any]:
     train_ds, push_ds, val_ds, test_ds, normalize = get_datasets(cfg, log) 
 
     def collate_fn(batch): 
@@ -38,16 +42,16 @@ def get_dataloaders(cfg: CfgNode, log: Callable):
 
         return (genetics, images), (labels, flat_labels)
 
-    val_loader = DataLoader(
-        val_ds, batch_size=cfg.DATASET.TEST_BATCH_SIZE, shuffle=False,
-        num_workers=1, pin_memory=False, collate_fn=collate_fn)
-    
     train_loader = DataLoader(
             train_ds, batch_size=cfg.DATASET.TRAIN_BATCH_SIZE, shuffle=True,
             num_workers=1, pin_memory=False, collate_fn=collate_fn,       
     )
-    train_push_loader = DataLoader(
+    push_loader = DataLoader(
         push_ds, batch_size=cfg.DATASET.TRAIN_PUSH_BATCH_SIZE, shuffle=True,
+        num_workers=1, pin_memory=False, collate_fn=collate_fn
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=cfg.DATASET.TEST_BATCH_SIZE, shuffle=False,
         num_workers=1, pin_memory=False, collate_fn=collate_fn
     )
     test_loader = DataLoader(
@@ -55,4 +59,4 @@ def get_dataloaders(cfg: CfgNode, log: Callable):
         num_workers=1, pin_memory=False, collate_fn=collate_fn
     )  
 
-    return train_loader, train_push_loader, val_loader, test_loader, normalize
+    return train_loader, push_loader, val_loader, test_loader, normalize
