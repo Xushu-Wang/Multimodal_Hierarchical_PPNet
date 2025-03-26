@@ -9,28 +9,18 @@ DATASET:
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    # Uncomment these once datasets have already been generated and you want to reuse them
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/FullTest_Test_001"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/massive"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/larger_002"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/image_species_120"
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/parallel_new_backbone_10epoch_init_012"
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
 
-    TRAIN_BATCH_SIZE: 40
+    TRAIN_BATCH_SIZE: 80
 
     IMAGE:
         PROTOTYPE_SHAPE: (2048, 1, 1)
         TRANSFORM_MEAN: (0.706, 0.708, 0.709)
         TRANSFORM_STD: (0.146, 0.164, 0.1837)
         NUM_PROTOTYPES_PER_CLASS: 10
-        # PPNET_PATH: "../output/joint/Correspondance-1/9nopush0.9932.pth"
-        # PPNET_PATH: "../output/joint/Memfix-Correspondance-1/9nopush0.9935.pth"
-        # PPNET_PATH: "../output/joint/Correspondance-0/0nopush0.9932.pth"
-        # PPNET_PATH: "../output/image_only/"
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"
