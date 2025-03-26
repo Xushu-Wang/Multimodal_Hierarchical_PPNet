@@ -77,7 +77,6 @@ def main(cfg: CfgNode, log: Callable):
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', type=str, default='configs/multi.yaml')
-    parser.add_argument('--validate', action='store_true')
 
     parser.add_argument('--gcrs_ent', type=float, default=20.0) 
     parser.add_argument('--gclst', type=float, default=0.1) 
@@ -100,9 +99,7 @@ if __name__ == '__main__':
     cfg.merge_from_file(args.configs)
 
     if args.run_name is not None:
-        print(args.run_name)
         cfg.RUN_NAME = args.run_name
-        print(cfg.RUN_NAME)
 
     run_id_accumulator(cfg) 
     print(cfg.RUN_NAME)
@@ -137,4 +134,3 @@ if __name__ == '__main__':
         wandb.finish() 
         logclose() 
         raise(e)
-    
