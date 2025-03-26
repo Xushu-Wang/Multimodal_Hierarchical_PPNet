@@ -427,14 +427,10 @@ def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet:
     hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
 
     if cfg.DATASET.IMAGE.PPNET_PATH != "NA":
-        # retrieve cached_ppnet 
         image_ppnet = torch.load(cfg.DATASET.IMAGE.PPNET_PATH)
-        # if image_ppnet.mode == 3 or image_ppnet.mode == Mode.MULTIMODAL:
-        #     image_ppnet = image_ppnet.img_net
     else:
+        # should not remove the final ReLU layer before the avgpool 
         backbone = base_architecture_to_features["resnetbioscan"](pretrained=True) 
-        # delete the backbone relu layer
-        # backbone.layer4[-1].relu = torch.nn.Identity() 
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
         proto_layer_rf_info = compute_proto_layer_rf_info_v2(
             img_size=cfg.DATASET.IMAGE.SIZE,
