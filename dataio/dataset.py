@@ -103,7 +103,8 @@ class Hierarchy():
         self.levels = Level(*meta["levels"])
         self.tree_dict = meta["tree"]
 
-        self.root = self._dict_to_trie(TaxNode("Insect", [], [], []), self.tree_dict)
+        self.root = self._dict_to_trie(TaxNode("Insect", [], [], []), self.tree_dict) 
+        self._create_taxonomic_mappings()
 
     def _dict_to_trie(self, node: TaxNode, d: dict) -> TaxNode: 
         """
@@ -176,6 +177,49 @@ class Hierarchy():
 
     def __eq__(self, other): 
         return self.levels == other.levels and self.tree_dict == other.tree_dict 
+
+    def _create_taxonomic_mappings(self):
+        """
+        Creates mappings from species flat indices to their parent taxonomic indices.
+        
+        Returns:
+            dict: Dictionary containing tensors that map species flat_idx to parent taxonomic flat_idx:
+                  - 'species_to_genus': tensor mapping species idx to parent genus idx
+                  - 'species_to_family': tensor mapping species idx to parent family idx  
+                  - 'species_to_order': tensor mapping species idx to parent order idx
+        """
+        # Get the total number of species (required for tensor size)
+        species_count = self.levels.count('species')
+        
+        # Create empty tensors for the mappings
+        species_to_genus = torch.zeros(species_count, dtype=torch.long)
+        species_to_family = torch.zeros(species_count, dtype=torch.long)
+        species_to_order = torch.zeros(species_count, dtype=torch.long)
+        
+        # Helper function to recursively traverse the tree and fill in the mappings
+        def _traverse_and_map(node):
+            if node.depth == 4:  # This is a species node
+                species_idx = node.flat_idx[-1]
+                # Get parent nodes' flat indices
+                genus_idx = node.flat_idx[-2]
+                family_idx = node.flat_idx[-3]
+                order_idx = node.flat_idx[-4]
+                
+                # Store the mappings
+                species_to_genus[species_idx] = genus_idx
+                species_to_family[species_idx] = family_idx
+                species_to_order[species_idx] = order_idx
+            else:
+                # Traverse children
+                for child in node.childs:
+                    _traverse_and_map(child)
+        
+        # Start traversal from root
+        _traverse_and_map(self.root) 
+
+        self.species_to_genus = species_to_genus
+        self.species_to_family = species_to_family
+        self.species_to_order = species_to_order
 
 class TreeDataset(Dataset): 
     """
