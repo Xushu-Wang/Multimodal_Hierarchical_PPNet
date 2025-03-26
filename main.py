@@ -77,7 +77,7 @@ def main(cfg: CfgNode, log: Callable):
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', type=str, default='configs/multi.yaml')
+    parser.add_argument('--config', type=str, default='multi.yaml')
 
     parser.add_argument('--gcrs_ent', type=float, default=20.0) 
     parser.add_argument('--gclst', type=float, default=0.1) 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     cfg = get_cfg_defaults()
-    cfg.merge_from_file(args.configs)
+    cfg.merge_from_file(os.path.join("configs", args.config))
 
     if args.run_name is not None:
         cfg.RUN_NAME = args.run_name

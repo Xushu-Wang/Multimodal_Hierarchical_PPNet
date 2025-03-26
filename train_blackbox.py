@@ -118,11 +118,11 @@ def main(cfg: CfgNode, log: Callable):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', type=str, default='configs/image_backbone.yaml')
+    parser.add_argument('--config', type=str, default='image_backbone.yaml')
 
     args = parser.parse_args()
     cfg = get_cfg_defaults()
-    cfg.merge_from_file(args.configs) 
+    cfg.merge_from_file(os.path.join("configs", args.config))
 
     run_id_accumulator(cfg) 
 
