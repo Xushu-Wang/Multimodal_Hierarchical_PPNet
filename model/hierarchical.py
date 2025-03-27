@@ -105,7 +105,7 @@ class ProtoNode(nn.Module):
         # all attributes regarding to push stage 
         # saves the closest distance seen so far 
         # add a new attribute and initialize it to be infinity
-        self.global_max_proto_sim = np.full(self.nprotos_total, np.inf)
+        self.global_max_proto_sim = np.full(self.nprotos_total, -np.inf)
 
         # saves the patch representation that gives the current smallest distance
         self.global_max_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])

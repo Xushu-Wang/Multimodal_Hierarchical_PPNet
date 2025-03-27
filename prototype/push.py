@@ -351,4 +351,5 @@ def push_multimodal(model, dataloader, preprocessor, stride, epoch, cfg):
         node.img_node.prototype.data.copy_(torch.tensor(img_prototype_update, dtype=torch.float32).cuda())
 
         # Save the prototype images
+        print(img_prototype_update)
 
