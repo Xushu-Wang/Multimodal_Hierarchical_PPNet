@@ -1,4 +1,4 @@
-RUN_NAME: "traintest_runs"
+RUN_NAME: "clst_neg_sep_pos"
 WANDB_MODE: "online" 
 
 MODEL:
@@ -8,22 +8,22 @@ MODEL:
     GENETICS_BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
-    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" 
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] 
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
     CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     MODE: 3 
 
-    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
+    IMAGE_PATH: "../datasets/full_bioscan_images/" 
     TRAIN_BATCH_SIZE: 600
     TEST_BATCH_SIZE: 600
     TRAIN_PUSH_BATCH_SIZE: 600
 
     IMAGE: 
         PROTOTYPE_SHAPE: (2048, 1, 1) 
-        TRANSFORM_MEAN: (0.485, 0.456, 0.406)
-        TRANSFORM_STD: (0.229, 0.224, 0.225)
+        TRANSFORM_MEAN: (0.706, 0.708, 0.709)
+        TRANSFORM_STD: (0.146, 0.164, 0.1837)
         NUM_PROTOTYPES_PER_CLASS: 10
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
@@ -39,18 +39,17 @@ OPTIM:
         CORRESPONDENCE: 0.0
         GENETIC: 
             CRS_ENT: 20.
-            CLST: 0.1
-            SEP: -0.1
-            L1: 5e-3
+            CLST: -1.0
+            SEP: 1.0
+            L1: 0.0
             ORTHO: 0.0
         IMAGE: 
+            # should be ~10 times the values of genetic from experiments
             CRS_ENT: 20.
-            CLST: 0.1
-            SEP: -0.1
-            L1: 5e-3
+            CLST: -1.0
+            SEP: 1.0
+            L1: 0.0
             ORTHO: 0.0
-
-    # Optimizer Learning Rates (LR) and Weight Decays (WD) 
     WARM: 
         ADD_ON_LAYERS_LR: 3e-2 
         ADD_ON_LAYERS_WD: 0.

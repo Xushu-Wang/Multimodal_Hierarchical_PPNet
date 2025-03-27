@@ -9,18 +9,16 @@ DATASET:
 
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 1
-    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
 
     TRAIN_BATCH_SIZE: 80
     TEST_BATCH_SIZE: 160
     TRAIN_PUSH_BATCH_SIZE: 20
 
-    # Uncomment these once datasets have already been generated and you want to reuse them
-    # PRE_EXISTING_IMAGES: true
     CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
-    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
-    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" 
+    IMAGE_PATH: "../datasets/full_bioscan_images/" 
 
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
@@ -34,28 +32,26 @@ OPTIM:
     COEFS: 
         GENETIC: 
             CRS_ENT: 20.
-            CLST: 0.001
-            SEP: -0.1
-            L1: 5e-3
-            ORTHO: 1e-3
-
-    # Optimizer Learning Rates (LR) and Weight Decays (WD) 
+            CLST: -1.0
+            SEP: -1.0
+            L1: 0.0
+            ORTHO: 0.0
     WARM: 
-        ADD_ON_LAYERS_LR: 3e-3 
-        ADD_ON_LAYERS_WD: 1e-3
-        PROTOTYPE_LR: 3e-3 
-        PROTOTYPE_WD: 1e-3 
+        ADD_ON_LAYERS_LR: 3e-2 
+        ADD_ON_LAYERS_WD: 0.
+        PROTOTYPE_LR: 3e-2 
+        PROTOTYPE_WD: 0.
     JOINT: 
-        FEATURES_LR: 1e-5 
-        FEATURES_WD: 1e-3
-        ADD_ON_LAYERS_LR: 3e-3
+        FEATURES_LR: 1e-2 
+        FEATURES_WD: 0.
+        ADD_ON_LAYERS_LR: 3e-2
         ADD_ON_LAYERS_WD: 1e-3
-        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_LR: 3e-2 
         LAST_LAYER_WD: 1e-3 
-        PROTOTYPE_LR: 3e-4
-        PROTOTYPE_WD: 1e-3
+        PROTOTYPE_LR: 3e-2
+        PROTOTYPE_WD: 0.
     LAST_LAYER: 
-        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_LR: 3e-2 
         LAST_LAYER_MOM: 0.9
         
 
