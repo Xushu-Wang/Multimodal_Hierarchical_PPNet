@@ -118,7 +118,11 @@ _C.OPTIM.LAST_LAYER.LAST_LAYER_MOM = 0.
 # If true, the crossentropy term will be applied to a large vector corresponding to conditional probabilities of each species (or higher level if not classified).
 # Otherwise, the crossentropy term will be applied to each classification task and summed.
 _C.OPTIM.CORRESPONDENCE_TYPE = "Batched" # One of ("Batched", "Single"). Batched evaluates the correspondence accross an entire batch.
-_C.OPTIM.PRUNE_START = 10
+_C.OPTIM.PRUNE_EPOCHS = [10]
+_C.OPTIM.PRUNING_TYPE = "weights"
+_C.OPTIM.GENETIC = CN()
+_C.OPTIM.GENETIC_MAX_NUM_PROTOTYPES_PER_CLASS = 10
+_C.OPTIM.IMAGE_MAX_NUM_PROTOTYPES_PER_CLASS = 10
 
 # Output 
 _C.OUTPUT = CN()

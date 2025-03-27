@@ -363,7 +363,3 @@ def push_multimodal(model, dataloader, stride, epoch, cfg):
         node.img_node.prototype.data.copy_(
             torch.tensor(node.img_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.MODEL.DEVICE)
         )
-
-        # Save the prototype images
-        print(img_prototype_update)
-

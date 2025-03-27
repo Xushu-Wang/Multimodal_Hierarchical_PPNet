@@ -49,7 +49,7 @@ class ProtoNode(nn.Module):
         self.childs = []
         self.prototype = None
         self.mode = mode 
-
+        
         self.vestigial = not taxnode.childs or len(taxnode.childs) == 1
         # self.vestigial = False
 
@@ -74,6 +74,12 @@ class ProtoNode(nn.Module):
                 self.prototype = nn.Parameter(
                     torch.randn((self.nprotos_total, *pshape), device="cuda"),
                     requires_grad=True
+                )
+                
+                # This parameter needs to be saved with the model, but it is not trainable 
+                self.register_buffer(
+                    "prototype_mask",
+                    torch.ones(self.nprotos_total, device="cuda")
                 )
 
                 self.last_layer = self.init_last_layer()
@@ -243,11 +249,14 @@ class ProtoNode(nn.Module):
         sim = self.cos_sim(conv_features) 
         # IMG: (80, 10 * nclass, 1, 1), GEN: (80, 40 * nclass, 1, 1), in [-1, 1]
         max_sim = F.max_pool2d(sim, kernel_size = (sim.size(2), sim.size(3)))   
-
+        
         # for each prototype, finds the spatial location that's closest to the prototype. 
         # IMG: (80, 10 * nclass), GEN: (80, 40 * nclass)
         max_sim = max_sim.view(-1, self.nclass * self.nprotos)  
 
+        # TODO - When masking should we subtract 1 from the max_sim? The minimum possible value is -1
+        max_sim = max_sim * self.prototype_mask
+        
         # convert distance to similarity
         logits = self.last_layer(max_sim)
         self.logits = logits

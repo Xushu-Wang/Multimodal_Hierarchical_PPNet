@@ -258,7 +258,7 @@ def sim_matrix(prototypes):
     return prototypes_normed @ prototypes_normed.T
 
 def get_ortho_cost(node: ProtoNode, temp=0.01):
-    diff = sim_matrix(node.prototype) - torch.eye(node.prototype.size(0)).cuda()
+    diff = sim_matrix(node.prototype * node.prototype_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)) - torch.eye(node.prototype.size(0)).cuda()
     if temp is not None:
         mask = torch.nn.functional.softmax(diff / temp, dim=-1)
     else:
@@ -273,6 +273,7 @@ def get_correspondence_loss_batched(
     img_max_sim,
     node
 ):
+    # TODO - Handle pruning here
     if node.taxonomy == "Diptera":
         node.correlation_count += len(gen_max_sim)
 
