@@ -43,6 +43,8 @@ def get_optimizers(model: Module, cfg: CfgNode):
         }
     ])
 
+    print(model.get_prototype_parameters())
+
     joint = torch.optim.Adam([
         {
             'params': model.features.parameters(), 
