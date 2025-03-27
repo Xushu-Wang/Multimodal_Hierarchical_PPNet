@@ -3,7 +3,6 @@ from typing import Optional, List, Callable
 import torch 
 from torch.utils.data import Dataset 
 import pandas as pd
-import numpy as np
 from skimage import io
 from enum import Enum
 from yacs.config import CfgNode
@@ -104,7 +103,8 @@ class Hierarchy():
         self.levels = Level(*meta["levels"])
         self.tree_dict = meta["tree"]
 
-        self.root = self._dict_to_trie(TaxNode("Insect", [], [], []), self.tree_dict)
+        self.root = self._dict_to_trie(TaxNode("Insect", [], [], []), self.tree_dict) 
+        self._create_taxonomic_mappings()
 
     def _dict_to_trie(self, node: TaxNode, d: dict) -> TaxNode: 
         """
@@ -177,6 +177,49 @@ class Hierarchy():
 
     def __eq__(self, other): 
         return self.levels == other.levels and self.tree_dict == other.tree_dict 
+
+    def _create_taxonomic_mappings(self):
+        """
+        Creates mappings from species flat indices to their parent taxonomic indices.
+        
+        Returns:
+            dict: Dictionary containing tensors that map species flat_idx to parent taxonomic flat_idx:
+                  - 'species_to_genus': tensor mapping species idx to parent genus idx
+                  - 'species_to_family': tensor mapping species idx to parent family idx  
+                  - 'species_to_order': tensor mapping species idx to parent order idx
+        """
+        # Get the total number of species (required for tensor size)
+        species_count = self.levels.count('species')
+        
+        # Create empty tensors for the mappings
+        species_to_genus = torch.zeros(species_count, dtype=torch.long)
+        species_to_family = torch.zeros(species_count, dtype=torch.long)
+        species_to_order = torch.zeros(species_count, dtype=torch.long)
+        
+        # Helper function to recursively traverse the tree and fill in the mappings
+        def _traverse_and_map(node):
+            if node.depth == 4:  # This is a species node
+                species_idx = node.flat_idx[-1]
+                # Get parent nodes' flat indices
+                genus_idx = node.flat_idx[-2]
+                family_idx = node.flat_idx[-3]
+                order_idx = node.flat_idx[-4]
+                
+                # Store the mappings
+                species_to_genus[species_idx] = genus_idx
+                species_to_family[species_idx] = family_idx
+                species_to_order[species_idx] = order_idx
+            else:
+                # Traverse children
+                for child in node.childs:
+                    _traverse_and_map(child)
+        
+        # Start traversal from root
+        _traverse_and_map(self.root) 
+
+        self.species_to_genus = species_to_genus
+        self.species_to_family = species_to_family
+        self.species_to_order = species_to_order
 
 class TreeDataset(Dataset): 
     """
@@ -291,13 +334,12 @@ def balanced_sample(
     source_df: pd.DataFrame, 
     count_per_leaf: Split, 
     train_not_classified_proportions: List[float],
-    seed: int = 2024, 
     log = print
 ):
     """
     Returns a balanced sample of the source_df based on the class_specification and count_per_leaf.
     """
-    source_df = source_df.sample(frac=1, random_state=seed)
+    source_df = source_df.sample(frac=1)
     tree = hierarchy.tree_dict 
     levels = list(hierarchy.levels.names.keys())
 
@@ -310,7 +352,6 @@ def balanced_sample(
         source_df:pd.DataFrame, 
         count_per_leaf:Split, 
         train_not_classified_proportion, 
-        seed:int = 2024, 
         parent_name: Optional[str] = None, 
         log=print
     ):
@@ -343,9 +384,9 @@ def balanced_sample(
                 else:
                     temp_count_per_leaf = count_per_leaf
 
-                test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf.test, random_state=seed)
-                validation_sample = source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).sample(temp_count_per_leaf.val, random_state=seed)
-                train_sample = pd.DataFrame(source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(temp_count_per_leaf.train, random_state=seed))
+                test_sample = source_df[source_df[levels[0]] == k].sample(temp_count_per_leaf.test)
+                validation_sample = source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).sample(temp_count_per_leaf.val)
+                train_sample = pd.DataFrame(source_df[source_df[levels[0]] == k].drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(temp_count_per_leaf.train))
 
                 if len(train_sample) < count_per_leaf.train:
                     raise ValueError("Please provide a dataset with enough samples to satisfy the train,val,test proportions.")
@@ -377,9 +418,9 @@ def balanced_sample(
 
                         child_shortages += count_per_leaf - temp_count_per_leaf
 
-                    child_test = not_classified.sample(temp_count_per_leaf.test, random_state=seed)
-                    child_val = not_classified.drop(index=list(child_test.index)).sample(temp_count_per_leaf.val, random_state=seed)
-                    child_train = not_classified.drop(index=list(child_test.index)).drop(index=list(child_val.index)).sample(temp_count_per_leaf.train, random_state=seed)
+                    child_test = not_classified.sample(temp_count_per_leaf.test)
+                    child_val = not_classified.drop(index=list(child_test.index)).sample(temp_count_per_leaf.val)
+                    child_train = not_classified.drop(index=list(child_test.index)).drop(index=list(child_val.index)).sample(temp_count_per_leaf.train)
                     child_count_tree = {"not_classified": (len(child_train), len(child_val), len(child_test))}
                 else:
                     child_train, child_val, child_test, child_shortages, child_count_tree = recursive_balanced_sample(
@@ -388,7 +429,6 @@ def balanced_sample(
                         pd.DataFrame(source_df[source_df[levels[0]] == k]),
                         count_per_leaf,
                         train_not_classified_proportion,
-                        seed,
                         k,
                     )
                 shortages += child_shortages
@@ -415,10 +455,10 @@ def balanced_sample(
         else:
             not_classified_sample_amounts = shortages
 
-        test_sample = not_classified.sample(not_classified_sample_amounts.test, random_state=seed)
-        validation_sample = not_classified.drop(index=list(test_sample.index)).sample(not_classified_sample_amounts.val, random_state=seed)
+        test_sample = not_classified.sample(not_classified_sample_amounts.test)
+        validation_sample = not_classified.drop(index=list(test_sample.index)).sample(not_classified_sample_amounts.val)
 
-        train_sample = not_classified.drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(train_not_classified_count, random_state=seed)
+        train_sample = not_classified.drop(index=list(test_sample.index)).drop(index=list(validation_sample.index)).sample(train_not_classified_count)
 
         train_output.append(train_sample)
         val_output.append(validation_sample)
@@ -428,7 +468,7 @@ def balanced_sample(
 
         return pd.concat(train_output), pd.concat(val_output), pd.concat(test_output), shortages - not_classified_sample_amounts, count_tree
 
-    train, val, test, shortages, count_tree = recursive_balanced_sample(tree, levels, source_df, count_per_leaf, train_not_classified_proportion, seed)
+    train, val, test, shortages, count_tree = recursive_balanced_sample(tree, levels, source_df, count_per_leaf, train_not_classified_proportion)
 
     if shortages.shortage_exists(): 
         raise ValueError(f"Unable to balance dataset. Shortages: {shortages}.")
@@ -449,7 +489,6 @@ def create_new_ds(
     trans_mean:tuple,
     trans_std:tuple,
     mode:Mode,
-    seed: int = 2024,
     log: Callable = print
 ):
     """
@@ -458,14 +497,11 @@ def create_new_ds(
     train_not_classified_proportion - An object specifying the porportion of samples at each level that should be not classified.
     tree_specification_file - path to json file tree of valid classes.
     """
-    np.random.seed(seed) 
-
     train, val, test, _ = balanced_sample(
         hierarchy, 
         pd.read_csv(os.path.join("..", "datasets", "source_files", "metadata_cleaned_permissive.tsv"), sep="\t"),
         split, 
         train_not_classified_proportions, 
-        seed
     )
     
     # save the train_push dataframe
@@ -552,7 +588,6 @@ def get_datasets(cfg: CfgNode, log: Callable = print):
             trans_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
             trans_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
             mode=Mode(cfg.DATASET.MODE),
-            seed=cfg.SEED,
             log=log,
         )
 

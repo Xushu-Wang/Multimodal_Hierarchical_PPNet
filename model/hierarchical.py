@@ -1,11 +1,13 @@
 import torch
 import numpy as np
+import os
 from yacs.config import CfgNode
+from typing import Callable
 import torch.nn as nn
 import torch.nn.functional as F
 from model.features.genetic_features import GeneticCNN2D
+from model.features.resnet_features import resnet_bioscan_features
 from prototype.receptive_field import compute_proto_layer_rf_info_v2
-from model.backbones import base_architecture_to_features 
 from dataio.dataset import Mode, TaxNode, Hierarchy
 
 # Decorator that returns immediately if self.vestigial is True
@@ -385,21 +387,36 @@ class HierProtoPNet(nn.Module):
         self.n_species_correct = 0
         torch.cuda.empty_cache()
 
-def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet: 
+def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet: 
     hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
 
-    if cfg.DATASET.GENETIC.PPNET_PATH != "NA":
-        # retrieve cached_ppnet 
-        genetic_ppnet = torch.load(cfg.DATASET.GENETIC.PPNET_PATH) 
+    ppnet_path = cfg.MODEL.GENETICS_PPNET_PATH
+    backbone_path = cfg.MODEL.GENETICS_BACKBONE_PATH
+
+    if ppnet_path != "":
+        log(f"Loading Pretrained Genetics PPNET: {ppnet_path}")
+        # cached trained genetic ppnet 
+        if not os.path.exists(ppnet_path): 
+            raise Exception(f"Genetics ppnet path does not exist: {ppnet_path}")
+        genetic_ppnet = torch.load(ppnet_path) 
     else:
+        log("No Pretrained Genetics PPNET Path Found. Initializing new Genetics PPNET.")
         backbone = GeneticCNN2D(720, 1, include_connected_layer=False)
 
-        # Remove the fully connected layer
-        weights = torch.load(cfg.MODEL.GENETIC_BACKBONE_PATH, weights_only=True)
-        for k in list(weights.keys()):
-            if "conv" not in k:
-                del weights[k]
-        backbone.load_state_dict(weights) 
+        if backbone_path != "": 
+            log(f"Loading Pretrained Genetics Backbone: {backbone_path}")
+            if os.path.exists(backbone_path):
+                weights = torch.load(backbone_path, weights_only=True) 
+            else: 
+                raise Exception(f"Genetics backbone path does not exist: {backbone_path}")
+
+            # Remove the fully connected layer
+            for k in list(weights.keys()):
+                if "conv" not in k:
+                    del weights[k]
+            backbone.load_state_dict(weights) 
+        else: 
+            log("No Pretrained Genetics Backbone Found. Initializing new Genetics Backbone.")
 
         # NOTE - Layer_paddings is different from the padding in the image models
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
@@ -423,18 +440,34 @@ def construct_genetic_ppnet(cfg: CfgNode) -> HierProtoPNet:
 
     return genetic_ppnet
 
-def construct_image_ppnet(cfg: CfgNode) -> HierProtoPNet: 
+def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet: 
     hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
+    ppnet_path = cfg.MODEL.IMAGE_PPNET_PATH
+    backbone_path = cfg.MODEL.IMAGE_BACKBONE_PATH
 
-    if cfg.DATASET.IMAGE.PPNET_PATH != "NA":
-        # retrieve cached_ppnet 
-        image_ppnet = torch.load(cfg.DATASET.IMAGE.PPNET_PATH)
-        # if image_ppnet.mode == 3 or image_ppnet.mode == Mode.MULTIMODAL:
-        #     image_ppnet = image_ppnet.img_net
+    if ppnet_path != "":
+        log(f"Loading Pretrained Image PPNET: {ppnet_path}")
+        # cached trained genetic ppnet 
+        if not os.path.exists(ppnet_path): 
+            raise Exception(f"Image ppnet path does not exist: {ppnet_path}")
+        image_ppnet = torch.load(ppnet_path) 
     else:
-        backbone = base_architecture_to_features["resnetbioscan"](pretrained=True) 
-        # delete the backbone relu layer
-        # backbone.layer4[-1].relu = torch.nn.Identity() 
+        log("No Pretrained Image PPNET Path Found. Initializing new Image PPNET.")
+        # should not remove the final ReLU layer before the avgpool 
+        backbone = resnet_bioscan_features()
+        
+        if backbone_path != "": 
+            log(f"Loading Pretrained Image Backbone: {backbone_path}")
+            if os.path.exists(backbone_path):
+                my_dict = torch.load(backbone_path, map_location=torch.device('cpu'), weights_only=True)
+                my_dict.pop('fc.weight')
+                my_dict.pop('fc.bias')
+                backbone.load_state_dict(my_dict, strict=False) 
+            else: 
+                raise Exception(f"Genetics backbone path does not exist: {backbone_path}")
+        else: 
+            log("No Pretrained Image Backbone Found. Initializing new Image Backbone.")
+
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
         proto_layer_rf_info = compute_proto_layer_rf_info_v2(
             img_size=cfg.DATASET.IMAGE.SIZE,

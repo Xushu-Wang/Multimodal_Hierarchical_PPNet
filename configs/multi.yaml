@@ -1,41 +1,38 @@
 RUN_NAME: "traintest_runs"
-WANDB_MODE: "disabled" 
+# WANDB_MODE: "online" 
 
 MODEL:
-    PRUNE: false # Keep disabled. This has not been updated to work with new changes.
-    GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
-
-    # BUGFIX!
-    # MULTI: # There are some issues with preloading old multi_ppnets because the model code has changed. Look into this.
-    #     MULTI_PPNET_PATH: "../output/joint/parallel_new_backbone_10epoch_init_067/10push0.3333.pth"
+    IMAGE_PPNET_PATH: ""
+    GENETICS_PPNET_PATH: ""
+    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_001_best.pth"
+    GENETICS_BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
+    PRUNE: false 
 
 DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
-    MODE: 3 # For parallel mode, always set to 3
+    MODE: 3 
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
-    TRAIN_BATCH_SIZE: 80
+    TRAIN_BATCH_SIZE: 160
     TEST_BATCH_SIZE: 160
-    TRAIN_PUSH_BATCH_SIZE: 40
+    TRAIN_PUSH_BATCH_SIZE: 160
 
     IMAGE: 
         PROTOTYPE_SHAPE: (2048, 1, 1) 
         TRANSFORM_MEAN: (0.485, 0.456, 0.406)
         TRANSFORM_STD: (0.229, 0.224, 0.225)
         NUM_PROTOTYPES_PER_CLASS: 10
-        # PPNET_PATH: "../output/image_only/image_species_120_80train_warm_001/images/10_push_weights.pth" # Path to pretrained image ppnet. This can be used in multimodal mode.
     GENETIC:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
-        # PPNET_PATH: "../output/genetic_only/genetic_species_warm_001/images/10_push_weights.pth" # Path to pretrained genetic ppnet. This can be used in multimodal mode.
 OPTIM:
-    NUM_WARM_EPOCHS: 0
-    NUM_TRAIN_EPOCHS: 100
-    PUSH_EPOCHS: [5, 50, 60, 70, 80, 90]
+    NUM_WARM_EPOCHS: 100
+    NUM_TRAIN_EPOCHS: 200
+    PUSH_EPOCHS: [130, 140, 150, 160, 170, 180, 190]
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 

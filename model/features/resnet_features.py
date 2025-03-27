@@ -8,12 +8,10 @@ model_urls = {
     'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
-    'resnetbioscan': '/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/backbones/image_species_120_80train_028/image_species_120_80train_028_best.pth'
-            # 'resnetbioscan': '/home/users/cjb131/school/cs474/Multimodal_Hierarchical_PPNet/backbones/image_species_120_008/image_species_120_008_best.pth'
 }
 
 
-model_dir = './pretrained_backbones'
+model_dir = './backbones'
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -292,41 +290,10 @@ def resnet152_features(pretrained=False, **kwargs):
     return model
 
 
-def resnet_bioscan_features(pretrained=True, **kwargs):
+def resnet_bioscan_features(**kwargs):
     """Constructs a ResNet-50 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on BIO1MSCAN dataset
     """
     model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
-
-    if pretrained:
-        my_dict = torch.load(model_urls['resnetbioscan'], map_location=torch.device('cpu'), weights_only=True)
-                
-        my_dict.pop('fc.weight')
-        my_dict.pop('fc.bias')
-        model.load_state_dict(my_dict, strict=False) 
-        
-        return model
-    else:
-        raise NotImplementedError
-
-
-if __name__ == '__main__':
-
-    r18_features = resnet18_features(pretrained=True)
-    print(r18_features)
-
-    r34_features = resnet34_features(pretrained=True)
-    print(r34_features)
-
-    r50_features = resnet50_features(pretrained=True)
-    print(r50_features)
-
-    r101_features = resnet101_features(pretrained=True)
-    print(r101_features)
-
-    r152_features = resnet152_features(pretrained=True)
-    print(r152_features)
-    
-    rbioscan_features = resnet_bioscan_features(pretrained=True)
-    print(rbioscan_features)
+    return model
