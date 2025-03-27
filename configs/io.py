@@ -1,7 +1,9 @@
-"""All functions regarding logging and saving models is defined here""" 
+"""
+All functions regarding logging and saving models is defined here
+""" 
 import datetime
 import os
-from model.model import Mode
+from model.hierarchical import Mode
 import torch
 from typing import Callable, Tuple 
 from yacs.config import CfgNode
@@ -28,24 +30,9 @@ def create_logger(log_filename: str, display: bool = True) -> Tuple[Callable, Ca
         # Question: do we need to flush()
     return logger, f.close
 
-def save_model_w_condition(
-    model: torch.nn.Module, 
-    model_dir: str, 
-    model_name: str, 
-    accu, 
-    target_accu, 
-    log: Callable = print
-) -> None:
-    '''
-    model: this is not the multigpu model
-    '''
-    if accu > target_accu:
-        log('\tabove {0:.2f}%'.format(target_accu * 100))
-        torch.save(obj=model, f=os.path.join(model_dir, (model_name + '{0:.4f}.pth').format(accu)))
-
 def run_id_accumulator(cfg: CfgNode) -> None:
     """
-    All of this prevents overwriting of existing runs.
+    Add a numeric padding of form *_001 to prevent overwriting of existing runs
     """
     if cfg.RUN_NAME == '':
         # Generate a run name from the current time
@@ -65,4 +52,19 @@ def run_id_accumulator(cfg: CfgNode) -> None:
         # If the model directory doesn't exist, create it
         makedir(cfg.OUTPUT.MODEL_DIR)
     cfg.OUTPUT.IMG_DIR = os.path.join(cfg.OUTPUT.MODEL_DIR, "images")
+
+def save_model_w_condition(
+    model: torch.nn.Module, 
+    model_dir: str, 
+    model_name: str, 
+    accu, 
+    target_accu, 
+    log: Callable = print
+) -> None:
+    '''
+    model: this is not the multigpu model
+    '''
+    if accu > target_accu:
+        log('\tabove {0:.2f}%'.format(target_accu * 100))
+        torch.save(obj=model, f=os.path.join(model_dir, (model_name + '{0:.4f}.pth').format(accu)))
 

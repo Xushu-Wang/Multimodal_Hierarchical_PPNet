@@ -1,0 +1,18 @@
+RUN_NAME: "genetics_120_reasonable"
+WANDB_MODE: "online" 
+
+DATASET:
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
+    MODE: 1
+    TRAIN_VAL_TEST_SPLIT: [60, 30, 30] # Number of unaugmented samples per leaf in train, val, and test splits.
+
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
+    
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
+    IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
+
+    TRAIN_BATCH_SIZE: 40
+
+    GENETIC:
+        PROTOTYPE_SHAPE: (64, 1, 1)

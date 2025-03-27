@@ -1,289 +1,145 @@
-import argparse, os
 import torch
-from prototype.prune import prune_prototypes
-from os import mkdir
-
-import wandb
+import numpy as np
+import argparse, os, wandb
+from yacs.config import CfgNode
 
 from configs.cfg import get_cfg_defaults 
-from configs.io import create_logger, save_model_w_condition
-from model.model import Mode
+from configs.io import create_logger, run_id_accumulator
 from dataio.dataloader import get_dataloaders
-from model.model import construct_tree_ppnet
+from model.multimodal import construct_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
-import prototype.push as push    
-from utils.util import handle_run_name_weirdness
+from prototype import push, prune 
+from typing import Callable
+import warnings
+warnings.filterwarnings("ignore", message="TypedStorage is deprecated")
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--gpuid', type=str, default='0') 
-    parser.add_argument('--configs', type=str, default='configs/genetics.yaml')
-    parser.add_argument('--validate', action='store_true')
-    args = parser.parse_args()
-    
-    cfg = get_cfg_defaults()
-    cfg.merge_from_file(args.configs)
-    handle_run_name_weirdness(cfg)
-    # log_id_accumulator(cfg)
-    log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
-    run = wandb.init(
-        project="Multimodal Hierarchical Protopnet",
-        name=cfg.RUN_NAME,
-        config=cfg,
-        mode=cfg.WANDB_MODE
-    )
-    
+run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
+
+def main(cfg: CfgNode, log: Callable):
     if not os.path.exists(cfg.OUTPUT.MODEL_DIR):
-        mkdir(cfg.OUTPUT.MODEL_DIR)
+        os.mkdir(cfg.OUTPUT.MODEL_DIR)
     if not os.path.exists(cfg.OUTPUT.IMG_DIR):
-        mkdir(cfg.OUTPUT.IMG_DIR)
+        os.mkdir(cfg.OUTPUT.IMG_DIR)
 
-    try:
-        train_loader, train_push_loader, val_loader, _, image_normalizer = get_dataloaders(cfg, log, validate=args.validate)
-        print("Dataloaders Got")
+    train_loader, push_loader, val_loader, _ = get_dataloaders(cfg, log)
+    log("Dataloaders Constructed")
 
-        tree_ppnet = construct_tree_ppnet(cfg).to("cuda")
-        print("PPNET constructed")
+    model = construct_ppnet(cfg, log).cuda()
+    log("ProtoPNet constructed")
+    wandb.watch(model, log="all", log_freq=2) 
+    wandb.watch(model.gen_net.features, log="all", log_freq=2) 
+    wandb.watch(model.img_net.features, log="all", log_freq=2) 
+    wandb.watch(model.gen_net.root, log="all", log_freq=2) 
+    wandb.watch(model.img_net.root, log="all", log_freq=2) 
 
-        tree_ppnet_multi = torch.nn.DataParallel(tree_ppnet)
-        tree_ppnet_multi = tree_ppnet_multi
+    warm_optim, joint_optim, last_optim, test_optim = get_optimizers(model, cfg)
 
-        joint_optimizer, joint_lr_scheduler, warm_optimizer, last_layer_optimizer = get_optimizers(tree_ppnet)
+    for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS): 
+        # run an epoch of training
+        if epoch in cfg.OPTIM.PRUNE_EPOCHS:
+            log(f"Pruning")
+            print(prune)
+            prune.prune(model, cfg)
+        if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
+            log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
+            train_loss = tnt.traintest(model, train_loader, warm_optim, cfg)  
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader  , test_optim, cfg)
+            log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
-        # Prepare loss function
-        coefs = {
-            'crs_ent': cfg.OPTIM.COEFS.CRS_ENT,
-            'clst': cfg.OPTIM.COEFS.CLST,
-            'sep': cfg.OPTIM.COEFS.SEP,
-            'l1': cfg.OPTIM.COEFS.L1,
-            "correspondence": cfg.OPTIM.COEFS.CORRESPONDENCE,
-            "orthogonality": torch.tensor([cfg.OPTIM.COEFS.ORTHOGONALITY.GENETIC, cfg.OPTIM.COEFS.ORTHOGONALITY.IMAGE]),
-            'CEDA': False
-        }
-        
-        for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS):
-            log(f'Epoch: {epoch}')
-            # Warm up and Training Epochs
-            if not args.validate:
-                if epoch < cfg.OPTIM.NUM_WARM_EPOCHS:
-                    tnt.warm_only(model=tree_ppnet_multi, log=log)
-                    tnt.train(
-                        model=tree_ppnet_multi,
-                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                        dataloader=train_loader,
-                        optimizer=warm_optimizer,
-                        coefs=coefs,
-                        log=log,
-                        cfg=cfg,
-                        run=run
-                    )
-                else:
-                    if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                        tnt.train(
-                            model=tree_ppnet_multi,
-                            global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                            parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                            dataloader=train_loader, 
-                            optimizer=last_layer_optimizer,
-                            coefs=coefs,
-                            log=log,
-                            run=run
-                        )
-                    
-                    tnt.joint(model=tree_ppnet_multi, log=log)
-                    tnt.train( 
-                        model=tree_ppnet_multi,
-                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                        dataloader=train_loader,
-                        optimizer=joint_optimizer,
-                        coefs=coefs,
-                        log=log,
-                        cfg=cfg,
-                        run=run                        
-                    )
-                    joint_lr_scheduler.step()
+        elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
+            log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
+            push.push(model, push_loader, cfg, stride=1, epoch=epoch)
             
-            # Testing Epochs
-            prob_accu = tnt.test(
-                model=tree_ppnet_multi,
-                dataloader=val_loader,
-                log=log,
-                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                cfg=cfg,
-                run=run
-            )
-            run.log({"epoch": epoch}, commit=True)
-            save_model_w_condition(
-                model=tree_ppnet, 
-                model_dir=cfg.OUTPUT.MODEL_DIR, 
-                model_name=str(epoch) + 'nopush', 
-                accu=prob_accu,
-                target_accu=0, 
-                log=log
-            )
+            # need to implement pruning here
+            
+            for _ in range(19):
+                tnt.traintest(model, train_loader, last_optim, cfg)
 
-            if args.validate:
-                break
-            # Pushing Epochs
-            if epoch >= cfg.OPTIM.PUSH_START and epoch in cfg.OPTIM.PUSH_EPOCHS:
-                push.push_prototypes(
-                    train_push_loader, # pytorch dataloader (must be unnormalized in [0,1])
-                    prototype_network_parallel=tree_ppnet_multi, # pytorch network with prototype_vectors
-                    preprocess_input_function=image_normalizer, # normalize if needed
-                    prototype_layer_stride=1,
-                    root_dir_for_saving_prototypes=cfg.OUTPUT.IMG_DIR, # if not None, prototypes will be saved here
-                    epoch_number=epoch, # if not provided, prototypes saved previously will be overwritten
-                    prototype_img_filename_prefix=cfg.OUTPUT.PROTOTYPE_IMG_FILENAME_PREFIX,
-                    prototype_self_act_filename_prefix=cfg.OUTPUT.PROTOTYPE_SELF_ACT_FILENAME_PREFIX,
-                    proto_bound_boxes_filename_prefix=cfg.OUTPUT.PROTO_BOUND_BOXES_FILENAME_PREFIX,
-                    log=log,
-                    no_save=cfg.OUTPUT.NO_SAVE,
-                    run=run
-                )
-                prob_accu = tnt.test(model=tree_ppnet_multi,
-                                     dataloader=val_loader,
-                                     run=run,
-                                log=log,
-                                cfg=cfg,
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,parallel_mode=cfg.DATASET.PARALLEL_MODE)
-                save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + 'push',
-                                            target_accu=0, log=log, accu=prob_accu)
+            train_loss = tnt.traintest(model, train_loader, last_optim, cfg)
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
+            log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
+            
+            # if cfg.OUTPUT.SAVE:
+            #     torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_full.pth"))
+            #     torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_push_weights.pth"))
+        else: 
+            log(f'Train Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
+            train_loss = tnt.traintest(model, train_loader, joint_optim, cfg)
+            log(str(train_loss))
+            test_loss = tnt.traintest(model, val_loader, test_optim, cfg)
+            log(str(test_loss))
+            wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
-                # Optimize last layer
-                if cfg.MODEL.PRUNE and epoch >= cfg.OPTIM.PRUNE_START:
-                    if cfg.MODEL.PRUNING_TYPE == "weights":
-                        tnt.last_only(model=tree_ppnet_multi, log=log)
-                        for i in range(10):
-                            log(f'[weights pruning] iteration: {i}')
-                            _ = tnt.train(
-                                model=tree_ppnet_multi,
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                                parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                                dataloader=train_loader,
-                                optimizer=last_layer_optimizer,
-                                coefs=coefs,
-                                log=log,
-                                cfg=cfg,
-                                run=run
-                            )
-                            prob_accu = tnt.test(
-                                model=tree_ppnet_multi, 
-                                parallel_mode=cfg.DATASET.PARALLEL_MODE, 
-                                global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                                dataloader=val_loader,
-                                log=log,
-                                cfg=cfg,
-                                run=run
-                            )
+            # if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
+            #     torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))
+            #     torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_weights.pth"))
 
-                            if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                                tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-
-                                tnt.train(
-                                    model=tree_ppnet_multi, 
-                                    dataloader=train_loader, 
-                                    optimizer=last_layer_optimizer,
-                                    coefs=coefs, 
-                                    parallel_mode=cfg.DATASET.PARALLEL_MODE, 
-                                    global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                                    log=log,
-                                    cfg=cfg,
-                                    run=run
-                                )
-
-                                prob_accu = tnt.test(
-                                    model=tree_ppnet_multi, 
-                                    parallel_mode=cfg.DATASET.PARALLEL_MODE, 
-                                    global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY, 
-                                    dataloader=val_loader,
-                                    log=log,
-                                    cfg=cfg,
-                                    run=run
-                                )
-
-                    prune_prototypes(
-                        tree_ppnet_multi,
-                        train_push_loader,
-                        preprocess_input_function=image_normalizer,
-                        pruning_type=cfg.MODEL.PRUNING_TYPE,
-                        k=cfg.MODEL.PRUNING_K,
-                        tau=cfg.MODEL.PRUNING_TAU,
-                        log=log
-                    )
-
-                # Optimize last layer again
-                for i in range(20):
-                    log(f'iteration: \t{i}')
-                    _ = tnt.train(
-                        model=tree_ppnet_multi,
-                        dataloader=train_loader,
-                        optimizer=last_layer_optimizer,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        coefs=coefs,
-                        log=log,
-                        cfg=cfg,
-                        run=run
-                    )
-                    prob_accu = tnt.test(
-                        model=tree_ppnet_multi,
-                        dataloader=val_loader,
-                        parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                        global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                        log=log,
-                        cfg=cfg,
-                        run=run
-                    )
-                    save_model_w_condition(model=tree_ppnet, model_dir=cfg.OUTPUT.MODEL_DIR, model_name=str(epoch) + '_' + 'push', accu=prob_accu, target_accu=0, log=log)
-                    if tree_ppnet.mode == Mode.MULTIMODAL and not cfg.DATASET.PARALLEL_MODE:
-                        tnt.multi_last_layer(model=tree_ppnet_multi, log=log)
-                        _ = tnt.train(
-                            model=tree_ppnet_multi,
-                            global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                            parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                            dataloader=train_loader,
-                            optimizer=last_layer_optimizer,
-                            coefs=coefs,
-                            log=log,
-                            cfg=cfg,
-                            run=run
-                        )
-                        prob_accu = tnt.test(
-                            model=tree_ppnet_multi,
-                            global_ce=cfg.OPTIM.GLOBAL_CROSSENTROPY,
-                            dataloader=val_loader,
-                            parallel_mode=cfg.DATASET.PARALLEL_MODE,
-                            log=log,
-                            cfg=cfg,
-                            run=run
-                        )
-                        save_model_w_condition(
-                            model=tree_ppnet,
-                            model_dir=cfg.OUTPUT.MODEL_DIR,
-                            model_name=str(epoch) + '_' + 'push',
-                            accu=prob_accu,
-                            target_accu=0,
-                            log=log
-                        )
-
-                # Print the weights of the last layer
-                # Save the weigts of the last layer
-                torch.save(tree_ppnet, os.path.join(cfg.OUTPUT.IMG_DIR, str(epoch) + '_push_weights.pth'))
-
-    except Exception as e:
-        # Print e with the traceback
-        run.finish()
-        logclose()
-        raise(e)
-
-    run.finish()
+    wandb.finish()
     logclose()
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default='multi.yaml')
+
+    parser.add_argument('--gcrs_ent', type=float, default=20.0) 
+    parser.add_argument('--gclst', type=float, default=0.1) 
+    parser.add_argument('--gsep', type=float, default=-0.001) 
+    parser.add_argument('--gl1', type=float, default=0.0) 
+    parser.add_argument('--gortho', type=float, default=0.0) 
     
+    parser.add_argument('--icrs_ent', type=float, default=20.0) 
+    parser.add_argument('--iclst', type=float, default=0.1) 
+    parser.add_argument('--isep', type=float, default=-0.001) 
+    parser.add_argument('--il1', type=float, default=0.0) 
+    parser.add_argument('--iortho', type=float, default=0.0)
+    
+    parser.add_argument('--corr', type=float, default=0.0)
+    parser.add_argument('--run-name', type=str, default=None)
+    
+    args = parser.parse_args()
+
+    cfg = get_cfg_defaults()
+    cfg.merge_from_file(os.path.join("configs", args.config))
+
+    if args.run_name is not None:
+        cfg.RUN_NAME = args.run_name
+
+    run_id_accumulator(cfg) 
+    print(cfg.RUN_NAME)
+
+    cfg.OPTIM.COEFS.CORRESPONDENCE = args.corr
+    cfg.OPTIM.COEFS.GENETIC.CRS_ENT = args.gcrs_ent
+    cfg.OPTIM.COEFS.GENETIC.CLST = args.gclst
+    cfg.OPTIM.COEFS.GENETIC.SEP = args.gsep
+    cfg.OPTIM.COEFS.GENETIC.L1 = args.gl1
+    cfg.OPTIM.COEFS.GENETIC.ORTHO = args.gortho
+    cfg.OPTIM.COEFS.IMAGE.CRS_ENT = args.icrs_ent
+    cfg.OPTIM.COEFS.IMAGE.CLST = args.iclst
+    cfg.OPTIM.COEFS.IMAGE.SEP = args.isep
+    cfg.OPTIM.COEFS.IMAGE.L1 = args.il1
+    cfg.OPTIM.COEFS.IMAGE.ORTHO = args.iortho
+
+    log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
+
+    wandb.init(
+        project=f"{run_mode[cfg.DATASET.MODE]} Hierarchical Protopnet",
+        name=cfg.RUN_NAME,
+        config=cfg,
+        mode=cfg.WANDB_MODE,
+        entity="charlieberens-duke-university"
+    )
+    wandb.log({})
+    log(str(cfg))
+    try: 
+        torch.manual_seed(cfg.SEED)
+        np.random.seed(cfg.SEED)
+        main(cfg, log)  
+    except Exception as e: 
+        wandb.finish() 
+        logclose() 
+        raise(e)

@@ -16,11 +16,11 @@ argparser.add_argument("--only-species-leaves", action="store_true", help="Only 
 args = argparser.parse_args()
 
 if(args.min_samples < 3):
-    print("Minimum number of samples should be at least 3")
+    raise ValueError("Minimum number of samples should be at least 3")
 
 print("Opening source file... This may take a minute. ")
 
-df = pd.read_csv(args.source, sep="\t")
+df = pd.read_csv(args.source, sep='\t')
 
 print("Source file opened.")
 
@@ -28,8 +28,8 @@ levels = ["order", "family", "genus", "species"]
 
 def question_level(
     levels: List[str], 
-    data: pd.DataFrame, 
-    parent="", 
+    df: pd.DataFrame, 
+    parent: str = "", 
     min_samples: int = 3, 
     default_count: int = 0, 
     only_species_leaves=False
@@ -49,7 +49,7 @@ def question_level(
     general_level, *_ = levels 
 
     # focus on only the class labels of the parent level  
-    level_series = data[general_level]
+    level_series = df[general_level]
     level_series = pd.DataFrame(level_series[level_series != "not_classified"])
 
     # make sure that there are viable classes for most general level
@@ -84,8 +84,9 @@ def question_level(
 
         if 0 < count <= option_count: 
             break
+
     
-    options = list(top_level_counts.index)[:count]
+    options = list(top_level_counts.index.get_level_values("order"))[:count]
     print(f"Selected: {options}\n")
 
     tree = {}
@@ -95,7 +96,7 @@ def question_level(
             if not only_species_leaves or general_level == "species":
                 tree[o] = None
             continue
-        children = question_level(levels[1:], pd.DataFrame(data[data[general_level] == o]), str(o), min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
+        children = question_level(levels[1:], pd.DataFrame(df[df[general_level] == o]), str(o), min_samples, default_count=default_count, only_species_leaves=only_species_leaves)
         if children or not only_species_leaves or general_level == "species":
             tree[o] = children
 

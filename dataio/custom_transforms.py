@@ -63,7 +63,7 @@ class GeneticOneHot(CustomTransform):
 
         return onehot_tensor.float()
 
-class ImageGeometricTransform():
+class ImageGeometricTransform(CustomTransform): 
     def __init__(self):
         super().__init__()
 
@@ -84,7 +84,7 @@ class ImageGeometricTransform():
 
         return p.torch_transform()(image)
 
-class GeneticMutationTransform(): 
+class GeneticMutationTransform(CustomTransform): 
     def __init__(self, insertion_amount: int, deletion_amount: int, substitution_rate: float): 
         self.insertion_amount = insertion_amount 
         self.deletion_amount = deletion_amount 
@@ -113,39 +113,34 @@ def create_transforms(
     transform_mean: Tuple[float, float, float], 
     transform_std: Tuple[float, float, float], 
     gen_aug_params: CfgNode
-) -> Tuple[Compose, GeneticMutationTransform, Compose, Compose, Normalize]: 
+) -> Tuple:
 
     normalize = transforms.Normalize(
         mean=transform_mean, 
         std=transform_std
     )
 
-    push_img_transforms = transforms.Compose([
+    to_tensor = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize(size=(256, 256)),
         transforms.ToTensor(),
     ])
-    img_transforms = transforms.Compose([
-        push_img_transforms,
+    img_trans = transforms.Compose([
+        to_tensor,
         normalize
     ])
 
-    augmented_img_transforms = transforms.Compose([
+    aug_img_trans = transforms.Compose([
         transforms.ToPILImage(),
         ImageGeometricTransform(),
         transforms.Resize(size=(256, 256)),
         transforms.ToTensor(),
         normalize
     ])
-    augmented_genetic_transforms = GeneticMutationTransform(
+    aug_gen_trans = GeneticMutationTransform(
         insertion_amount=gen_aug_params.INSERTION_COUNT,
         deletion_amount=gen_aug_params.DELETION_COUNT,
         substitution_rate=gen_aug_params.SUBSTITUTION_RATE
     )
 
-    return augmented_img_transforms, \
-        augmented_genetic_transforms, \
-        push_img_transforms, \
-        img_transforms, \
-        normalize
-  
+    return aug_img_trans, aug_gen_trans, to_tensor, img_trans

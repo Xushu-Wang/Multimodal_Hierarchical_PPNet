@@ -5,3 +5,10 @@ slurm*.out
 */._* 
 ._*
 wandb/
+.pyright
+*temp*
+visualizations/
+experiments.sh
+train.sh
+experiments.sh
+train.sh

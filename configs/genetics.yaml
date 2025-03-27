@@ -1,24 +1,23 @@
-RUN_NAME: "no_global_ce_massive"
+RUN_NAME: "muchang_genetics"
+# WANDB_MODE: "disabled" 
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
-    PRUNE: false
-    PRUNING_TYPE: "weights"
-    PRUNING_K: 8
-    PRUNING_TAU: 8
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/example.json"
+    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
 
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, .25, .5]
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 1
-    TRAIN_VAL_TEST_SPLIT: [100, 25, 25] # Number of unaugmented samples per leaf in train, val, and test splits.
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits.
 
-    TRAIN_BATCH_SIZE: 40
+    TRAIN_BATCH_SIZE: 80
+    TEST_BATCH_SIZE: 160
+    TRAIN_PUSH_BATCH_SIZE: 20
 
     # Uncomment these once datasets have already been generated and you want to reuse them
     # PRE_EXISTING_IMAGES: true
-    # CACHED_DATASET_FOLDER: "pre_existing_datasets/no_global_ce_massive"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     
     DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" # Path to CSV from which data can be selected
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory
@@ -28,15 +27,37 @@ DATASET:
         NUM_PROTOTYPES_PER_CLASS: 40
         MAX_NUM_PROTOTYPES_PER_CLASS: 8
 OPTIM:
-    NUM_TRAIN_EPOCHS: 31
-    PUSH_START: 5
-    PUSH_EPOCHS: [5,10,15,20]
-    PRUNE_START: 5
-    NUM_WARM_EPOCHS: 0
-    GLOBAL_CROSSENTROPY: False
-    COEFS:
-        SEP: -0.1
-    JOINT: False
+    NUM_WARM_EPOCHS: 3
+    NUM_TRAIN_EPOCHS: 100
+    PUSH_EPOCHS: []
+    PRUNE_EPOCHS: []
+    COEFS: 
+        GENETIC: 
+            CRS_ENT: 20.
+            CLST: 0.001
+            SEP: -0.1
+            L1: 5e-3
+            ORTHO: 1e-3
+
+    # Optimizer Learning Rates (LR) and Weight Decays (WD) 
+    WARM: 
+        ADD_ON_LAYERS_LR: 3e-3 
+        ADD_ON_LAYERS_WD: 1e-3
+        PROTOTYPE_LR: 3e-3 
+        PROTOTYPE_WD: 1e-3 
+    JOINT: 
+        FEATURES_LR: 1e-5 
+        FEATURES_WD: 1e-3
+        ADD_ON_LAYERS_LR: 3e-3
+        ADD_ON_LAYERS_WD: 1e-3
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_WD: 1e-3 
+        PROTOTYPE_LR: 3e-4
+        PROTOTYPE_WD: 1e-3
+    LAST_LAYER: 
+        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_MOM: 0.9
+        
 
 OUTPUT:
     WEIGHT_MATRIX_FILENAME: "outputL_weights"

@@ -1,48 +1,80 @@
 import torch
 from torch.nn import Module
-from torch.optim import Optimizer
-from typing import Tuple
-from typing_extensions import deprecated
+from yacs.config import CfgNode
+from torch.optim import Optimizer 
+from typing import Optional 
+from enum import Enum
 
-def get_optimizers(ppnet: Module) -> Tuple[Optimizer, Optimizer, Optimizer, Optimizer]:
-    # through_protos_optimizer
-    through_protos_optimizer_specs = [
-        {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
-        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
-    ]
-    through_protos_optimizer = torch.optim.Adam(through_protos_optimizer_specs)
-    
-    warm_optimizer_specs = [
-        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
-    ]
-    warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
-    
-    last_layer_optimizer = torch.optim.SGD(
-        params = ppnet.get_last_layer_parameters(), 
-        lr = 3e-3,
-        momentum = .9
+class OptimMode(Enum): 
+    """
+    Enumeration object to specify which parameters to train. 
+    """
+    WARM = "train"
+    JOINT = "train"
+    LAST = "train"
+    TEST = "test"
+
+class Optim: 
+    """
+    Wrapper class around torch Optimizers with extra label on mode
+    """
+
+    def __init__(self, mode: OptimMode, optimizer: Optional[Optimizer]): 
+        self.optimizer = optimizer 
+        self.mode = mode 
+
+    def step(self): 
+        self.optimizer.step()  # type: ignore
+
+    def zero_grad(self): 
+        self.optimizer.zero_grad() # type: ignore
+
+def get_optimizers(model: Module, cfg: CfgNode): 
+    warm = torch.optim.Adam([
+        {
+            'params': model.add_on_layers.parameters(), 
+            'lr': cfg.OPTIM.WARM.ADD_ON_LAYERS_LR, 
+            'weight_decay': cfg.OPTIM.WARM.ADD_ON_LAYERS_WD
+        },
+        {
+            'params': model.get_prototype_parameters(), 
+            'lr': cfg.OPTIM.WARM.PROTOTYPE_LR, 
+            'weight_decay': cfg.OPTIM.WARM.PROTOTYPE_WD
+        }
+    ])
+
+    joint = torch.optim.Adam([
+        {
+            'params': model.features.parameters(), 
+            'lr': cfg.OPTIM.JOINT.FEATURES_LR,
+            'weight_decay': cfg.OPTIM.JOINT.FEATURES_WD
+        },
+        {
+            'params': model.add_on_layers.parameters(), 
+            'lr': cfg.OPTIM.JOINT.ADD_ON_LAYERS_LR,
+            'weight_decay': cfg.OPTIM.JOINT.ADD_ON_LAYERS_WD
+        },
+        {
+            'params': model.get_last_layer_parameters(), 
+            'lr': cfg.OPTIM.JOINT.LAST_LAYER_LR,
+            'weight_decay': cfg.OPTIM.JOINT.LAST_LAYER_WD
+        },
+        {
+            'params': model.get_prototype_parameters(), 
+            'lr': cfg.OPTIM.JOINT.PROTOTYPE_LR,
+            'weight_decay': cfg.OPTIM.JOINT.PROTOTYPE_WD
+        }
+    ])
+
+    last_layer = torch.optim.SGD(
+        params = model.get_last_layer_parameters(), 
+        lr = cfg.OPTIM.LAST_LAYER.LAST_LAYER_LR,
+        momentum = cfg.OPTIM.LAST_LAYER.LAST_LAYER_MOM
     )
-    
-    # joint optimizer
-    joint_optimizer_specs = [
-        {'params': ppnet.features.parameters(), 'lr': 1e-5, 'weight_decay': 1e-3},
-        {'params': ppnet.add_on_layers.parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.get_last_layer_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3},
-        {'params': ppnet.get_prototype_parameters(), 'lr': 3e-3, 'weight_decay': 1e-3}
-    ]
-    
-    joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
 
-    return through_protos_optimizer, warm_optimizer, last_layer_optimizer, joint_optimizer
+    warm_optim = Optim(OptimMode.WARM, warm)
+    joint_optim = Optim(OptimMode.JOINT, joint)
+    last_layer_optim = Optim(OptimMode.LAST, last_layer) 
+    test_optim = Optim(OptimMode.TEST, None)
 
-@deprecated("Not called anywhere.")
-def adjust_learning_rate(optimizers) -> None:
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    #lr_ = lr * (0.1 ** (epoch // decay))    
-    for optimizer in  optimizers:
-        for param_group in optimizer.param_groups:
-            new_lr = param_group['lr'] * .1
-            param_group['lr'] = new_lr
-
+    return warm_optim, joint_optim, last_layer_optim, test_optim
