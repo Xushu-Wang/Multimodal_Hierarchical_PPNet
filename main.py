@@ -9,7 +9,7 @@ from dataio.dataloader import get_dataloaders
 from model.multimodal import construct_ppnet
 from train.optimizer import get_optimizers
 import train.train_and_test as tnt
-import prototype.push as push 
+from prototype import push, prune 
 from typing import Callable
 import warnings
 warnings.filterwarnings("ignore", message="TypedStorage is deprecated")
@@ -37,6 +37,10 @@ def main(cfg: CfgNode, log: Callable):
 
     for epoch in range(cfg.OPTIM.NUM_TRAIN_EPOCHS): 
         # run an epoch of training
+        if epoch in cfg.OPTIM.PRUNE_EPOCHS:
+            log(f"Pruning")
+            print(prune)
+            prune.prune(model, cfg)
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
             train_loss = tnt.traintest(model, train_loader, warm_optim, cfg)  

@@ -12,12 +12,12 @@ DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] # Always set to [0,0,0,0]
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] # Number of unaugmented samples per leaf in train, val, and test splits. If you're making a new dataset (i.e. you don't have CACHED_DATASET_FOLDER definted.) This will be used. It mustn't sum to more than 120.
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
     
     MODE: 3 
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
-    TRAIN_BATCH_SIZE: 600
+    TRAIN_BATCH_SIZE: 64
     TEST_BATCH_SIZE: 600
     TRAIN_PUSH_BATCH_SIZE: 600
 
@@ -32,9 +32,12 @@ DATASET:
 OPTIM:
     NUM_WARM_EPOCHS: 5
     NUM_TRAIN_EPOCHS: 50
-    PUSH_EPOCHS: [10, 15, 20, 25, 30] 
+    PUSH_EPOCHS: [20, 25, 30, 40]
+    PRUNE_EPOCHS: [10]
+    GENETIC_MAX_NUM_PROTOTYPES_PER_CLASS: 10
+    IMAGE_MAX_NUM_PROTOTYPES_PER_CLASS: 10
     COEFS: 
-        CORRESPONDENCE: 1000.0
+        CORRESPONDENCE: 0.0
         GENETIC: 
             CRS_ENT: 20.
             CLST: 0.1
