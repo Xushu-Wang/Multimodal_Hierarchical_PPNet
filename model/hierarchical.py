@@ -72,7 +72,7 @@ class ProtoNode(nn.Module):
                 self.match = self.init_match().cuda()
 
                 self.prototype = nn.Parameter(
-                    torch.rand((self.nprotos_total, *pshape), device="cuda"),
+                    torch.randn((self.nprotos_total, *pshape), device="cuda"),
                     requires_grad=True
                 )
 
@@ -103,16 +103,22 @@ class ProtoNode(nn.Module):
         return match
 
     @classifier_only
-    def init_push(self):
-        # all attributes regarding to push stage 
-        # saves the closest distance seen so far 
-        # add a new attribute and initialize it to be infinity
-        self.global_max_proto_sim = np.full(self.nprotos_total, np.inf)
+    def init_push(self): 
+        """
+        Initializes all attributes regarding push stage  
+        Say we have node A classifying into subclasses X, Y, Z
+        Let D = full dataset and D(A) = filtered dataset into samples landing in 
+        class A (plus whatever subclasses before)
+        global_max_proto_sim - keeps track of the cossim between the ith prototype 
+            (ith indexing over nclass * nprotos_per_class) and all relevant samples 
+            in D(A). 
+        global_max_fmap_patches - the corresponding patches in the conv outputs 
+            that goes with the global_max_proto_sim (like argmax). 
+        """
+        self.global_max_proto_sim = np.full(self.nprotos_total, -np.inf)
 
-        # saves the patch representation that gives the current smallest distance
+        # saves the patch representation that gives the greater cosine similarity. 
         self.global_max_fmap_patches = np.zeros([self.nprotos_total, *self.pshape])
-
-        # 
 
         # We assume save_prototype_class_identity is true
         '''
@@ -210,7 +216,7 @@ class ProtoNode(nn.Module):
     def cos_sim(self, x): 
         """
         x - convolutional output features: img=(80, 2048, 8, 8) gen=(80, 64, 1, 40)  
-        prototype - full prototypes in node: img=(10, 2048, 1, 1), gen=(40, 64, 1, 40)
+        prototype - full prototypes in node: img=(10, 2048, 1, 1), gen=(40, 64, 1, 40) 
         """
         # keep sqrt_D here 
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
@@ -287,7 +293,7 @@ class HierProtoPNet(nn.Module):
             pshape - 3-tensor of prototype shapes 
             nproto - num prototypes per class
         """
-        super().__init__()
+        super(HierProtoPNet, self).__init__()
         if mode == Mode.MULTIMODAL:
             raise ValueError("Use MultiHierarchical_PPNet for joint mode")
         if len(pshape) != 3: 

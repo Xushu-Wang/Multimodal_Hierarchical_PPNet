@@ -52,8 +52,8 @@ class CombinerProtoNode(nn.Module):
         self.img_node.init_push()
 
     def forward(self, gen_conv_features, img_conv_features): 
-        genetic_logit, genetic_dist = self.gen_node.forward(gen_conv_features)
-        image_logit, image_dist = self.img_node.forward(img_conv_features)
+        genetic_logit, genetic_dist = self.gen_node(gen_conv_features)
+        image_logit, image_dist = self.img_node(img_conv_features)
 
         return (genetic_logit, image_logit), (genetic_dist, image_dist)
 
@@ -78,9 +78,9 @@ class MultiHierProtoPNet(nn.Module):
         self.gen_net = gen_net
         self.img_net = img_net
 
-        self.mode = Mode.MULTIMODAL
-        self.all_classifier_nodes = nn.ModuleList()
-        self.classifier_nodes = nn.ModuleList()
+        self.mode = Mode.MULTIMODAL 
+        self.all_classifier_nodes = nn.ModuleList()     # non-leaf nodes
+        self.classifier_nodes = nn.ModuleList()         # nontrivial (i.e. not 1 class) classifiers nodes
         self.root = self.build_combiner_proto_tree(self.gen_net.root, self.img_net.root)
         self.add_on_layers = nn.ModuleList([self.gen_net.add_on_layers, self.img_net.add_on_layers])
 

@@ -1,10 +1,10 @@
 RUN_NAME: "traintest_runs"
-# WANDB_MODE: "online" 
+WANDB_MODE: "online" 
 
 MODEL:
     IMAGE_PPNET_PATH: ""
     GENETICS_PPNET_PATH: ""
-    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_001_best.pth"
+    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
     GENETICS_BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
     PRUNE: false 
 
@@ -17,9 +17,9 @@ DATASET:
     MODE: 3 
 
     IMAGE_PATH: "../datasets/full_bioscan_images/" # Path to image directory. Never change.
-    TRAIN_BATCH_SIZE: 160
-    TEST_BATCH_SIZE: 160
-    TRAIN_PUSH_BATCH_SIZE: 160
+    TRAIN_BATCH_SIZE: 600
+    TEST_BATCH_SIZE: 600
+    TRAIN_PUSH_BATCH_SIZE: 600
 
     IMAGE: 
         PROTOTYPE_SHAPE: (2048, 1, 1) 
@@ -30,21 +30,21 @@ DATASET:
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
 OPTIM:
-    NUM_WARM_EPOCHS: 100
-    NUM_TRAIN_EPOCHS: 200
-    PUSH_EPOCHS: [130, 140, 150, 160, 170, 180, 190]
+    NUM_WARM_EPOCHS: 5
+    NUM_TRAIN_EPOCHS: 50
+    PUSH_EPOCHS: [10, 15, 20, 25, 30] 
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 
             CRS_ENT: 20.
             CLST: 0.1
-            SEP: -0.001
+            SEP: -0.1
             L1: 5e-3
             ORTHO: 0.0
         IMAGE: 
             CRS_ENT: 20.
             CLST: 0.1
-            SEP: -0.001
+            SEP: -0.1
             L1: 5e-3
             ORTHO: 0.0
 

@@ -8,8 +8,8 @@ from typing import Any, Tuple
 TreeDL = DataLoader[TreeDataset]
 
 def get_dataloaders(cfg: CfgNode, log: Callable) \
--> Tuple[TreeDL, TreeDL, TreeDL, TreeDL, Any]:
-    train_ds, push_ds, val_ds, test_ds, normalize = get_datasets(cfg, log) 
+-> Tuple[TreeDL, TreeDL, TreeDL, TreeDL]:
+    train_ds, push_ds, val_ds, test_ds = get_datasets(cfg, log) 
 
     def collate_fn(batch): 
         '''
@@ -59,4 +59,4 @@ def get_dataloaders(cfg: CfgNode, log: Callable) \
         num_workers=1, pin_memory=False, collate_fn=collate_fn
     )  
 
-    return train_loader, push_loader, val_loader, test_loader, normalize
+    return train_loader, push_loader, val_loader, test_loader

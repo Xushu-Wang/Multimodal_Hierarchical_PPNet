@@ -102,7 +102,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                logits, max_sim = node.forward(conv_features)
+                logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
                 node.softmax() 
@@ -176,7 +176,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                logits, max_sim = node.forward(conv_features)
+                logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
                 node.softmax() 
@@ -252,8 +252,8 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
                 mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
-                gen_logits, gen_max_sim = node.gen_node.forward(gen_conv_features) 
-                img_logits, img_max_sim = node.img_node.forward(img_conv_features) 
+                gen_logits, gen_max_sim = node.gen_node(gen_conv_features) 
+                img_logits, img_max_sim = node.img_node(img_conv_features) 
                 node.gen_node.softmax()
                 node.img_node.softmax() 
 
