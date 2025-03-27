@@ -32,7 +32,7 @@ DATASET:
 OPTIM:
     NUM_WARM_EPOCHS: 5
     NUM_TRAIN_EPOCHS: 50
-    PUSH_EPOCHS: [10, 15, 20, 25, 30] 
+    PUSH_EPOCHS: [15, 20, 25, 30, 35, 40, 45] 
     COEFS: 
         CORRESPONDENCE: 1000.0
         GENETIC: 
@@ -50,21 +50,21 @@ OPTIM:
 
     # Optimizer Learning Rates (LR) and Weight Decays (WD) 
     WARM: 
-        ADD_ON_LAYERS_LR: 3e-3 
-        ADD_ON_LAYERS_WD: 1e-3
-        PROTOTYPE_LR: 3e-3 
-        PROTOTYPE_WD: 1e-3 
+        ADD_ON_LAYERS_LR: 3e-2 
+        ADD_ON_LAYERS_WD: 0.
+        PROTOTYPE_LR: 3e-2 
+        PROTOTYPE_WD: 0.
     JOINT: 
-        FEATURES_LR: 1e-5 
-        FEATURES_WD: 1e-3
-        ADD_ON_LAYERS_LR: 3e-3
+        FEATURES_LR: 1e-2 
+        FEATURES_WD: 0.
+        ADD_ON_LAYERS_LR: 3e-2
         ADD_ON_LAYERS_WD: 1e-3
-        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_LR: 3e-2 
         LAST_LAYER_WD: 1e-3 
-        PROTOTYPE_LR: 3e-4
-        PROTOTYPE_WD: 1e-3
+        PROTOTYPE_LR: 3e-2
+        PROTOTYPE_WD: 0.
     LAST_LAYER: 
-        LAST_LAYER_LR: 3e-3 
+        LAST_LAYER_LR: 3e-2 
         LAST_LAYER_MOM: 0.9
         
 
