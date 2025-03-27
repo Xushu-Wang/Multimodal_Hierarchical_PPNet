@@ -520,8 +520,8 @@ def create_new_ds(
     log(f"Saved all datasets to tsv files in {output_dir}")
 
     # generate the transforms for image and genetics datasets
-    aug_img_trans, aug_gen_trans, push_img_trans, img_trans, \
-    normalize = create_transforms(trans_mean, trans_std, gen_aug_params)
+    aug_img_trans, aug_gen_trans, push_img_trans, img_trans = \
+    create_transforms(trans_mean, trans_std, gen_aug_params)
     
     # create the datasets
     train = TreeDataset(hierarchy, train, mode, aug_img_trans, aug_gen_trans) 
@@ -530,28 +530,30 @@ def create_new_ds(
     test = TreeDataset(hierarchy, test, mode, img_trans, None)
 
     log("Datasets created")
-    return train, push, val, test, normalize
+    return train, push, val, test
 
 def retrieve_cached_ds(
     hierarchy: Hierarchy, 
-    cache_ds_dir:str,
-    gen_aug_params:CfgNode,
-    trans_mean:tuple,
-    trans_std:tuple,
-    mode:Mode,
+    cfg: CfgNode,
     log: Callable = print
 ):
     """
     Take a hierarchy and some dataset tsv file in cache_ds_dir 
     Create datasets with the transforms defined in gen_aug_params, trans_mean/std
     """
+    cache_ds_dir = cfg.DATASET.CACHED_DATASET_FOLDER
+    gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION
+    trans_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN
+    trans_std=cfg.DATASET.IMAGE.TRANSFORM_STD
+    mode=Mode(cfg.DATASET.MODE)
+
     train = pd.read_csv(os.path.join(cache_ds_dir, "train.tsv"), sep="\t")
     push = pd.read_csv(os.path.join(cache_ds_dir, "train_push.tsv"), sep="\t")
     val = pd.read_csv(os.path.join(cache_ds_dir, "val.tsv"), sep="\t")
     test = pd.read_csv(os.path.join(cache_ds_dir, "test.tsv"), sep="\t")
 
-    aug_img_trans, aug_gen_trans, push_img_trans, img_trans, \
-    normalize = create_transforms(trans_mean, trans_std, gen_aug_params)
+    aug_img_trans, aug_gen_trans, push_img_trans, img_trans = \
+    create_transforms(trans_mean, trans_std, gen_aug_params)
     
     # create the datasets
     train = TreeDataset(hierarchy, train, mode, aug_img_trans, aug_gen_trans) 
@@ -560,7 +562,7 @@ def retrieve_cached_ds(
     test = TreeDataset(hierarchy, test, mode, img_trans, None)
 
     log("Datasets created")
-    return train, push, val, test, normalize
+    return train, push, val, test
 
 def get_datasets(cfg: CfgNode, log: Callable = print): 
     log("Getting Datasets") 
@@ -568,15 +570,7 @@ def get_datasets(cfg: CfgNode, log: Callable = print):
 
     if cfg.DATASET.CACHED_DATASET_FOLDER.strip(): 
         # if we want to retrieve a cached dataset
-        return retrieve_cached_ds(
-            hierarchy = hierarchy, 
-            cache_ds_dir = cfg.DATASET.CACHED_DATASET_FOLDER,
-            gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
-            trans_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
-            trans_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
-            mode=Mode(cfg.DATASET.MODE),
-            log=log
-        )
+        return retrieve_cached_ds(hierarchy, cfg, log=log)
     else: 
         # if we want to create a new dataset 
         return create_new_ds(
