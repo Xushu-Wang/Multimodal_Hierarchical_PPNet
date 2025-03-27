@@ -2,7 +2,7 @@ RUN_NAME: "muchang_image"
 # WANDB_MODE: "disabled" 
 
 MODEL:
-    PRUNE: false
+    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
 
 DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
@@ -30,6 +30,7 @@ OPTIM:
     NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 100
     PUSH_EPOCHS: []
+    PRUNE_EPOCHS: []
     COEFS: 
         IMAGE: 
             CRS_ENT: 20.

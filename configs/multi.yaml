@@ -6,7 +6,6 @@ MODEL:
     GENETICS_PPNET_PATH: ""
     IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
     GENETICS_BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
-    PRUNE: false 
 
 DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" # Always use class_trees/all_species_120.json
@@ -33,7 +32,7 @@ OPTIM:
     NUM_WARM_EPOCHS: 5
     NUM_TRAIN_EPOCHS: 50
     PUSH_EPOCHS: [20, 30, 40]
-    PRUNE_EPOCHS: [10]
+    PRUNE_EPOCHS: []
     GENETIC_MAX_NUM_PROTOTYPES_PER_CLASS: 10
     IMAGE_MAX_NUM_PROTOTYPES_PER_CLASS: 10
     COEFS: 

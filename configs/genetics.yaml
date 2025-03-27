@@ -3,10 +3,6 @@ RUN_NAME: "muchang_genetics"
 
 MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
-    PRUNE: false
-    PRUNING_TYPE: "weights"
-    PRUNING_K: 8
-    PRUNING_TAU: 8
 
 DATASET:
     TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
@@ -34,6 +30,7 @@ OPTIM:
     NUM_WARM_EPOCHS: 3
     NUM_TRAIN_EPOCHS: 100
     PUSH_EPOCHS: []
+    PRUNE_EPOCHS: []
     COEFS: 
         GENETIC: 
             CRS_ENT: 20.
