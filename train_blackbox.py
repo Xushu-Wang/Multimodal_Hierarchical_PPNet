@@ -20,7 +20,7 @@ run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"}
 
 def main(cfg: CfgNode, log: Callable):
     device = torch.device(cfg.MODEL.DEVICE)
-    train_loader, _, val_loader, _, _ = get_dataloaders(cfg, log)  
+    train_loader, _, val_loader, _ = get_dataloaders(cfg, log)  
 
     class_count = train_loader.dataset.hierarchy.levels.counts[-1] # type: ignore  
 
