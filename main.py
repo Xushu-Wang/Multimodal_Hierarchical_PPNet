@@ -49,7 +49,7 @@ def main(cfg: CfgNode, log: Callable):
             log(str(test_loss))
             wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
-        elif epoch in cfg.OPTIM.PUSH_EPOCHS or epoch == cfg.OPTIM.NUM_TRAIN_EPOCHS - 1: 
+        elif epoch in cfg.OPTIM.PUSH_EPOCHS: 
             log(f'Push Epoch: {epoch + 1}/{cfg.OPTIM.NUM_TRAIN_EPOCHS}') 
             push.push(model, push_loader, cfg, stride=1, epoch=epoch)
             
@@ -78,6 +78,10 @@ def main(cfg: CfgNode, log: Callable):
             # if epoch % 5 == 0 and cfg.OUTPUT.SAVE:
             #     torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_full.pth"))
             #     torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"{epoch}_weights.pth"))
+
+    torch.save(model, os.path.join(cfg.OUTPUT.MODEL_DIR, f"before_push.pth"))
+    torch.save(model.state_dict(), os.path.join(cfg.OUTPUT.MODEL_DIR, f"before_push_weights.pth")) 
+    print(cfg.OUTPUT.MODEL_DIR)
 
     wandb.finish()
     logclose()

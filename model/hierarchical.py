@@ -159,12 +159,12 @@ class ProtoNode(nn.Module):
         arange1 = torch.arange(self.nprotos).view((self.nprotos, 1)).repeat((1, self.nprotos))
         indices = torch.LongTensor(torch.arange(self.nprotos))
         arange2 = (arange1 - indices) % self.nprotos
-        arange3 = torch.arange(self.nprotos, 40)
-        arange3 = arange3.view((1, 40 - self.nprotos))
+        arange3 = torch.arange(self.nprotos, self.nprotos)
+        arange3 = arange3.view((1, self.nprotos - self.nprotos))
         arange3 = arange3.repeat((self.nprotos, 1))
         
         arange4 = torch.concatenate((arange2, arange3), dim=1)
-        arange4 = arange4.reshape(40, 1, 1, 40)
+        arange4 = arange4.reshape(self.nprotos, 1, 1, self.nprotos)
         arange4 = arange4.repeat((self.nclass, 64, 1, 1))
         return arange4
     
@@ -230,9 +230,9 @@ class ProtoNode(nn.Module):
         prototype = self.prototype.to(x.device) 
         normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
-        if self.mode == Mode.GENETIC: 
-            normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
-            normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
+        # if self.mode == Mode.GENETIC: 
+        #     normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
+        #     normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
             
         # IMG: (80, 2048, 8, 8) * (10 * nclass, 2048, 1, 1) -> (80, 10 * nclass, 8, 8) 
         # GEN: (80, 64, 1, 40)  * (40 * nclass, 64, 1, 40)  -> (80, 40 * nclass, 1, 1)

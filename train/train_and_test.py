@@ -88,9 +88,9 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
-        input = genetics.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
+        input = genetics.to(cfg.MODEL.DEVICE)
+        label = label.to(cfg.MODEL.DEVICE)
+        flat_label = flat_label.to(cfg.MODEL.DEVICE)
         batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
 
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
@@ -101,7 +101,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
                 logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
@@ -140,16 +140,15 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
         logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
 
         for node in model.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        # batch_obj.cluster /= cluster_sep_count
-        # batch_obj.separation /= cluster_sep_count 
+        batch_obj.cluster /= batch_obj.cluster_sep_count
+        batch_obj.separation /= batch_obj.cluster_sep_count
         total_obj += batch_obj
 
     model.zero_pred()
@@ -161,9 +160,9 @@ def _traintest_image(model, dataloader, optimizer, cfg):
     total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
-        input = image.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
+        input = image.to(cfg.MODEL.DEVICE)
+        label = label.to(cfg.MODEL.DEVICE)
+        flat_label = flat_label.to(cfg.MODEL.DEVICE)
         batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
         
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
@@ -174,7 +173,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
                 logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
@@ -213,16 +212,15 @@ def _traintest_image(model, dataloader, optimizer, cfg):
         logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
 
         for node in model.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= cluster_sep_count
-        batch_obj.separation /= cluster_sep_count
+        batch_obj.cluster /= batch_obj.cluster_sep_count
+        batch_obj.separation /= batch_obj.cluster_sep_count
         total_obj += batch_obj
 
     model.zero_pred()
@@ -232,16 +230,24 @@ def _traintest_image(model, dataloader, optimizer, cfg):
 
 def _traintest_multi(model, dataloader, optimizer, cfg): 
     total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
+    img_features_zeros = 0
+    gen_features_zeros = 0
+    img_conv_features_numel = 0
+    gen_conv_features_numel = 0
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
-        gen_input = genetics.cuda()
-        img_input = image.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
-        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
+        gen_input = genetics.to(cfg.MODEL.DEVICE)
+        img_input = image.to(cfg.MODEL.DEVICE)
+        label = label.to(cfg.MODEL.DEVICE)
+        flat_label = flat_label.to(cfg.MODEL.DEVICE)
+        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value) 
 
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
-            gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
+            gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input) 
+            img_features_zeros += (img_conv_features == 0).sum().item()
+            gen_features_zeros += (gen_conv_features == 0).sum().item()
+            img_conv_features_numel += img_conv_features.numel()
+            gen_conv_features_numel += gen_conv_features.numel() 
 
             # # track number of classifications across all nodes in this batch
             n_classified = 0 
@@ -249,7 +255,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
                 gen_logits, gen_max_sim = node.gen_node(gen_conv_features) 
                 img_logits, img_max_sim = node.img_node(img_conv_features) 
                 node.gen_node.softmax()
@@ -314,7 +320,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
         gen_logits = torch.concat([node.probs for node in gen_last_classifiers], dim=1) # 80x113
 
         for node in model.gen_net.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = gen_logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
@@ -327,18 +333,13 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
         img_logits = torch.concat([node.probs for node in img_last_classifiers], dim=1) # 80x113
 
         for node in model.img_net.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.MODEL.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = img_logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        # batch_obj.gen_obj.cluster /= n_classified
-        # batch_obj.gen_obj.separation /= n_classified 
-        # batch_obj.img_obj.cluster /= n_classified
-        # batch_obj.img_obj.separation /= n_classified 
         batch_obj.gen_obj.cluster /= batch_obj.gen_obj.cluster_sep_count
         batch_obj.gen_obj.separation /= batch_obj.gen_obj.cluster_sep_count
         batch_obj.img_obj.cluster /= batch_obj.img_obj.cluster_sep_count
@@ -347,4 +348,6 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
 
     model.zero_pred()
     total_obj /= len(dataloader)
+    total_obj.gen_features_zero_percent = gen_features_zeros / gen_conv_features_numel
+    total_obj.img_features_zero_percent = img_features_zeros / img_conv_features_numel
     return total_obj

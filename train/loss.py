@@ -63,7 +63,7 @@ class Objective:
         self.coef_clst = cfg_coef.CLST
         self.coef_sep = cfg_coef.SEP
         self.coef_l1 = cfg_coef.L1
-        self.coef_ortho = cfg_coef.ORTHO
+        self.coef_ortho = cfg_coef.ORTHO 
 
     def total(self): 
         """
@@ -175,6 +175,10 @@ class MultiObjective:
         self.correspondence = torch.zeros(1).cuda()
         self.coef_corr = cfg_coef.CORRESPONDENCE
 
+        # miscellaneous debug info 
+        self.gen_features_zero_percent = 0.0
+        self.img_features_zero_percent = 0.0
+
     def total(self): 
         corr = self.coef_corr * self.correspondence 
         return self.gen_obj.total() + self.img_obj.total() + corr
@@ -195,13 +199,17 @@ class MultiObjective:
         out.update(self.gen_obj.to_dict())
         out.update(self.img_obj.to_dict()) 
         out[f"{self.epoch}/{run_mode[self.mode.value]}-correspondence"] = self.correspondence
+        out[f"{self.epoch}/{run_mode[self.mode.value]}-gen-features-zero"] = self.gen_features_zero_percent
+        out[f"{self.epoch}/{run_mode[self.mode.value]}-img-features-zero"] = self.img_features_zero_percent
         return out
 
     def __str__(self): 
         out = "" 
         out += str(self.gen_obj)
         out += str(self.img_obj)
-        out += f"{self.epoch}/{run_mode[self.mode.value]}-correspondence: {float(self.correspondence.item()):.5f}"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-correspondence: {float(self.correspondence.item()):.5f}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-gen-features-zero : {float(self.gen_features_zero_percent)}\n"
+        out += f"{self.epoch}/{run_mode[self.mode.value]}-img-features-zero : {float(self.img_features_zero_percent)}"
         return out
 
     def __repr__(self): 
@@ -247,7 +255,7 @@ def get_cluster_and_sep_cost(max_sim, target, num_classes):
     return cluster_cost, separation_cost
 
 def get_l1_cost(node: ProtoNode):
-    l1_mask = (1 - node.match).t().to("cuda")
+    l1_mask = (1 - node.match).t().cuda()
     masked_weights = node.last_layer.weight.detach().clone() * l1_mask
     l1 = torch.linalg.vector_norm(masked_weights, ord=1)
     return l1
@@ -258,7 +266,7 @@ def sim_matrix(prototypes):
     return prototypes_normed @ prototypes_normed.T
 
 def get_ortho_cost(node: ProtoNode, temp=0.01):
-    diff = sim_matrix(node.prototype * node.prototype_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)) - torch.eye(node.prototype.size(0)).cuda()
+    diff = sim_matrix(node.prototype * node.prototype_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)) - torch.eye(node.prototype.size(0)).cuda() # type: ignore
     if temp is not None:
         mask = torch.nn.functional.softmax(diff / temp, dim=-1)
     else:

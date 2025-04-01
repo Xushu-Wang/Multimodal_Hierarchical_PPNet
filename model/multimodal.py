@@ -109,11 +109,6 @@ class MultiHierProtoPNet(nn.Module):
 
         return node
 
-    def cuda(self, device = None):
-        self.gen_net.cuda(device)
-        self.img_net.cuda(device)
-        return super().cuda()
-
     def conv_features(self, genetic, image):
         return self.gen_net.conv_features(genetic), self.img_net.conv_features(image)
 
