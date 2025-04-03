@@ -291,7 +291,8 @@ class HierProtoPNet(nn.Module):
         nprotos: int,
         pshape: tuple, 
         mode: Mode,
-        proto_layer_rf_info=None
+        proto_layer_rf_info=None,
+        log=print
     ): 
         """
         Base ProtoPnet architecture for either/or Image or Genetics. 
@@ -317,6 +318,18 @@ class HierProtoPNet(nn.Module):
         self.root = self.build_proto_tree(self.hierarchy.root) 
         self.add_on_layers = nn.Sequential() 
         self.proto_layer_rf_info = proto_layer_rf_info
+
+        if mode == Mode.IMAGE and self.pshape[0] != 2048:
+            log("Image prototype shape differs from backbone output shape. Adding add-on layers.")
+            self.add_on_layers = nn.Sequential(
+                nn.Conv2d(2048, self.pshape[0], kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+                # nn.BatchNorm2d(self.pshape[0]),
+                nn.ReLU(inplace=True)
+            )
+        elif mode == Mode.GENETIC and self.pshape[0] != 64:
+            log("Genetic prototype shape differs from backbone output shape. Adding add-on layers.")
+            raise NotImplementedError("Genetic add-on layers not implemented yet.")
+            
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
         """
@@ -461,7 +474,7 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
     backbone_path = cfg.MODEL.IMAGE_BACKBONE_PATH
 
     if ppnet_path != "":
-        log(f"Loading Pretrained Image PPNET: {ppnet_path}")
+        log(f"Loading Pretrained Image PPNET: {ppnet_path}. Config options will be ignored.")
         # cached trained genetic ppnet 
         if not os.path.exists(ppnet_path): 
             raise Exception(f"Image ppnet path does not exist: {ppnet_path}")
@@ -469,8 +482,8 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
     else:
         log("No Pretrained Image PPNET Path Found. Initializing new Image PPNET.")
         # should not remove the final ReLU layer before the avgpool 
-        backbone = resnet_bioscan_features()
-        
+        backbone = resnet_bioscan_features()            
+
         if backbone_path != "": 
             log(f"Loading Pretrained Image Backbone: {backbone_path}")
             if os.path.exists(backbone_path):
@@ -498,7 +511,8 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             nprotos = cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.DATASET.IMAGE.PROTOTYPE_SHAPE,
             mode = Mode.IMAGE,
-            proto_layer_rf_info=proto_layer_rf_info
+            proto_layer_rf_info=proto_layer_rf_info,
+            log=log
         )
 
     return image_ppnet
