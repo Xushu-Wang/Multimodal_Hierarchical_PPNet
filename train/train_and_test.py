@@ -147,9 +147,8 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        # batch_obj.cluster /= cluster_sep_count
-        # batch_obj.separation /= cluster_sep_count 
+        batch_obj.cluster /= batch_obj.cluster_sep_count
+        batch_obj.separation /= batch_obj.cluster_sep_count 
         total_obj += batch_obj
 
     model.zero_pred()
@@ -220,9 +219,8 @@ def _traintest_image(model, dataloader, optimizer, cfg):
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        batch_obj.cluster /= cluster_sep_count
-        batch_obj.separation /= cluster_sep_count
+        batch_obj.cluster /= batch_obj.cluster_sep_count
+        batch_obj.separation /= batch_obj.cluster_sep_count
         total_obj += batch_obj
 
     model.zero_pred()
@@ -334,11 +332,6 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
             node.n_species_correct += torch.sum(cond_predictions == m_flat_label)
             batch_obj.img_obj.n_cond_correct[node.depth] += torch.sum(cond_predictions == m_flat_label)
 
-        # Divide the cls/sep costs before (?) adding to total objective cost 
-        # batch_obj.gen_obj.cluster /= n_classified
-        # batch_obj.gen_obj.separation /= n_classified 
-        # batch_obj.img_obj.cluster /= n_classified
-        # batch_obj.img_obj.separation /= n_classified 
         batch_obj.gen_obj.cluster /= batch_obj.gen_obj.cluster_sep_count
         batch_obj.gen_obj.separation /= batch_obj.gen_obj.cluster_sep_count
         batch_obj.img_obj.cluster /= batch_obj.img_obj.cluster_sep_count
