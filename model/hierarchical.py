@@ -165,7 +165,7 @@ class ProtoNode(nn.Module):
         
         arange4 = torch.concatenate((arange2, arange3), dim=1)
         arange4 = arange4.reshape(40, 1, 1, 40)
-        arange4 = arange4.repeat((self.nclass, 64, 1, 1))
+        arange4 = arange4.repeat((self.nclass, self.pshape[0], 1, 1))
         return arange4
     
     def cuda(self, device = None):
@@ -328,7 +328,9 @@ class HierProtoPNet(nn.Module):
             )
         elif mode == Mode.GENETIC and self.pshape[0] != 64:
             log("Genetic prototype shape differs from backbone output shape. Adding add-on layers.")
-            raise NotImplementedError("Genetic add-on layers not implemented yet.")
+            self.add_on_layers = nn.Sequential(
+                nn.Conv2d(64, self.pshape[0], kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            )
             
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
