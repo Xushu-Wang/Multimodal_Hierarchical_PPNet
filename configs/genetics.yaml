@@ -5,7 +5,7 @@ MODEL:
     GENETIC_BACKBONE_PATH: "backbones/genetic_species_001/genetic_species_001_best.pth"
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
+    HIERARCHY_FILE: "class_trees/all_species_120.json"
 
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 1
@@ -13,7 +13,7 @@ DATASET:
 
     TRAIN_BATCH_SIZE: 80
     TEST_BATCH_SIZE: 160
-    TRAIN_PUSH_BATCH_SIZE: 20
+    PUSH_BATCH_SIZE: 20
 
     CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
     

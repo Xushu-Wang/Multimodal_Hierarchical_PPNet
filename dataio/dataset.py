@@ -542,10 +542,10 @@ def retrieve_cached_ds(
     Create datasets with the transforms defined in gen_aug_params, trans_mean/std
     """
     cache_ds_dir = cfg.DATASET.CACHED_DATASET_FOLDER
-    gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION
-    trans_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN
-    trans_std=cfg.DATASET.IMAGE.TRANSFORM_STD
-    mode=Mode(cfg.DATASET.MODE)
+    gen_aug_params=cfg.DATASET.TRANSFORMS.GENETIC
+    trans_mean=cfg.DATASET.TRANSFORMS.IMAGE.MEAN
+    trans_std=cfg.DATASET.TRANSFORMS.IMAGE.STD
+    mode=Mode(cfg.MODE)
 
     train = pd.read_csv(os.path.join(cache_ds_dir, "train.tsv"), sep="\t")
     push = pd.read_csv(os.path.join(cache_ds_dir, "train_push.tsv"), sep="\t")
@@ -566,7 +566,7 @@ def retrieve_cached_ds(
 
 def get_datasets(cfg: CfgNode, log: Callable = print): 
     log("Getting Datasets") 
-    hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
+    hierarchy = Hierarchy(cfg.DATASET.HIERARCHY_FILE)
 
     if cfg.DATASET.CACHED_DATASET_FOLDER.strip(): 
         # if we want to retrieve a cached dataset
@@ -575,13 +575,13 @@ def get_datasets(cfg: CfgNode, log: Callable = print):
         # if we want to create a new dataset 
         return create_new_ds(
             hierarchy = hierarchy, 
-            gen_aug_params=cfg.DATASET.GENETIC_AUGMENTATION,
+            gen_aug_params=cfg.DATASET.TRANSFORMS.GENETIC,
             split = Split(*cfg.DATASET.TRAIN_VAL_TEST_SPLIT),
             train_not_classified_proportions=cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS,
             run_name=cfg.RUN_NAME,
-            trans_mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
-            trans_std=cfg.DATASET.IMAGE.TRANSFORM_STD,
-            mode=Mode(cfg.DATASET.MODE),
+            trans_mean=cfg.DATASET.TRANSFORMS.IMAGE.MEAN,
+            trans_std=cfg.DATASET.TRANSFORMS.IMAGE.STD,
+            mode=Mode(cfg.MODE),
             log=log,
         )
 

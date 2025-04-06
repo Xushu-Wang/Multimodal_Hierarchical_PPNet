@@ -2,7 +2,7 @@ RUN_NAME: "image_120_reasonable"
 WANDB_MODE: "online" 
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
+    HIERARCHY_FILE: "class_trees/all_species_120.json"
     TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
     MODE: 2
     TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 

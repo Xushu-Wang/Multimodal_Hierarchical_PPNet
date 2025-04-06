@@ -1,23 +1,26 @@
 RUN_NAME: "muchang_image"
+SEED: 2024
+MODE: 2
 # WANDB_MODE: "disabled" 
+DEVICE: "cuda"
 
 MODEL:
-    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
+    IMAGE: 
+        BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
 
 DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json"
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
-    MODE: 2
-    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
+    IMAGE_PATH: "../datasets/full_bioscan_images/" 
+    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" 
+    HIERARCHY_FILE: "class_trees/all_species_120.json"
 
     CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
-    
-    DATA_FILE: "../datasets/source_files/metadata_cleaned_permissive.tsv" 
-    IMAGE_PATH: "../datasets/full_bioscan_images/" 
+
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0]
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
 
     TRAIN_BATCH_SIZE: 80
     TEST_BATCH_SIZE: 160
-    TRAIN_PUSH_BATCH_SIZE: 160
+    PUSH_BATCH_SIZE: 160
 
     IMAGE:
         PROTOTYPE_SHAPE: (2048, 1, 1)

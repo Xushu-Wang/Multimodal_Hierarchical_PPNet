@@ -4,16 +4,8 @@ All functions regarding logging and saving models is defined here
 import datetime
 import os
 from model.hierarchical import Mode
-import torch
 from typing import Callable, Tuple 
 from yacs.config import CfgNode
-
-def makedir(path: str) -> None:
-    '''
-    if path does not exist in the file system, create it
-    '''
-    if not os.path.exists(path):
-        os.makedirs(path)
 
 def create_logger(log_filename: str, display: bool = True) -> Tuple[Callable, Callable]:
     f = open(log_filename, 'a+')
@@ -27,44 +19,57 @@ def create_logger(log_filename: str, display: bool = True) -> Tuple[Callable, Ca
         if counter[0] % 10 == 0:
             f.flush()
             os.fsync(f.fileno())
-        # Question: do we need to flush()
     return logger, f.close
 
-def run_id_accumulator(cfg: CfgNode) -> None:
+def run_id_accumulator(cfg: CfgNode):
     """
     Add a numeric padding of form *_001 to prevent overwriting of existing runs
     """
+
+    output_dir = os.path.join(
+        "..", 
+        "output", 
+        "genetic_only" if cfg.MODE == Mode.GENETIC else ("image_only" if cfg.MODE == Mode.IMAGE else "joint")
+    )
+
     if cfg.RUN_NAME == '':
         # Generate a run name from the current time
-        cfg.RUN_NAME = str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').replace('.', '_')
+        cfg.RUN_NAME = str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').replace('.', '_')  
+    else: 
+        # Check if RUN_NAME already exists in output, change it if it doesn't
+        i = 0
+        while os.path.exists(os.path.join(output_dir, f"{cfg.RUN_NAME}_{i:03d}")):
+            i += 1
+        cfg.RUN_NAME += f"_{i:03d}"  
 
-    mode_name = "genetic_only" if cfg.DATASET.MODE == Mode.GENETIC else ("image_only" if cfg.DATASET.MODE == Mode.IMAGE else "joint")
-    # Check if RUN_NAME already exists in output, change it if it doesn't
-    i = 0
-    print(os.path.join("../output", cfg.RUN_NAME))
-    root_run_name = cfg.RUN_NAME
-    while os.path.exists(os.path.join("../output", mode_name, cfg.RUN_NAME)):
-        i += 1
-        cfg.RUN_NAME = f"{root_run_name}_{i:03d}"
+    cfg.OUTPUT.MODEL_DIR = os.path.join(output_dir, cfg.RUN_NAME)
+    cfg.OUTPUT.IMG_DIR = os.path.join(output_dir, cfg.RUN_NAME, "images")  
 
-    if cfg.OUTPUT.MODEL_DIR == '':
-        cfg.OUTPUT.MODEL_DIR = os.path.join("../output", mode_name, cfg.RUN_NAME)
-        # If the model directory doesn't exist, create it
-        makedir(cfg.OUTPUT.MODEL_DIR)
-    cfg.OUTPUT.IMG_DIR = os.path.join(cfg.OUTPUT.MODEL_DIR, "images")
+    os.makedirs(cfg.OUTPUT.IMG_DIR)
 
-def save_model_w_condition(
-    model: torch.nn.Module, 
-    model_dir: str, 
-    model_name: str, 
-    accu, 
-    target_accu, 
-    log: Callable = print
-) -> None:
-    '''
-    model: this is not the multigpu model
-    '''
-    if accu > target_accu:
-        log('\tabove {0:.2f}%'.format(target_accu * 100))
-        torch.save(obj=model, f=os.path.join(model_dir, (model_name + '{0:.4f}.pth').format(accu)))
+def remove_irrelevant_hyperparams(cfg: CfgNode):  
+
+    if cfg.MODE == 1: 
+        # Genetics only run, delete all image-related params . 
+        cfg.MODEL.IMAGE.clear()
+        cfg.DATASET.IMAGE_PATH.clear()
+        cfg.IMAGE_SIZE.clear()
+        cfg.TRANSFORM_MEAN.clear()
+        cfg.TRANSFORM_STD .clear()
+        cfg.OPTIM.TRAIN.COEFS.IMAGE.clear()
+    elif cfg.MODE == 2: 
+        # image only
+        cfg.MODEL.GENETIC.clear()
+        cfg.OPTIM.TRAIN.COEFS.GENETIC.clear()
+    else: 
+        pass 
+
+    # filter dataset args based on whether it's cached 
+    if cfg.DATASET.CACHED_DATASET_FOLDER: 
+        cfg.DATASET.TRAIN_NOT_CLASSIFIED_PROPORTIONS.clear()
+        cfg.DATASET.TRAIN_VAL_TEST_SPLIT.clear()  
+
+
+    # Make sure you push on the last epoch
+    cfg.OPTIM.PUSH.EPOCHS.append(cfg.OPTIM.NUM_EPOCHS - 1)
 

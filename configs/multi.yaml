@@ -1,77 +1,104 @@
 RUN_NAME: "clst_neg_sep_pos"
+SEED: 2024
+MODE: 3
 WANDB_MODE: "online" 
+DEVICE: "cuda"
 
 MODEL:
-    IMAGE_PPNET_PATH: ""
-    GENETICS_PPNET_PATH: ""
-    IMAGE_BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
-    GENETICS_BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
-
-DATASET:
-    TREE_SPECIFICATION_FILE: "class_trees/all_species_120.json" 
-    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] 
-    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
-    CACHED_DATASET_FOLDER: "pre_existing_datasets/reasonable_dataset"
-    
-    MODE: 3 
-
-    IMAGE_PATH: "../datasets/full_bioscan_images/" 
-    TRAIN_BATCH_SIZE: 600
-    TEST_BATCH_SIZE: 600
-    TRAIN_PUSH_BATCH_SIZE: 600
-
     IMAGE: 
         PROTOTYPE_SHAPE: (64, 1, 1) 
         TRANSFORM_MEAN: (0.706, 0.708, 0.709)
         TRANSFORM_STD: (0.146, 0.164, 0.1837)
+        PPNET_PATH: "../output/joint/clst_neg_sep_pos_081/img_train_ep10.pth"
+        BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
+        PROTOTYPE_SHAPE: (2048, 1, 1) 
         NUM_PROTOTYPES_PER_CLASS: 10
-    GENETIC:
+    GENETIC: 
+        PPNET_PATH: "../output/joint/clst_neg_sep_pos_081/gen_train_ep10.pth"
+        BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
+
+DATASET:
+    IMAGE_PATH: "../datasets/full_bioscan_images/" 
+    DATA_FILE:  "../datasets/source_files/metadata_cleaned_permissive.tsv" 
+    HIERARCHY_FILE: "class_trees/all_species_120.json" 
+
+    CACHED_DATASET_FOLDER: "pre_existing_datasets/small_dataset"
+
+    TRAIN_NOT_CLASSIFIED_PROPORTIONS: [0, 0, 0, 0] 
+    TRAIN_VAL_TEST_SPLIT: [80, 20, 20] 
+
+    TRANSFORMS: 
+        IMAGE: 
+            SIZE: 256
+            MEAN: (0.706, 0.708, 0.709)
+            STD: (0.146, 0.164, 0.1837)
+        GENETIC:
+            SUBSTITUTION_RATE: 0.05  
+            DELETION_COUNT: 4 
+            INSERTION_COUNT: 4
+
+    TRAIN_BATCH_SIZE: 600
+    TEST_BATCH_SIZE: 600
+    PUSH_BATCH_SIZE: 600
+
 OPTIM:
     NUM_WARM_EPOCHS: 5
-    NUM_TRAIN_EPOCHS: 50
-    PUSH_EPOCHS: [20, 30, 40]
-    PRUNE_EPOCHS: []
-    GENETIC_MAX_NUM_PROTOTYPES_PER_CLASS: 10
-    IMAGE_MAX_NUM_PROTOTYPES_PER_CLASS: 10
-    COEFS: 
-        CORRESPONDENCE: 0.0
-        GENETIC: 
-            CRS_ENT: 20.
-            CLST: -1.0
-            SEP: 1.0
-            L1: 0.0
-            ORTHO: 0.0
-        IMAGE: 
-            # should be ~10 times the values of genetic from experiments
-            CRS_ENT: 20.
-            CLST: -1.0
-            SEP: 1.0
-            L1: 0.0
-            ORTHO: 0.0
-    WARM: 
-        ADD_ON_LAYERS_LR: 3e-2 
-        ADD_ON_LAYERS_WD: 0.
-        PROTOTYPE_LR: 3e-2 
-        PROTOTYPE_WD: 0.
-    JOINT: 
-        FEATURES_LR: 1e-2 
-        FEATURES_WD: 0.
-        ADD_ON_LAYERS_LR: 3e-2
-        ADD_ON_LAYERS_WD: 1e-3
-        LAST_LAYER_LR: 3e-2 
-        LAST_LAYER_WD: 1e-3 
-        PROTOTYPE_LR: 3e-2
-        PROTOTYPE_WD: 0.
-    LAST_LAYER: 
-        LAST_LAYER_LR: 3e-2 
-        LAST_LAYER_MOM: 0.9
-        
+    NUM_EPOCHS: 50
+    TRAIN: 
+        CORRESPONDENCE_TYPE: "Batched"
+        COEFS: 
+            CORRESPONDENCE: 0.0
+            GENETIC: 
+                CRS_ENT: 20.
+                CLST: -1.0
+                SEP: 1.0
+                L1: 0.0
+                ORTHO: 0.0
+            IMAGE: 
+                # should be ~10 times the values of genetic from experiments
+                CRS_ENT: 20.
+                CLST: -1.0
+                SEP: 1.0
+                L1: 0.0
+                ORTHO: 0.0
+        WARM: 
+            ADD_ON_LAYERS_LR: 3e-2 
+            ADD_ON_LAYERS_WD: 0.
+            PROTOTYPE_LR: 3e-2 
+            PROTOTYPE_WD: 0.
+        JOINT: 
+            FEATURES_LR: 1e-2 
+            FEATURES_WD: 0.
+            ADD_ON_LAYERS_LR: 3e-2
+            ADD_ON_LAYERS_WD: 1e-3
+            LAST_LAYER_LR: 3e-2 
+            LAST_LAYER_WD: 1e-3 
+            PROTOTYPE_LR: 3e-2
+            PROTOTYPE_WD: 0.
+        LAST_LAYER: 
+            LAST_LAYER_LR: 3e-2 
+            LAST_LAYER_MOM: 0.9
+    PUSH: 
+        EPOCHS: [20, 30, 40]
+        N_LAST_LAYER: 19
+    PRUNE: 
+        TYPE: "weights" 
+        K: 6 
+        TAU: 3
+        EPOCHS: []
+        GENETIC_MAX_NUM_PROTOTYPES_PER_CLASS: 10
+        IMAGE_MAX_NUM_PROTOTYPES_PER_CLASS: 10
 
 OUTPUT:
+    SAVE_MODEL: True 
+    SAVE_MODEL_EPOCHS: [10, 15, 25, 35, 45]
+    SAVE_IMAGES: False 
+    MODEL_DIR: ""
+    IMAGE_DIR: ""
+
     WEIGHT_MATRIX_FILENAME: "outputL_weights"
     PROTOTYPE_IMG_FILENAME_PREFIX: "prototype-img"
     PROTOTYPE_SELF_ACT_FILENAME_PREFIX: "prototype-self-act"
     PROTO_BOUND_BOXES_FILENAME_PREFIX: "bb"
-    SAVE: True 
