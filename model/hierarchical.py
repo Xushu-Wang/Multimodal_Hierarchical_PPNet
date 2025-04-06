@@ -72,7 +72,7 @@ class ProtoNode(nn.Module):
                 self.match = self.init_match().cuda()
 
                 self.prototype = nn.Parameter(
-                    torch.randn((self.nprotos_total, *pshape), device="cuda"),
+                    torch.rand((self.nprotos_total, *pshape), device="cuda"),
                     requires_grad=True
                 )
                 
