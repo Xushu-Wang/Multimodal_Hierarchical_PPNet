@@ -19,12 +19,12 @@ import torch.optim as optim
 run_mode = {1 : "Genetic", 2 : "Image", 3 : "Multimodal"} 
 
 def main(cfg: CfgNode, log: Callable):
-    device = torch.device(cfg.MODEL.DEVICE)
+    device = torch.device(cfg.DEVICE)
     train_loader, _, val_loader, _ = get_dataloaders(cfg, log)  
 
     class_count = train_loader.dataset.hierarchy.levels.counts[-1] # type: ignore  
 
-    if cfg.DATASET.MODE == Mode.GENETIC.value:
+    if cfg.MODE == Mode.GENETIC.value:
         model = GeneticCNN2D(720, class_count, include_connected_layer=True)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     else:
@@ -51,7 +51,7 @@ def main(cfg: CfgNode, log: Callable):
 
         model.train() 
         for (genetics, image), (_, flat_label) in train_loader:  
-            inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC.value else image.to(device)
+            inputs = genetics.to(device) if cfg.MODE == Mode.GENETIC.value else image.to(device)
             labels = flat_label[:,-1].to(device) 
 
             optimizer.zero_grad() 
@@ -81,7 +81,7 @@ def main(cfg: CfgNode, log: Callable):
 
         with torch.no_grad():
             for (genetics, image), (_, flat_label) in val_loader:
-                inputs = genetics.to(device) if cfg.DATASET.MODE == Mode.GENETIC.value else image.to(device)
+                inputs = genetics.to(device) if cfg.MODE == Mode.GENETIC.value else image.to(device)
                 labels = flat_label[:,-1].to(device)
                 flat_label = flat_label.to(device)
                 logits = model(inputs) 
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     log, logclose = create_logger(log_filename=os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
     wandb.init(
-        project=f"{run_mode[cfg.DATASET.MODE]} Blackbox Backbone",
+        project=f"{run_mode[cfg.MODE]} Blackbox Backbone",
         name=cfg.RUN_NAME,
         config=cfg,
         mode=cfg.WANDB_MODE,

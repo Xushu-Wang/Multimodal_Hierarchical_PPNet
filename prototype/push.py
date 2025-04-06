@@ -3,7 +3,6 @@ import cv2
 from matplotlib import pyplot as plt
 import pandas as pd
 import torch
-from pprint import pprint
 import numpy as np
 from torch import Tensor
 from tqdm import tqdm
@@ -262,7 +261,7 @@ def push(
 
 def push_genetic(model, dataloader, stride, epoch, cfg): 
     for (genetics, _), (label, _) in dataloader:
-        input = genetics.to(cfg.MODEL.DEVICE)
+        input = genetics.to(cfg.DEVICE)
 
         conv_features = model.conv_features(input) 
 
@@ -280,17 +279,17 @@ def push_genetic(model, dataloader, stride, epoch, cfg):
 
     for node in model.classifier_nodes:
         prototype_update = np.reshape(node.global_max_fmap_patches, node.prototype.shape)
-        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).to(cfg.MODEL.DEVICE))
+        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).to(cfg.DEVICE))
 
 def push_image(model, dataloader, stride, epoch, cfg): 
     normalize = transforms.Normalize(
-        mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
-        std=cfg.DATASET.IMAGE.TRANSFORM_STD
+        mean=cfg.DATASET.TRANSFORMS.IMAGE.MEAN,
+        std=cfg.DATASET.TRANSFORMS.IMAGE.STD
     )
 
     for (_, raw_image), (label, _) in dataloader: 
-        input = normalize(raw_image).to(cfg.MODEL.DEVICE)
-        raw_image = raw_image.to(cfg.MODEL.DEVICE)
+        input = normalize(raw_image).to(cfg.DEVICE)
+        raw_image = raw_image.to(cfg.DEVICE)
 
         conv_features = model.conv_features(input) 
 
@@ -308,18 +307,18 @@ def push_image(model, dataloader, stride, epoch, cfg):
 
     for node in model.classifier_nodes:
         prototype_update = np.reshape(node.global_max_fmap_patches, node.prototype.shape)
-        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).to(cfg.MODEL.DEVICE))
+        node.prototype.data.copy_(torch.tensor(prototype_update, dtype=torch.float32).to(cfg.DEVICE))
 
 def push_multimodal(model, dataloader, stride, epoch, cfg): 
     normalize = transforms.Normalize(
-        mean=cfg.DATASET.IMAGE.TRANSFORM_MEAN,
-        std=cfg.DATASET.IMAGE.TRANSFORM_STD
+        mean=cfg.DATASET.TRANSFORMS.IMAGE.MEAN,
+        std=cfg.DATASET.TRANSFORMS.IMAGE.STD
     )
 
     for ((genetics, raw_image), (label, _)) in tqdm(dataloader):
-        gen_input = genetics.to(cfg.MODEL.DEVICE)
-        img_input = normalize(raw_image).to(cfg.MODEL.DEVICE)
-        raw_image = raw_image.to(cfg.MODEL.DEVICE)
+        gen_input = genetics.to(cfg.DEVICE)
+        img_input = normalize(raw_image).to(cfg.DEVICE)
+        raw_image = raw_image.to(cfg.DEVICE)
 
         gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
         
@@ -357,9 +356,9 @@ def push_multimodal(model, dataloader, stride, epoch, cfg):
     for node in model.classifier_nodes: 
         # project the prototypes in each node to prototype_update 
         node.gen_node.prototype.data.copy_(
-            torch.tensor(node.gen_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.MODEL.DEVICE)
+            torch.tensor(node.gen_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.DEVICE)
         )
 
         node.img_node.prototype.data.copy_(
-            torch.tensor(node.img_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.MODEL.DEVICE)
+            torch.tensor(node.img_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.DEVICE)
         )

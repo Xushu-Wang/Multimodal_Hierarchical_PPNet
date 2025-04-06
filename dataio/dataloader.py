@@ -47,7 +47,7 @@ def get_dataloaders(cfg: CfgNode, log: Callable) \
             num_workers=1, pin_memory=False, collate_fn=collate_fn,       
     )
     push_loader = DataLoader(
-        push_ds, batch_size=cfg.DATASET.TRAIN_PUSH_BATCH_SIZE, shuffle=True,
+        push_ds, batch_size=cfg.DATASET.PUSH_BATCH_SIZE, shuffle=True,
         num_workers=1, pin_memory=False, collate_fn=collate_fn
     )
     val_loader = DataLoader(

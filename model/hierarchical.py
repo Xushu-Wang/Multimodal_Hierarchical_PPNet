@@ -369,7 +369,7 @@ class HierProtoPNet(nn.Module):
         x = self.features(x) 
         x = self.add_on_layers(x) 
         return x
-
+    
     def conditional_normalize(self, node: ProtoNode, scale = torch.ones(1).cuda()): 
         """
         Once node.probs is instantiated, scale the children's probabilities 
@@ -416,17 +416,38 @@ class HierProtoPNet(nn.Module):
         torch.cuda.empty_cache()
 
 def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet: 
-    hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
+    hierarchy = Hierarchy(cfg.DATASET.HIERARCHY_FILE)
 
-    ppnet_path = cfg.MODEL.GENETICS_PPNET_PATH
-    backbone_path = cfg.MODEL.GENETICS_BACKBONE_PATH
+    ppnet_path = cfg.MODEL.GENETIC.PPNET_PATH
+    backbone_path = cfg.MODEL.GENETIC.BACKBONE_PATH
 
     if ppnet_path != "":
         log(f"Loading Pretrained Genetics PPNET: {ppnet_path}")
         # cached trained genetic ppnet 
         if not os.path.exists(ppnet_path): 
             raise Exception(f"Genetics ppnet path does not exist: {ppnet_path}")
-        genetic_ppnet = torch.load(ppnet_path) 
+
+        backbone = GeneticCNN2D(720, 1, include_connected_layer=False)
+        layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
+
+        proto_layer_rf_info = compute_proto_layer_rf_info_v2(
+            img_size=720,
+            layer_filter_sizes=layer_filter_sizes,
+            layer_strides=layer_strides,
+            layer_paddings=layer_paddings,
+            prototype_kernel_size=cfg.MODEL.GENETIC.PROTOTYPE_SHAPE[1]
+        )
+
+        genetic_ppnet = HierProtoPNet(
+            hierarchy = hierarchy, 
+            features = backbone, 
+            nprotos = cfg.MODEL.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
+            pshape = cfg.MODEL.GENETIC.PROTOTYPE_SHAPE, 
+            mode = Mode.GENETIC,
+            proto_layer_rf_info=proto_layer_rf_info
+        ) 
+
+        genetic_ppnet.load_state_dict(torch.load(ppnet_path, weights_only=True))
     else:
         log("No Pretrained Genetics PPNET Path Found. Initializing new Genetics PPNET.")
         backbone = GeneticCNN2D(720, 1, include_connected_layer=False)
@@ -454,14 +475,14 @@ def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             layer_filter_sizes=layer_filter_sizes,
             layer_strides=layer_strides,
             layer_paddings=layer_paddings,
-            prototype_kernel_size=cfg.DATASET.GENETIC.PROTOTYPE_SHAPE[1]
+            prototype_kernel_size=cfg.MODEL.GENETIC.PROTOTYPE_SHAPE[1]
         )
 
         genetic_ppnet = HierProtoPNet(
             hierarchy = hierarchy, 
             features = backbone, 
-            nprotos = cfg.DATASET.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
-            pshape = cfg.DATASET.GENETIC.PROTOTYPE_SHAPE, 
+            nprotos = cfg.MODEL.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
+            pshape = cfg.MODEL.GENETIC.PROTOTYPE_SHAPE, 
             mode = Mode.GENETIC,
             proto_layer_rf_info=proto_layer_rf_info
         ) 
@@ -469,16 +490,36 @@ def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
     return genetic_ppnet
 
 def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet: 
-    hierarchy = Hierarchy(cfg.DATASET.TREE_SPECIFICATION_FILE)
-    ppnet_path = cfg.MODEL.IMAGE_PPNET_PATH
-    backbone_path = cfg.MODEL.IMAGE_BACKBONE_PATH
+    hierarchy = Hierarchy(cfg.DATASET.HIERARCHY_FILE)
+    ppnet_path = cfg.MODEL.IMAGE.PPNET_PATH
+    backbone_path = cfg.MODEL.IMAGE.BACKBONE_PATH
 
     if ppnet_path != "":
         log(f"Loading Pretrained Image PPNET: {ppnet_path}. Config options will be ignored.")
         # cached trained genetic ppnet 
         if not os.path.exists(ppnet_path): 
             raise Exception(f"Image ppnet path does not exist: {ppnet_path}")
-        image_ppnet = torch.load(ppnet_path) 
+        backbone = resnet_bioscan_features()
+
+        layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
+        proto_layer_rf_info = compute_proto_layer_rf_info_v2(
+            img_size=cfg.DATASET.TRANSFORMS.IMAGE.SIZE,
+            layer_filter_sizes=layer_filter_sizes,
+            layer_strides=layer_strides,
+            layer_paddings=layer_paddings,
+            prototype_kernel_size=cfg.MODEL.IMAGE.PROTOTYPE_SHAPE[1],
+        )
+
+        image_ppnet = HierProtoPNet(
+            hierarchy = hierarchy, 
+            features = backbone, 
+            nprotos = cfg.MODEL.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
+            pshape = cfg.MODEL.IMAGE.PROTOTYPE_SHAPE,
+            mode = Mode.IMAGE,
+            proto_layer_rf_info=proto_layer_rf_info
+        )
+
+        image_ppnet.load_state_dict(torch.load(ppnet_path, weights_only=True))
     else:
         log("No Pretrained Image PPNET Path Found. Initializing new Image PPNET.")
         # should not remove the final ReLU layer before the avgpool 
@@ -498,18 +539,18 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
 
         layer_filter_sizes, layer_strides, layer_paddings = backbone.conv_info()
         proto_layer_rf_info = compute_proto_layer_rf_info_v2(
-            img_size=cfg.DATASET.IMAGE.SIZE,
+            img_size=cfg.DATASET.TRANSFORMS.IMAGE.SIZE,
             layer_filter_sizes=layer_filter_sizes,
             layer_strides=layer_strides,
             layer_paddings=layer_paddings,
-            prototype_kernel_size=cfg.DATASET.IMAGE.PROTOTYPE_SHAPE[1],
+            prototype_kernel_size=cfg.MODEL.IMAGE.PROTOTYPE_SHAPE[1],
         )
 
         image_ppnet = HierProtoPNet(
             hierarchy = hierarchy, 
             features = backbone, 
-            nprotos = cfg.DATASET.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
-            pshape = cfg.DATASET.IMAGE.PROTOTYPE_SHAPE,
+            nprotos = cfg.MODEL.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
+            pshape = cfg.MODEL.IMAGE.PROTOTYPE_SHAPE,
             mode = Mode.IMAGE,
             proto_layer_rf_info=proto_layer_rf_info,
             log=log

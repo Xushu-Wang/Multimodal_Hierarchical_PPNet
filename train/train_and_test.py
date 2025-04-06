@@ -85,13 +85,13 @@ def traintest(
             return _traintest_multi     (model, dataloader, optimizer, cfg) 
 
 def _traintest_genetic(model, dataloader, optimizer, cfg): 
-    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
+    total_obj = Objective(model.mode, cfg.OPTIM.TRAIN.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, _), (label, flat_label) in tqdm(dataloader): 
-        input = genetics.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
-        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
+        input = genetics.to(cfg.DEVICE)
+        label = label.to(cfg.DEVICE)
+        flat_label = flat_label.to(cfg.DEVICE)
+        batch_obj = Objective(model.mode, cfg.OPTIM.TRAIN.COEFS, dataloader.batch_size, optimizer.mode.value)
 
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
             conv_features = model.conv_features(input)
@@ -101,7 +101,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
                 logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
@@ -140,7 +140,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
         logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
 
         for node in model.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
@@ -157,13 +157,13 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
     return total_obj
 
 def _traintest_image(model, dataloader, optimizer, cfg): 
-    total_obj = Objective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
+    total_obj = Objective(model.mode, cfg.OPTIM.TRAIN.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (_, image), (label, flat_label) in tqdm(dataloader): 
-        input = image.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
-        batch_obj = Objective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
+        input = image.to(cfg.DEVICE)
+        label = label.to(cfg.DEVICE)
+        flat_label = flat_label.to(cfg.DEVICE)
+        batch_obj = Objective(model.mode, cfg.OPTIM.TRAIN.COEFS, dataloader.batch_size, optimizer.mode.value)
         
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
             conv_features = model.conv_features(input)
@@ -173,7 +173,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
                 logits, max_sim = node(conv_features)
                 
                 # softmax the nodes to initialize node.probs
@@ -212,7 +212,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
         logits = torch.concat([node.probs for node in last_classifiers], dim=1) # 80x113
 
         for node in model.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
@@ -229,14 +229,14 @@ def _traintest_image(model, dataloader, optimizer, cfg):
     return total_obj
 
 def _traintest_multi(model, dataloader, optimizer, cfg): 
-    total_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, len(dataloader.dataset), optimizer.mode.value)
+    total_obj = MultiObjective(model.mode, cfg.OPTIM.TRAIN.COEFS, len(dataloader.dataset), optimizer.mode.value)
 
     for (genetics, image), (label, flat_label) in tqdm(dataloader): 
-        gen_input = genetics.cuda()
-        img_input = image.cuda()
-        label = label.cuda()
-        flat_label = flat_label.cuda()
-        batch_obj = MultiObjective(model.mode, cfg.OPTIM.COEFS, dataloader.batch_size, optimizer.mode.value)
+        gen_input = genetics.to(cfg.DEVICE)
+        img_input = image.to(cfg.DEVICE)
+        label = label.to(cfg.DEVICE)
+        flat_label = flat_label.to(cfg.DEVICE)
+        batch_obj = MultiObjective(model.mode, cfg.OPTIM.TRAIN.COEFS, dataloader.batch_size, optimizer.mode.value)
 
         with torch.no_grad() if optimizer.mode == OptimMode.TEST else torch.enable_grad(): 
             gen_conv_features, img_conv_features = model.conv_features(gen_input, img_input)
@@ -247,7 +247,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
 
             for node in model.classifier_nodes: 
                 # filter out the irrelevant samples in batch 
-                mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+                mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
                 gen_logits, gen_max_sim = node.gen_node(gen_conv_features) 
                 img_logits, img_max_sim = node.img_node(img_conv_features) 
                 node.gen_node.softmax()
@@ -312,7 +312,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
         gen_logits = torch.concat([node.probs for node in gen_last_classifiers], dim=1) # 80x113
 
         for node in model.gen_net.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = gen_logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx
@@ -325,7 +325,7 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
         img_logits = torch.concat([node.probs for node in img_last_classifiers], dim=1) # 80x113
 
         for node in model.img_net.classifier_nodes: 
-            mask = torch.all(label[:,:node.depth] == node.idx.cuda(), dim=1) 
+            mask = torch.all(label[:,:node.depth] == node.idx.to(cfg.DEVICE), dim=1) 
             m_flat_label = flat_label[mask][:, -1]
             cond_m_logits = img_logits[mask][:, node.min_species_idx:node.max_species_idx]
             cond_predictions = torch.argmax(cond_m_logits, dim=1) + node.min_species_idx

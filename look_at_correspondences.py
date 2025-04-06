@@ -6,7 +6,6 @@ import math
 import os
 from matplotlib import pyplot as plt
 import torch
-import numpy as np
 from configs.cfg import get_cfg_defaults
 from dataio.dataloader import get_dataloaders
 from prototype.push import decode_onehot
