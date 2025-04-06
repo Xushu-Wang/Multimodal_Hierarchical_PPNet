@@ -6,15 +6,12 @@ DEVICE: "cuda"
 
 MODEL:
     IMAGE: 
-        PROTOTYPE_SHAPE: (64, 1, 1) 
-        TRANSFORM_MEAN: (0.706, 0.708, 0.709)
-        TRANSFORM_STD: (0.146, 0.164, 0.1837)
-        PPNET_PATH: "../output/joint/clst_neg_sep_pos_081/img_train_ep10.pth"
+        PPNET_PATH: ""
         BACKBONE_PATH: "backbones/image_120_reasonable_best.pth"
-        PROTOTYPE_SHAPE: (2048, 1, 1) 
+        PROTOTYPE_SHAPE: (64, 1, 1) 
         NUM_PROTOTYPES_PER_CLASS: 10
     GENETIC: 
-        PPNET_PATH: "../output/joint/clst_neg_sep_pos_081/gen_train_ep10.pth"
+        PPNET_PATH: ""
         BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
         PROTOTYPE_SHAPE: (64, 1, 1)
         NUM_PROTOTYPES_PER_CLASS: 40
