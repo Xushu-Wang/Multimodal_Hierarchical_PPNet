@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore", message="TypedStorage is deprecated")
 run_mode = {1 : "genetic", 2 : "image", 3 : "multimodal"} 
 
 def main(cfg: CfgNode, log: Callable):
-
     train_loader, push_loader, val_loader, _ = get_dataloaders(cfg, log)
     log("Dataloaders Constructed")
 
@@ -42,7 +41,7 @@ def main(cfg: CfgNode, log: Callable):
 
         if epoch in cfg.OPTIM.PRUNE.EPOCHS:
             log(f"Pruning")
-            prune.prune(model, cfg)
+            prune.prune(model, train_loader, cfg)
 
         if epoch < cfg.OPTIM.NUM_WARM_EPOCHS: 
             log(f'Warm Epoch: {epoch + 1}/{cfg.OPTIM.NUM_WARM_EPOCHS}')
