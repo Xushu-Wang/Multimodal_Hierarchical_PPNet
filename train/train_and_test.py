@@ -119,7 +119,7 @@ def _traintest_genetic(model, dataloader, optimizer, cfg):
                     node.n_next_correct += torch.sum(predictions == m_label) 
                     batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
-                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass)
+                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass, node)
                 batch_obj.cluster[node.depth] = cluster + batch_obj.cluster[node.depth]
                 batch_obj.separation[node.depth] = separation + batch_obj.separation[node.depth]
                 batch_obj.cluster_sep_count[node.depth] += len(m_label)
@@ -191,7 +191,7 @@ def _traintest_image(model, dataloader, optimizer, cfg):
                     node.n_next_correct += torch.sum(predictions == m_label) 
                     batch_obj.n_next_correct[node.depth] += torch.sum(predictions == m_label) 
 
-                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass)
+                cluster, separation = get_cluster_and_sep_cost(m_max_sim, m_label, node.nclass, node)
                 batch_obj.cluster[node.depth] = cluster + batch_obj.cluster[node.depth]
                 batch_obj.separation[node.depth] = separation + batch_obj.separation[node.depth]
                 batch_obj.cluster_sep_count[node.depth] += len(m_label)
@@ -273,8 +273,8 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
                     batch_obj.img_obj.n_next_correct[node.depth] += torch.sum(img_predictions == m_label) 
 
                 # cluster and separation loss  
-                gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_max_sim, m_label, node.nclass)
-                img_cluster, img_separation = get_cluster_and_sep_cost(m_img_max_sim, m_label, node.nclass)
+                gen_cluster, gen_separation = get_cluster_and_sep_cost(m_gen_max_sim, m_label, node.nclass, node.gen_node)
+                img_cluster, img_separation = get_cluster_and_sep_cost(m_img_max_sim, m_label, node.nclass, node.img_node)
                 batch_obj.gen_obj.cluster[node.depth] = batch_obj.gen_obj.cluster[node.depth] + gen_cluster
                 batch_obj.gen_obj.separation[node.depth] = batch_obj.gen_obj.separation[node.depth] + gen_separation 
                 batch_obj.gen_obj.cluster_sep_count[node.depth] = batch_obj.gen_obj.cluster_sep_count[node.depth]+ len(m_label) 

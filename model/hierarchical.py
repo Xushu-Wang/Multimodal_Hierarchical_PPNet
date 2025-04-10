@@ -34,7 +34,8 @@ class ProtoNode(nn.Module):
         taxnode: TaxNode,
         nprotos: int,
         pshape: tuple,
-        mode: Mode
+        mode: Mode,
+        fixed: bool
     ): 
         """
         Every ProtoNode has a pointer to a TaxNode and its children 
@@ -46,9 +47,10 @@ class ProtoNode(nn.Module):
         self.idx = taxnode.idx 
         self.flat_idx = taxnode.flat_idx 
         self.depth = taxnode.depth
-        self.childs = []
+        self.childs = torch.nn.ParameterList()
         self.prototype = None
-        self.mode = mode 
+        self.mode = mode
+        self.fixed = fixed
         
         self.vestigial = not taxnode.childs or len(taxnode.childs) == 1
         # self.vestigial = False
@@ -89,7 +91,7 @@ class ProtoNode(nn.Module):
                 self.probs = None
                 self.max_sim = None
 
-                if self.mode == Mode.GENETIC: 
+                if self.mode == Mode.GENETIC and self.fixed: 
                     self.register_buffer('offset_tensor', self.init_offset_tensor())
 
                 self.npredictions = 0 
@@ -230,13 +232,17 @@ class ProtoNode(nn.Module):
         prototype = self.prototype.to(x.device) 
         normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
-        if self.mode == Mode.GENETIC: 
+        if self.mode == Mode.GENETIC and self.fixed: 
+            # print(normalized_prototypes)
             normalized_prototypes = F.pad(normalized_prototypes, (0, x.shape[3] - normalized_prototypes.shape[3], 0, 0))
             normalized_prototypes = torch.gather(normalized_prototypes, 3, self.offset_tensor)
-            
+            # print(normalized_prototypes)
+        
         # IMG: (80, 2048, 8, 8) * (10 * nclass, 2048, 1, 1) -> (80, 10 * nclass, 8, 8) 
         # GEN: (80, 64, 1, 40)  * (40 * nclass, 64, 1, 40)  -> (80, 40 * nclass, 1, 1)
-        similarities = F.conv2d(x, normalized_prototypes)  
+        similarities = F.conv2d(x, normalized_prototypes)
+        # if self.mode == Mode.GENETIC:
+        #     print(similarities.shape)
         return similarities
 
     @classifier_only
@@ -282,6 +288,18 @@ class ProtoNode(nn.Module):
             del self.max_sim
             self.max_sim = None
 
+"""
+Simple layer that concatenates a given vector with the input
+"""
+class ConcatInput(nn.Module):
+    def __init__(self, vector):
+        super(ConcatInput, self).__init__()
+        self.vector = vector
+
+    def forward(self, x):
+        # Concatenate the vector with the input tensor
+        x = torch.cat([x,self.vector.repeat(x.shape[0], 1, 1, 1)], dim=1)
+        return x
 
 class HierProtoPNet(nn.Module): 
     def __init__(
@@ -291,6 +309,7 @@ class HierProtoPNet(nn.Module):
         nprotos: int,
         pshape: tuple, 
         mode: Mode,
+        cfg,
         proto_layer_rf_info=None,
         log=print
     ): 
@@ -302,6 +321,7 @@ class HierProtoPNet(nn.Module):
             mode - Mode 
             pshape - 3-tensor of prototype shapes 
             nproto - num prototypes per class
+            fixed - Whether the prototypes are fixed or not
         """
         super(HierProtoPNet, self).__init__()
         if mode == Mode.MULTIMODAL:
@@ -315,7 +335,7 @@ class HierProtoPNet(nn.Module):
         self.mode = mode
         self.classifier_nodes = []
         self.all_classifier_nodes = []
-        self.root = self.build_proto_tree(self.hierarchy.root) 
+        self.fixed = cfg.MODEL.GENETIC.FIXED_PROTOTYPES if mode == Mode.GENETIC else False
         self.add_on_layers = nn.Sequential() 
         self.proto_layer_rf_info = proto_layer_rf_info
 
@@ -331,6 +351,25 @@ class HierProtoPNet(nn.Module):
             self.add_on_layers = nn.Sequential(
                 nn.Conv2d(64, self.pshape[0], kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
             )
+        elif mode == Mode.GENETIC and cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE != "None":
+            log("Adding position encoding layers")
+            if cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "two":
+                position_encoding = torch.stack([
+                    torch.cos(torch.arange(0, 1, step=1/40) * 2 * np.pi),
+                    torch.sin(torch.arange(0, 1, step=1/40) * 2 * np.pi),
+                ])
+                position_encoding = position_encoding.unsqueeze(0).unsqueeze(2)
+                position_encoding = position_encoding.to(cfg.DEVICE)
+
+                self.add_on_layers = nn.Sequential(
+                    self.add_on_layers,
+                    ConcatInput(position_encoding)
+                )
+
+                self.pshape = (self.pshape[0]+2, self.pshape[1], self.pshape[2])
+
+        self.root = self.build_proto_tree(self.hierarchy.root) 
+
             
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
@@ -339,14 +378,13 @@ class HierProtoPNet(nn.Module):
         But this new tree has prototypes and linear layers for class prediction. 
         We also add references to all non-leaf nodes into list
         """ 
-        node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode) 
+        node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode, self.fixed) 
         if taxnode.childs: 
             self.all_classifier_nodes.append(node)
 
             if not node.vestigial: 
                 self.classifier_nodes.append(node)
 
-        node.childs = []
         for c_node in taxnode.childs:
             node.childs.append(self.build_proto_tree(c_node))
 
@@ -446,7 +484,8 @@ def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             nprotos = cfg.MODEL.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.MODEL.GENETIC.PROTOTYPE_SHAPE, 
             mode = Mode.GENETIC,
-            proto_layer_rf_info=proto_layer_rf_info
+            proto_layer_rf_info=proto_layer_rf_info,
+            cfg = cfg,
         ) 
 
         genetic_ppnet.load_state_dict(torch.load(ppnet_path, weights_only=True))
@@ -486,7 +525,8 @@ def construct_genetic_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             nprotos = cfg.MODEL.GENETIC.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.MODEL.GENETIC.PROTOTYPE_SHAPE, 
             mode = Mode.GENETIC,
-            proto_layer_rf_info=proto_layer_rf_info
+            proto_layer_rf_info=proto_layer_rf_info,
+            cfg = cfg,
         ) 
 
     return genetic_ppnet
@@ -518,7 +558,8 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             nprotos = cfg.MODEL.IMAGE.NUM_PROTOTYPES_PER_CLASS, 
             pshape = cfg.MODEL.IMAGE.PROTOTYPE_SHAPE,
             mode = Mode.IMAGE,
-            proto_layer_rf_info=proto_layer_rf_info
+            proto_layer_rf_info=proto_layer_rf_info,
+            cfg = cfg,
         )
 
         image_ppnet.load_state_dict(torch.load(ppnet_path, weights_only=True))
@@ -555,7 +596,8 @@ def construct_image_ppnet(cfg: CfgNode, log: Callable) -> HierProtoPNet:
             pshape = cfg.MODEL.IMAGE.PROTOTYPE_SHAPE,
             mode = Mode.IMAGE,
             proto_layer_rf_info=proto_layer_rf_info,
-            log=log
+            log=log,
+            cfg = cfg,
         )
 
     return image_ppnet

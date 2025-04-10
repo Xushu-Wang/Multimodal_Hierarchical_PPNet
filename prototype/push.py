@@ -86,11 +86,17 @@ def find_closest_conv_feature(
 
                 # now find the argmax index in subclass batch 
                 if mode == Mode.GENETIC:
-                    batch_argmax_proto_sim_j = [np.argmax(proto_sim_j[:,0,0]), 0, p] 
+                    if cfg.MODEL.GENETIC.FIXED_PROTOTYPES:
+                        batch_argmax_proto_sim_j = [np.argmax(proto_sim_j[:,0,0]), 0, p]
+                    else:
+                        batch_argmax_proto_sim_j = \
+                        list(np.unravel_index(np.argmax(proto_sim_j), proto_sim_j.shape))  
+                    # print("Genetic", batch_argmax_proto_sim_j, batch_max_proto_sim_j)
                 else:
                     # [0, 4, 3]
                     batch_argmax_proto_sim_j = \
                         list(np.unravel_index(np.argmax(proto_sim_j), proto_sim_j.shape))  
+                    # print("Image", batch_argmax_proto_sim_j)
 
                 # change argmax index from index among images of target class 
                 # to the index in the entire search batch. 
@@ -355,6 +361,13 @@ def push_multimodal(model, dataloader, stride, epoch, cfg):
 
     for node in model.classifier_nodes: 
         # project the prototypes in each node to prototype_update 
+        for i in range(node.gen_node.nprotos):
+            if node.depth > 0:
+                continue
+            print(torch.nn.functional.cosine_similarity(
+                node.gen_node.prototype[i], torch.tensor(node.gen_node.global_max_fmap_patches, dtype=torch.float32)[i].to(cfg.DEVICE), dim=0),
+                node.gen_node.global_max_proto_sim[i]
+            )
         node.gen_node.prototype.data.copy_(
             torch.tensor(node.gen_node.global_max_fmap_patches, dtype=torch.float32).to(cfg.DEVICE)
         )

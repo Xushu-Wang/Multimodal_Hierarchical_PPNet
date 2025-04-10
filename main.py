@@ -38,7 +38,6 @@ def main(cfg: CfgNode, log: Callable):
     wandb.log(train_loss.to_dict() | test_loss.to_dict()) 
 
     for epoch in range(cfg.OPTIM.NUM_EPOCHS): 
-
         if epoch in cfg.OPTIM.PRUNE.EPOCHS:
             log(f"Pruning")
             prune.prune(model, train_loader, cfg)

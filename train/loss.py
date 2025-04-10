@@ -213,7 +213,7 @@ class MultiObjective:
         self.correspondence = torch.zeros(1).cuda()
         torch.cuda.empty_cache()
 
-def get_cluster_and_sep_cost(max_sim, target, num_classes): 
+def get_cluster_and_sep_cost(max_sim, target, num_classes, node): 
     """
     Get cluster and separation cost.  
     Before, mask the sizes should be
@@ -235,12 +235,19 @@ def get_cluster_and_sep_cost(max_sim, target, num_classes):
     # make_one_hot(target + 1, target_one_hot)
     num_prototypes_per_class = max_sim.size(1) // num_classes
     prototypes_of_correct_class = target_one_hot.unsqueeze(2).repeat(1,1,num_prototypes_per_class).\
-                        view(target_one_hot.size(0),-1)  
+                        view(target_one_hot.size(0),-1)
     
+    # Ignore pruned prototypes
+    prototypes_of_correct_class = prototypes_of_correct_class * node.prototype_mask.view(1, -1)
+
     max_max_sims, _ = torch.max(max_sim * prototypes_of_correct_class, dim=1)
     cluster_cost = torch.sum(max_max_sims)
 
     prototypes_of_wrong_class = 1 - prototypes_of_correct_class
+    
+    # Ignore pruned prototypes
+    prototypes_of_wrong_class = prototypes_of_wrong_class * node.prototype_mask.view(1, -1)
+
     max_max_sims_to_nontarget_prototypes, _ = torch.max(max_sim * prototypes_of_wrong_class, dim=1)
     separation_cost = torch.sum(max_max_sims_to_nontarget_prototypes)
 
