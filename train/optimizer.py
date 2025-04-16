@@ -39,7 +39,7 @@ def get_optimizers(model: Module, cfg: CfgNode):
         {
             'params': model.get_prototype_parameters(), 
             'lr': cfg.OPTIM.TRAIN.WARM.PROTOTYPE_LR, 
-            'weight_decay': cfg.OPTIM.TRAIN.WARM.PROTOTYPE_WD
+            'weight_decay': 0
         }
     ])
 
@@ -62,7 +62,7 @@ def get_optimizers(model: Module, cfg: CfgNode):
         {
             'params': model.get_prototype_parameters(), 
             'lr': cfg.OPTIM.TRAIN.JOINT.PROTOTYPE_LR,
-            'weight_decay': cfg.OPTIM.TRAIN.JOINT.PROTOTYPE_WD
+            'weight_decay': 0
         }
     ])
 

@@ -12,3 +12,5 @@ experiments.sh
 train.sh
 experiments.sh
 train.sh
+vectors.npy
+vectors.pkl
