@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 import torch
 from configs.cfg import get_cfg_defaults
 from dataio.dataloader import get_dataloaders
+from model.multimodal import construct_ppnet
 from prototype.push import decode_onehot
 
 import pandas as pd
@@ -43,6 +44,7 @@ def save_class_img_prototypes(visualization_path, model_dir, epoch):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("model_dir", type=str)
+    parser.add_argument("model_name", type=str)
     parser.add_argument("epoch", type=str)
     parser.add_argument('--configs', type=str, default='configs/multi.yaml')
     parser.add_argument('--same-class-only', action='store_true')
@@ -50,12 +52,16 @@ def main():
     cfg = get_cfg_defaults()
     cfg.merge_from_file(args.configs)
 
-    _, _, val_loader, _, image_normalizer = get_dataloaders(cfg, print)
+    _, _, val_loader, _ = get_dataloaders(cfg, print)
 
     print("Loading Model")
     # model = construct_tree_ppnet(cfg).cuda()
     epoch = args.epoch
-    model = torch.load(os.path.join(args.model_dir, f"{epoch}_push_full.pth")).cuda()
+
+    cfg.MODEL.GENETIC.PPNET_PATH = os.path.join(args.model_dir,f"gen_{args.model_name}.pth")
+    cfg.MODEL.IMAGE.PPNET_PATH = os.path.join(args.model_dir,f"img_{args.model_name}.pth")
+
+    model = construct_ppnet(cfg, print).cuda()
     relevant_csv = os.path.join(args.model_dir, "images", f"epoch-{epoch}", *NAMED_LOCATION, "prototypes", "prototype-img.csv")
 
     # Open relevant csv as a pandas dataframe

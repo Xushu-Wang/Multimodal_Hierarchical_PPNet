@@ -14,9 +14,9 @@ MODEL:
         # PPNET_PATH: "../output/joint/genetic-prune-weight-5-protos_001/gen_train_ep15.pth"
         BACKBONE_PATH: "backbones/genetics_120_reasonable_best.pth"
         PROTOTYPE_SHAPE: (64, 1, 1)
-        NUM_PROTOTYPES_PER_CLASS: 10
-        FIXED_PROTOTYPES: False
-        POSITION_ENCODING_TYPE: "two-late" # two: concatenate (cos(pos), sin(pos)) wth the latent embedding, two-late: same as above, but x = normalize(normalize(x)::(cos(pos), sin(pos)))
+        NUM_PROTOTYPES_PER_CLASS: 40
+        FIXED_PROTOTYPES: True
+        # POSITION_ENCODING_TYPE: "two-late" # two: concatenate (cos(pos), sin(pos)) wth the latent embedding, two-late: same as above, but x = normalize(normalize(x)::(cos(pos), sin(pos)))
 
 DATASET:
     IMAGE_PATH: "../datasets/full_bioscan_images/" 
@@ -64,22 +64,21 @@ OPTIM:
                 L1: 0.0
                 ORTHO: 0.0
         WARM: 
-            ADD_ON_LAYERS_LR: 3e-2 
+            ADD_ON_LAYERS_LR: 1e-2
             ADD_ON_LAYERS_WD: 0.
-            PROTOTYPE_LR: 3e-2 
+            PROTOTYPE_LR: 1e-2 
             PROTOTYPE_WD: 0.
         JOINT: 
-            FEATURES_LR: 1e-2 
+            FEATURES_LR: 1e-4
             FEATURES_WD: 0.
-            ADD_ON_LAYERS_LR: 1e-2
-            ADD_ON_LAYERS_WD: 1e-3
-            # LAST_LAYER_LR: 1e-2 
-            LAST_LAYER_LR: 0.0
-            LAST_LAYER_WD: 1e-3 
-            PROTOTYPE_LR: 1e-2
+            ADD_ON_LAYERS_LR: 3e-3
+            ADD_ON_LAYERS_WD: 1e-4
+            LAST_LAYER_LR: 1e-3 
+            LAST_LAYER_WD: 1e-4 
+            PROTOTYPE_LR: 3e-3
             PROTOTYPE_WD: 0.
         LAST_LAYER: 
-            LAST_LAYER_LR: 1e-2 
+            LAST_LAYER_LR: 1e-3
             LAST_LAYER_MOM: 0.9
     PUSH: 
         # EPOCHS: [15, 40, 80, 120]
