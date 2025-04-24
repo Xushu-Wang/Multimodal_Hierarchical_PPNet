@@ -14,3 +14,4 @@ experiments.sh
 train.sh
 vectors.npy
 vectors.pkl
+pacmap_vectors

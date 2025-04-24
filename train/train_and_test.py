@@ -292,14 +292,15 @@ def _traintest_multi(model, dataloader, optimizer, cfg):
                 total_corr_count += corr_count
 
                 # orthogonality loss 
-                batch_obj.gen_obj.orthogonality += get_ortho_cost(node.gen_node)
-                batch_obj.img_obj.orthogonality += get_ortho_cost(node.img_node)
+                batch_obj.gen_obj.orthogonality += get_ortho_cost(node.gen_node, cfg, True)
+                batch_obj.img_obj.orthogonality += get_ortho_cost(node.img_node, cfg)
 
             batch_obj.correspondence /= total_corr_count
 
             if not optimizer.mode == OptimMode.TEST: 
                 total_loss = batch_obj.total() 
                 total_loss.backward()
+
                 optimizer.step()
                 optimizer.zero_grad() 
 

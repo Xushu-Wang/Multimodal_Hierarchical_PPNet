@@ -129,6 +129,11 @@ if __name__ == '__main__':
         cfg.OPTIM.TRAIN.COEFS.IMAGE.L1 = args.il1
         cfg.OPTIM.TRAIN.COEFS.IMAGE.ORTHO = args.iortho
 
+    # Save the config to a file
+    config_path = os.path.join(cfg.OUTPUT.MODEL_DIR, "config.yaml")
+    with open(config_path, 'w') as f:
+        f.write(cfg.dump())
+
     log, logclose = create_logger(os.path.join(cfg.OUTPUT.MODEL_DIR, 'train.log'))
 
     wandb.init(

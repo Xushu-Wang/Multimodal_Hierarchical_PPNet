@@ -1,3 +1,4 @@
+import math
 import torch
 import numpy as np
 import os
@@ -35,7 +36,8 @@ class ProtoNode(nn.Module):
         nprotos: int,
         pshape: tuple,
         mode: Mode,
-        fixed: bool
+        fixed: bool,
+        cfg: CfgNode
     ): 
         """
         Every ProtoNode has a pointer to a TaxNode and its children 
@@ -51,7 +53,8 @@ class ProtoNode(nn.Module):
         self.prototype = None
         self.mode = mode
         self.fixed = fixed
-        
+        self.cfg = cfg
+
         self.vestigial = not taxnode.childs or len(taxnode.childs) == 1
         # self.vestigial = False
 
@@ -84,6 +87,7 @@ class ProtoNode(nn.Module):
                     torch.ones(self.nprotos_total, device="cuda")
                 )
 
+                # self.last_layer = self.init_last_layer(0)
                 self.last_layer = self.init_last_layer()
 
                 # outputs of forward pass will be stored here 
@@ -198,11 +202,11 @@ class ProtoNode(nn.Module):
         """
         Puts all linear last-layer weights of this ProtoNode and all child ProtoNodes into a list
         """
-        if self.prototype is None: 
+        if len(self.childs) == 0: 
             # if it's a leaf node there are no params
-            return []
+            return torch.nn.ParameterList([])
 
-        params = [] if self.vestigial else [p for p in self.last_layer.parameters()]
+        params = torch.nn.ParameterList([]) if self.vestigial else torch.nn.ParameterList([p for p in self.last_layer.parameters()])
         for child in self.childs:
             for param in child.get_last_layer_parameters(): 
                 params.append(param)
@@ -228,7 +232,9 @@ class ProtoNode(nn.Module):
         """
         # keep sqrt_D here 
         sqrt_D = (self.pshape[1] * self.pshape[2]) ** 0.5 
-        x = F.normalize(x, dim=1) / sqrt_D
+
+        x = F.normalize(x, dim =1) / sqrt_D
+
         prototype = self.prototype.to(x.device) 
         normalized_prototypes = F.normalize(prototype, dim=1) / sqrt_D # type:ignore
 
@@ -289,17 +295,48 @@ class ProtoNode(nn.Module):
             self.max_sim = None
 
 """
-Simple layer that concatenates a given vector with the input
+Simple layer that concatenates a given vector with the input. 
+If normalize is true, the input will be normalized before concatenation
 """
 class ConcatInput(nn.Module):
-    def __init__(self, vector):
+    def __init__(self, vector, normalize):
         super(ConcatInput, self).__init__()
         self.vector = vector
+        self.normalize = normalize
 
     def forward(self, x):
         # Concatenate the vector with the input tensor
+        if self.normalize:
+            x = F.normalize(x, dim=1)
+
         x = torch.cat([x,self.vector.repeat(x.shape[0], 1, 1, 1)], dim=1)
         return x
+
+class SinusoidalPositionEncoding(nn.Module):
+    """
+    Sinusoidal Position Encoding based on "Attention is All You Need"
+    """
+    def __init__(self, d_model: int, max_len: int = 40):
+        super(SinusoidalPositionEncoding, self).__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # [max_len, 1]
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        pe = pe.unsqueeze(1).unsqueeze(2)  # Shape: [max_len, 1, 1, d_model]
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor of shape [B, D, H, W] (typically genetic input)
+        Returns:
+            Tensor with same shape and positional encodings added in-place.
+        """
+        B, D, H, W = x.size()
+        pe = self.pe[:H * W].reshape(H, W, 1, D).permute(2, 3, 0, 1)  # [1, D, H, W]
+        return x + 4 * pe  # Broadcasting will add it correctly
 
 class HierProtoPNet(nn.Module): 
     def __init__(
@@ -338,6 +375,7 @@ class HierProtoPNet(nn.Module):
         self.fixed = cfg.MODEL.GENETIC.FIXED_PROTOTYPES if mode == Mode.GENETIC else False
         self.add_on_layers = nn.Sequential() 
         self.proto_layer_rf_info = proto_layer_rf_info
+        self.cfg = cfg
 
         if mode == Mode.IMAGE and self.pshape[0] != 2048:
             log("Image prototype shape differs from backbone output shape. Adding add-on layers.")
@@ -353,24 +391,28 @@ class HierProtoPNet(nn.Module):
             )
         elif mode == Mode.GENETIC and cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE != "None":
             log("Adding position encoding layers")
-            if cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "two":
+            if cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "two" or cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "two-late":
                 position_encoding = torch.stack([
                     torch.cos(torch.arange(0, 1, step=1/40) * 2 * np.pi),
-                    torch.sin(torch.arange(0, 1, step=1/40) * 2 * np.pi),
+                    torch.sin(torch.arange(0, 1, step=1/40) * 1 * np.pi),
                 ])
                 position_encoding = position_encoding.unsqueeze(0).unsqueeze(2)
                 position_encoding = position_encoding.to(cfg.DEVICE)
 
                 self.add_on_layers = nn.Sequential(
                     self.add_on_layers,
-                    ConcatInput(position_encoding)
+                    ConcatInput(position_encoding, normalize=(cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "two-late"))
                 )
 
                 self.pshape = (self.pshape[0]+2, self.pshape[1], self.pshape[2])
+            if cfg.MODEL.GENETIC.POSITION_ENCODING_TYPE == "sinusoidal":
+                # Implement position encoding from attention is all you need
+                self.add_on_layers = nn.Sequential(
+                    self.add_on_layers,
+                    SinusoidalPositionEncoding(self.pshape[0], max_len=40)
+                )
 
         self.root = self.build_proto_tree(self.hierarchy.root) 
-
-            
 
     def build_proto_tree(self, taxnode: TaxNode) -> ProtoNode: 
         """
@@ -378,7 +420,7 @@ class HierProtoPNet(nn.Module):
         But this new tree has prototypes and linear layers for class prediction. 
         We also add references to all non-leaf nodes into list
         """ 
-        node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode, self.fixed) 
+        node = ProtoNode(taxnode, self.nprotos, self.pshape, self.mode, self.fixed, self.cfg) 
         if taxnode.childs: 
             self.all_classifier_nodes.append(node)
 

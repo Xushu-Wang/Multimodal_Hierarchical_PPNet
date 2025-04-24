@@ -259,13 +259,27 @@ def get_l1_cost(node: ProtoNode):
     l1 = torch.linalg.vector_norm(masked_weights, ord=1)
     return l1
 
+def ignore_differing_positions(matrix):
+    # This will be all 1's in locations corresponding to the same location
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            if i % 40 != j % 40:
+                matrix[i][j] = 0
+    return matrix
+
+
 def sim_matrix(prototypes):
     prototypes_cur = prototypes.squeeze(-1).squeeze(-1)
     prototypes_normed = prototypes_cur / (prototypes_cur.norm(dim=-1, keepdim=True) + 1e-6)
     return prototypes_normed @ prototypes_normed.T
 
-def get_ortho_cost(node: ProtoNode, temp=0.01):
+def get_ortho_cost(node: ProtoNode, cfg, genetic=False, temp=0.01):
     diff = sim_matrix(node.prototype * node.prototype_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)) - torch.eye(node.prototype.size(0)).cuda()
+    
+    if genetic and cfg.MODEL.GENETIC.FIXED_PROTOTYPES and cfg.OPTIM.TRAIN.COEFS.GENETIC.ORTHO > 0:
+        print("SLOW!")
+        diff = ignore_differing_positions(diff)
+    
     if temp is not None:
         mask = torch.nn.functional.softmax(diff / temp, dim=-1)
     else:

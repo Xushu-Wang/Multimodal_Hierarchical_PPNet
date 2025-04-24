@@ -36,3 +36,13 @@ def does_it_match(
         if matcher[i] != location[i]:
             return False
     return True
+
+def find_node(model, location):
+    for node in model.classifier_nodes:
+        if len(node.idx) == len(location) and all([a == b for a, b in zip(node.idx, location)]):
+            return node
+    return None
+
+def find_node_hierarchical(hierarchy, location):
+    succ, node = hierarchy.traverse(location)
+    return node if succ else None

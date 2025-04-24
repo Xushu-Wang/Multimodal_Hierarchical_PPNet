@@ -9,9 +9,9 @@ class OptimMode(Enum):
     """
     Enumeration object to specify which parameters to train. 
     """
-    WARM = "train"
+    WARM = "warm"
     JOINT = "train"
-    LAST = "train"
+    LAST = "last"
     TEST = "test"
 
 class Optim: 
@@ -47,22 +47,26 @@ def get_optimizers(model: Module, cfg: CfgNode):
         {
             'params': model.features.parameters(), 
             'lr': cfg.OPTIM.TRAIN.JOINT.FEATURES_LR,
-            'weight_decay': cfg.OPTIM.TRAIN.JOINT.FEATURES_WD
+            'weight_decay': cfg.OPTIM.TRAIN.JOINT.FEATURES_WD,
+            "name": "features"
         },
         {
             'params': model.add_on_layers.parameters(), 
             'lr': cfg.OPTIM.TRAIN.JOINT.ADD_ON_LAYERS_LR,
-            'weight_decay': cfg.OPTIM.TRAIN.JOINT.ADD_ON_LAYERS_WD
+            'weight_decay': cfg.OPTIM.TRAIN.JOINT.ADD_ON_LAYERS_WD,
+            "name": "add_on_layers"
         },
         {
             'params': model.get_last_layer_parameters(), 
             'lr': cfg.OPTIM.TRAIN.JOINT.LAST_LAYER_LR,
-            'weight_decay': cfg.OPTIM.TRAIN.JOINT.LAST_LAYER_WD
+            'weight_decay': cfg.OPTIM.TRAIN.JOINT.LAST_LAYER_WD,
+            "name": "last_layer"
         },
         {
             'params': model.get_prototype_parameters(), 
             'lr': cfg.OPTIM.TRAIN.JOINT.PROTOTYPE_LR,
-            'weight_decay': 0
+            'weight_decay': 0,
+            "name": "prototype"
         }
     ])
 
